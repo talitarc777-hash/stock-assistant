@@ -43,8 +43,10 @@ app.add_middleware(
     allow_origins=[
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://stock-assistant-byal7s80k-talitarc777-hashs-projects.vercel.app",
+    "https://stock-assistant-three.vercel.app",
     ],
+    # Vercel preview URLs often change per deploy; allow this project pattern too.
+    allow_origin_regex=r"^https://stock-assistant-.*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
