@@ -174,6 +174,7 @@ Endpoint:
 - `GET /chart-data?ticker=VOO&period=5y`
 - `GET /summary-dashboard?tickers=VOO,SPY,QQQ,AAPL,MSFT,NVDA`
 - `GET /paper-status?ticker=VOO`
+- `GET /forecast?ticker=VOO&period=2y`
 
 Example (PowerShell):
 
@@ -188,6 +189,7 @@ Invoke-RestMethod "http://127.0.0.1:8000/backtest?ticker=VOO&period=10y&transact
 Invoke-RestMethod "http://127.0.0.1:8000/chart-data?ticker=VOO&period=5y"
 Invoke-RestMethod "http://127.0.0.1:8000/summary-dashboard?tickers=VOO,SPY,QQQ,AAPL,MSFT,NVDA"
 Invoke-RestMethod "http://127.0.0.1:8000/paper-status?ticker=VOO"
+Invoke-RestMethod "http://127.0.0.1:8000/forecast?ticker=VOO&period=2y"
 ```
 
 Response includes:
@@ -210,6 +212,8 @@ Response includes:
 - `/summary-dashboard` includes compact per-ticker fields:
   latest close, daily % change, score, label, action summary, above SMA200, RSI, and MACD bullish flag
 - `/paper-status` includes simulation-only cash/position/PnL state and hypothetical event history
+- `/forecast` includes scenario-based 5d/20d outlook, trend regime, expected range,
+  support/resistance, confidence score, and explanation bullets
 
 ## Service Usage (Python)
 
@@ -250,6 +254,7 @@ Indicator columns added by `add_technical_indicators(...)`:
 - `GET /chart-data?ticker=VOO&period=5y` endpoint
 - `GET /summary-dashboard?tickers=VOO,SPY,QQQ,AAPL,MSFT,NVDA` endpoint
 - `GET /paper-status?ticker=VOO` endpoint
+- `GET /forecast?ticker=VOO&period=2y` endpoint
 - Typed settings loaded from `.env`
 - Market data service using `yfinance`
 - Technical indicator service with validation
@@ -259,6 +264,7 @@ Indicator columns added by `add_technical_indicators(...)`:
 - Chart-ready and dashboard summary endpoints for frontend integration
 - Minimal React + Vite dashboard (`frontend/`) connected to FastAPI
 - Paper-trading simulator module (simulation only, no broker integration)
+- Scenario-based forecast module (not a guaranteed prediction)
 
 ## Next Suggested Steps
 
@@ -273,6 +279,7 @@ Indicator columns added by `add_technical_indicators(...)`:
 - This project provides educational/decision support outputs.
 - It does **not** execute trades automatically.
 - Paper trading features are simulation-only and do **not** place real orders.
+- Forecast features are scenario-based and do **not** guarantee future prices.
 
 ## Troubleshooting
 
