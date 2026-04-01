@@ -1,0 +1,206 @@
+import React, { useEffect, useMemo, useState } from "react";
+
+import { fetchAnalyze, fetchChartData, fetchWatchlistAnalyze } from "./api";
+import LineChart from "./components/LineChart";
+import WatchlistTable from "./components/WatchlistTable";
+import "./styles.css";
+
+const DEFAULT_WATCHLIST = ["VOO", "SPY", "QQQ", "AAPL", "MSFT", "NVDA"];
+const DEFAULT_PERIOD = "5y";
+
+function toNumeric(value) {
+  if (value === null || value === undefined) {
+    return Number.NaN;
+  }
+  const num = Number(value);
+  return Number.isFinite(num) ? num : Number.NaN;
+}
+
+export default function App() {
+  const [watchlistRows, setWatchlistRows] = useState([]);
+  const [selectedTicker, setSelectedTicker] = useState("VOO");
+  const [analyzeData, setAnalyzeData] = useState(null);
+  const [chartData, setChartData] = useState(null);
+  const [isLoadingWatchlist, setIsLoadingWatchlist] = useState(false);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [error, setError] = useState("");
+
+  async function loadWatchlist() {
+    setIsLoadingWatchlist(true);
+    setError("");
+    try {
+      const response = await fetchWatchlistAnalyze(DEFAULT_WATCHLIST, DEFAULT_PERIOD);
+      const rankedRows = response.ranked_results || [];
+      setWatchlistRows(rankedRows);
+      if (rankedRows.length > 0) {
+        const tickers = rankedRows.map((row) => row.ticker);
+        if (!tickers.includes(selectedTicker)) {
+          setSelectedTicker(tickers[0]);
+        }
+      }
+    } catch (err) {
+      setError(err.message || "Failed to load watchlist.");
+    } finally {
+      setIsLoadingWatchlist(false);
+    }
+  }
+
+  async function loadTickerDetail(ticker) {
+    if (!ticker) return;
+    setIsLoadingDetail(true);
+    setError("");
+    try {
+      const [analysis, chart] = await Promise.all([
+        fetchAnalyze(ticker, DEFAULT_PERIOD),
+        fetchChartData(ticker, DEFAULT_PERIOD),
+      ]);
+      setAnalyzeData(analysis);
+      setChartData(chart);
+    } catch (err) {
+      setError(err.message || "Failed to load ticker detail.");
+    } finally {
+      setIsLoadingDetail(false);
+    }
+  }
+
+  useEffect(() => {
+    loadWatchlist();
+  }, []);
+
+  useEffect(() => {
+    loadTickerDetail(selectedTicker);
+  }, [selectedTicker]);
+
+  const chartSeries = useMemo(() => {
+    if (!chartData?.series) return [];
+    return chartData.series.map((point) => ({
+      date: point.date,
+      close: toNumeric(point.close),
+      sma_20: toNumeric(point.sma_20),
+      sma_50: toNumeric(point.sma_50),
+      sma_200: toNumeric(point.sma_200),
+      rsi_14: toNumeric(point.rsi_14),
+      macd_line: toNumeric(point.macd_line),
+      macd_signal: toNumeric(point.macd_signal),
+    }));
+  }, [chartData]);
+
+  const scoreSeries = useMemo(() => {
+    if (!chartData?.score_series) return [];
+    return chartData.score_series.map((point) => ({
+      date: point.date,
+      total_score: toNumeric(point.total_score),
+    }));
+  }, [chartData]);
+
+  return (
+    <main className="app-shell">
+      <header className="app-header">
+        <div>
+          <h1>Stock Assistant Dashboard</h1>
+          <p>Simple decision-support view powered by the FastAPI backend.</p>
+        </div>
+        <div className="header-controls">
+          <label htmlFor="ticker-select">Ticker</label>
+          <select
+            id="ticker-select"
+            value={selectedTicker}
+            onChange={(event) => setSelectedTicker(event.target.value)}
+          >
+            {watchlistRows.map((row) => (
+              <option key={row.ticker} value={row.ticker}>
+                {row.ticker}
+              </option>
+            ))}
+          </select>
+          <button type="button" onClick={loadWatchlist} disabled={isLoadingWatchlist}>
+            {isLoadingWatchlist ? "Refreshing..." : "Refresh"}
+          </button>
+        </div>
+      </header>
+
+      {error ? <p className="error-box">{error}</p> : null}
+
+      <div className="layout-grid">
+        <WatchlistTable
+          rows={watchlistRows}
+          selectedTicker={selectedTicker}
+          onSelectTicker={setSelectedTicker}
+        />
+
+        <section className="panel">
+          <h3>Ticker Detail</h3>
+          {isLoadingDetail || !analyzeData ? (
+            <p>Loading ticker details...</p>
+          ) : (
+            <>
+              <div className="detail-grid">
+                <p>
+                  <strong>Ticker:</strong> {analyzeData.ticker}
+                </p>
+                <p>
+                  <strong>Latest Close:</strong> {analyzeData.latest_close.toFixed(2)}
+                </p>
+                <p>
+                  <strong>Score:</strong> {analyzeData.score_breakdown.total_score}
+                </p>
+                <p>
+                  <strong>Label:</strong> {analyzeData.label}
+                </p>
+                <p>
+                  <strong>Action:</strong> {analyzeData.action_summary}
+                </p>
+                <p>
+                  <strong>Benchmark Strength:</strong>{" "}
+                  {analyzeData.benchmark_relative?.benchmark_strength_score ?? "N/A"}
+                </p>
+              </div>
+              <h4>Explanation</h4>
+              <ul className="bullet-list">
+                {analyzeData.explanation_bullets.map((bullet) => (
+                  <li key={bullet}>{bullet}</li>
+                ))}
+              </ul>
+            </>
+          )}
+        </section>
+      </div>
+
+      <LineChart
+        title="Price with SMA20 / SMA50 / SMA200"
+        points={chartSeries}
+        lines={[
+          { key: "close", label: "Close", color: "#111827" },
+          { key: "sma_20", label: "SMA20", color: "#2563eb" },
+          { key: "sma_50", label: "SMA50", color: "#16a34a" },
+          { key: "sma_200", label: "SMA200", color: "#d97706" },
+        ]}
+      />
+
+      <div className="chart-grid">
+        <LineChart
+          title="RSI (14)"
+          points={chartSeries}
+          lines={[{ key: "rsi_14", label: "RSI14", color: "#7c3aed" }]}
+          height={180}
+        />
+        <LineChart
+          title="MACD"
+          points={chartSeries}
+          lines={[
+            { key: "macd_line", label: "MACD", color: "#0f766e" },
+            { key: "macd_signal", label: "Signal", color: "#dc2626" },
+          ]}
+          height={180}
+        />
+      </div>
+
+      <LineChart
+        title="Score Over Time"
+        points={scoreSeries}
+        lines={[{ key: "total_score", label: "Total Score", color: "#374151" }]}
+        height={180}
+      />
+    </main>
+  );
+}

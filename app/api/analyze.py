@@ -1,0 +1,313 @@
+"""API endpoint for explainable stock analysis scoring."""
+
+from __future__ import annotations
+
+import logging
+
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
+
+from app.core.api_utils import (
+    PERIOD_PATTERN,
+    TICKER_PATTERN,
+    parse_ticker_csv,
+    to_json_safe,
+    to_json_safe_dict,
+)
+from app.services.benchmark import (
+    BenchmarkAnalysisError,
+    compare_to_benchmark,
+)
+from app.services.indicators import IndicatorInputError, add_technical_indicators
+from app.services.market_data import (
+    EmptyDataError,
+    InvalidTickerError,
+    MarketDataError,
+    get_price_history,
+)
+from app.services.scoring import ScoringInputError, score_from_indicators
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(tags=["analysis"])
+
+
+class ScoreBreakdownResponse(BaseModel):
+    """Serializable score breakdown fields."""
+
+    trend_score: int
+    momentum_score: int
+    confirmation_score: int
+    risk_penalty: int
+    total_score: int
+
+
+class FailedTickerResponse(BaseModel):
+    """Per-ticker failure details for batch endpoints."""
+
+    ticker: str
+    error: str
+
+
+class BenchmarkRelativeResponse(BaseModel):
+    """Typed benchmark-relative output."""
+
+    benchmark: str
+    returns_pct: dict[str, float | None]
+    benchmark_returns_pct: dict[str, float | None]
+    excess_returns_pct: dict[str, float | None]
+    benchmark_strength_score: int
+
+
+class AnalyzeResponse(BaseModel):
+    """Response model for the /analyze endpoint."""
+
+    ticker: str
+    latest_close: float
+    score_breakdown: ScoreBreakdownResponse
+    label: str
+    action_summary: str
+    explanation_bullets: list[str]
+    benchmark_relative: BenchmarkRelativeResponse
+
+
+class BenchmarkCompareResponse(BaseModel):
+    """Response model for /compare-to-benchmark."""
+
+    ticker: str
+    benchmark: str
+    period: str
+    performance: BenchmarkRelativeResponse
+
+
+class WatchlistAnalyzeResponse(BaseModel):
+    """Response model for /watchlist-analyze."""
+
+    benchmark: str
+    period: str
+    ranked_results: list[AnalyzeResponse]
+    failed_tickers: list[FailedTickerResponse]
+
+
+def _build_ticker_analysis_response(
+    ticker: str,
+    period: str,
+    benchmark: str,
+    benchmark_df,
+) -> AnalyzeResponse:
+    """Build a single-ticker analysis response for reuse across endpoints."""
+    price_df = get_price_history(ticker=ticker, period=period)
+    indicators_df = add_technical_indicators(price_df)
+    score = score_from_indicators(indicators_df)
+    benchmark_cmp = compare_to_benchmark(
+        ticker_df=price_df,
+        benchmark_df=benchmark_df,
+        benchmark_symbol=benchmark,
+    )
+
+    latest_close = to_json_safe(float(indicators_df.iloc[-1]["close"]))
+
+    benchmark_relative = BenchmarkRelativeResponse(
+        benchmark=benchmark_cmp.benchmark,
+        returns_pct=to_json_safe_dict(benchmark_cmp.returns),
+        benchmark_returns_pct=to_json_safe_dict(benchmark_cmp.benchmark_returns),
+        excess_returns_pct=to_json_safe_dict(benchmark_cmp.excess_returns),
+        benchmark_strength_score=benchmark_cmp.benchmark_strength_score,
+    )
+
+    return AnalyzeResponse(
+        ticker=ticker.strip().upper(),
+        latest_close=float(latest_close),
+        score_breakdown=ScoreBreakdownResponse(
+            trend_score=score.trend_score,
+            momentum_score=score.momentum_score,
+            confirmation_score=score.confirmation_score,
+            risk_penalty=score.risk_penalty,
+            total_score=score.total_score,
+        ),
+        label=score.label,
+        action_summary=score.action_summary,
+        explanation_bullets=score.explanations,
+        benchmark_relative=benchmark_relative,
+    )
+
+
+@router.get("/analyze", response_model=AnalyzeResponse)
+def analyze_ticker(
+    ticker: str = Query(
+        ...,
+        min_length=1,
+        max_length=15,
+        pattern=TICKER_PATTERN,
+        description="Ticker symbol, e.g. VOO",
+    ),
+    period: str = Query(
+        "5y",
+        pattern=PERIOD_PATTERN,
+        description="History period, e.g. 1y, 5y, max",
+    ),
+    benchmark: str = Query(
+        "VOO",
+        min_length=1,
+        max_length=15,
+        pattern=TICKER_PATTERN,
+        description="Benchmark symbol, default VOO",
+    ),
+) -> AnalyzeResponse:
+    """Run indicator + scoring analysis for one ticker with deterministic rules."""
+    logger.info("Request /analyze ticker=%s period=%s benchmark=%s", ticker, period, benchmark)
+    try:
+        benchmark_df = get_price_history(ticker=benchmark, period=period)
+        return _build_ticker_analysis_response(
+            ticker=ticker,
+            period=period,
+            benchmark=benchmark,
+            benchmark_df=benchmark_df,
+        )
+    except InvalidTickerError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except EmptyDataError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (IndicatorInputError, ScoringInputError, BenchmarkAnalysisError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except MarketDataError as exc:
+        logger.warning("Market data error during analysis: %s", exc)
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover - defensive guard
+        logger.exception("Unexpected error in /analyze")
+        raise HTTPException(status_code=500, detail="Unexpected server error.") from exc
+
+
+@router.get("/compare-to-benchmark", response_model=BenchmarkCompareResponse)
+def compare_benchmark_endpoint(
+    ticker: str = Query(
+        ...,
+        min_length=1,
+        max_length=15,
+        pattern=TICKER_PATTERN,
+        description="Ticker symbol, e.g. QQQ",
+    ),
+    benchmark: str = Query(
+        "VOO",
+        min_length=1,
+        max_length=15,
+        pattern=TICKER_PATTERN,
+        description="Benchmark symbol, default VOO",
+    ),
+    period: str = Query(
+        "5y",
+        pattern=PERIOD_PATTERN,
+        description="History period, e.g. 1y, 5y, max",
+    ),
+) -> BenchmarkCompareResponse:
+    """Compare ticker performance against a benchmark over 1m/3m/6m/12m periods."""
+    logger.info(
+        "Request /compare-to-benchmark ticker=%s benchmark=%s period=%s",
+        ticker,
+        benchmark,
+        period,
+    )
+    try:
+        ticker_df = get_price_history(ticker=ticker, period=period)
+        benchmark_df = get_price_history(ticker=benchmark, period=period)
+        cmp = compare_to_benchmark(
+            ticker_df=ticker_df,
+            benchmark_df=benchmark_df,
+            benchmark_symbol=benchmark,
+        )
+    except InvalidTickerError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except EmptyDataError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (MarketDataError, BenchmarkAnalysisError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover - defensive guard
+        logger.exception("Unexpected error in /compare-to-benchmark")
+        raise HTTPException(status_code=500, detail="Unexpected server error.") from exc
+
+    performance = BenchmarkRelativeResponse(
+        benchmark=cmp.benchmark,
+        returns_pct=to_json_safe_dict(cmp.returns),
+        benchmark_returns_pct=to_json_safe_dict(cmp.benchmark_returns),
+        excess_returns_pct=to_json_safe_dict(cmp.excess_returns),
+        benchmark_strength_score=cmp.benchmark_strength_score,
+    )
+
+    return BenchmarkCompareResponse(
+        ticker=ticker.strip().upper(),
+        benchmark=cmp.benchmark,
+        period=period,
+        performance=performance,
+    )
+
+
+@router.get("/watchlist-analyze", response_model=WatchlistAnalyzeResponse)
+def watchlist_analyze(
+    tickers: str = Query(..., description="Comma-separated tickers, e.g. VOO,SPY,QQQ"),
+    period: str = Query(
+        "5y",
+        pattern=PERIOD_PATTERN,
+        description="History period, e.g. 1y, 5y, max",
+    ),
+    benchmark: str = Query(
+        "VOO",
+        min_length=1,
+        max_length=15,
+        pattern=TICKER_PATTERN,
+        description="Benchmark symbol, default VOO",
+    ),
+) -> WatchlistAnalyzeResponse:
+    """Analyze a comma-separated ticker list and rank by score descending."""
+    logger.info(
+        "Request /watchlist-analyze tickers=%s period=%s benchmark=%s",
+        tickers,
+        period,
+        benchmark,
+    )
+    try:
+        ticker_list = parse_ticker_csv(tickers)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
+        benchmark_df = get_price_history(ticker=benchmark, period=period)
+    except (InvalidTickerError, EmptyDataError) as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid benchmark: {exc}") from exc
+    except MarketDataError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover - defensive guard
+        logger.exception("Unexpected error in /watchlist-analyze benchmark setup")
+        raise HTTPException(status_code=500, detail="Unexpected server error.") from exc
+
+    ranked_results: list[AnalyzeResponse] = []
+    failed_tickers: list[FailedTickerResponse] = []
+
+    for ticker in ticker_list:
+        try:
+            result = _build_ticker_analysis_response(
+                ticker=ticker,
+                period=period,
+                benchmark=benchmark,
+                benchmark_df=benchmark_df,
+            )
+            ranked_results.append(result)
+        except (InvalidTickerError, EmptyDataError, IndicatorInputError, ScoringInputError, BenchmarkAnalysisError, MarketDataError) as exc:
+            logger.warning("Watchlist analysis failed for ticker=%s: %s", ticker, exc)
+            failed_tickers.append(FailedTickerResponse(ticker=ticker, error=str(exc)))
+        except Exception as exc:  # pragma: no cover - defensive guard
+            logger.exception("Unexpected watchlist analysis failure for ticker=%s", ticker)
+            failed_tickers.append(
+                FailedTickerResponse(ticker=ticker, error="Unexpected server error.")
+            )
+
+    ranked_results.sort(
+        key=lambda item: item.score_breakdown.total_score,
+        reverse=True,
+    )
+
+    return WatchlistAnalyzeResponse(
+        benchmark=benchmark.strip().upper(),
+        period=period,
+        ranked_results=ranked_results,
+        failed_tickers=failed_tickers,
+    )

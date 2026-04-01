@@ -1,0 +1,6 @@
+{
+  "watchlist": ["VOO", "SPY", "QQQ", "AAPL", "MSFT", "NVDA"],
+  "period": "5y",
+  "benchmark": "VOO",
+  "transaction_cost_pct": 0.0
+}

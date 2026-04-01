@@ -1,0 +1,26 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "API: Run FastAPI",
+      "type": "shell",
+      "command": ".\\.venv\\Scripts\\python.exe -m uvicorn app.main:app --reload",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Scan: Daily Watchlist",
+      "type": "shell",
+      "command": ".\\.venv\\Scripts\\python.exe scripts\\daily_scan.py",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Backtest: VOO 10y",
+      "type": "shell",
+      "command": ".\\.venv\\Scripts\\python.exe scripts\\cli.py backtest --ticker VOO --period 10y",
+      "group": "test",
+      "problemMatcher": []
+    }
+  ]
+}
