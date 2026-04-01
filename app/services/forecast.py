@@ -27,6 +27,10 @@ class ForecastResult:
     forecast_horizon_5d: str
     forecast_horizon_20d: str
     trend_regime: str
+    trend_regime_zh: str
+    forecast_summary_en: str
+    forecast_summary_zh: str
+    forecast_summary_bilingual: str
     expected_range_upper: float
     expected_range_lower: float
     confidence_score: int
@@ -114,6 +118,49 @@ def _build_outlook_text(trend_regime: str, horizon_days: int, confidence_score: 
     if confidence_score >= 60:
         return "Outlook is mixed but stable, with range-bound movement more likely than breakout."
     return "Outlook is uncertain, with sideways movement and quick reversals both possible."
+
+
+def _trend_regime_zh(trend_regime: str) -> str:
+    """Return Traditional Chinese label for the trend regime."""
+    if trend_regime == "bullish":
+        return "偏強 / 看漲"
+    if trend_regime == "bearish":
+        return "偏弱 / 看淡"
+    return "中性"
+
+
+def _build_forecast_summary_en(
+    trend_regime: str,
+    expected_range_lower: float,
+    expected_range_upper: float,
+    confidence_score: int,
+    support_level: float,
+    resistance_level: float,
+) -> str:
+    """Build short English summary for the forecast."""
+    return (
+        f"Trend regime is {trend_regime}. "
+        f"Expected range {expected_range_lower:.2f}–{expected_range_upper:.2f}. "
+        f"Support near {support_level:.2f}, resistance near {resistance_level:.2f}. "
+        f"Confidence score {confidence_score}/100."
+    )
+
+
+def _build_forecast_summary_zh(
+    trend_regime_zh: str,
+    expected_range_lower: float,
+    expected_range_upper: float,
+    confidence_score: int,
+    support_level: float,
+    resistance_level: float,
+) -> str:
+    """Build short Traditional Chinese summary for the forecast."""
+    return (
+        f"趨勢偏向：{trend_regime_zh}。"
+        f"預期波動區間：{expected_range_lower:.2f}–{expected_range_upper:.2f}。"
+        f"支撐位約 {support_level:.2f}，阻力位約 {resistance_level:.2f}。"
+        f"信心評分 {confidence_score}/100。"
+    )
 
 
 def _clamp_confidence_score(raw_score: int) -> int:
@@ -233,6 +280,25 @@ def build_scenario_forecast(df: pd.DataFrame) -> ForecastResult:
 
     confidence_score = _clamp_confidence_score(confidence_score)
 
+    trend_regime_zh = _trend_regime_zh(trend_regime)
+    forecast_summary_en = _build_forecast_summary_en(
+        trend_regime=trend_regime,
+        expected_range_lower=expected_range_lower,
+        expected_range_upper=expected_range_upper,
+        confidence_score=confidence_score,
+        support_level=support_level,
+        resistance_level=resistance_level,
+    )
+    forecast_summary_zh = _build_forecast_summary_zh(
+        trend_regime_zh=trend_regime_zh,
+        expected_range_lower=expected_range_lower,
+        expected_range_upper=expected_range_upper,
+        confidence_score=confidence_score,
+        support_level=support_level,
+        resistance_level=resistance_level,
+    )
+    forecast_summary_bilingual = f"{forecast_summary_en} / {forecast_summary_zh}"
+
     logger.info(
         "Built scenario forecast: trend_regime=%s confidence_score=%d",
         trend_regime,
@@ -243,6 +309,10 @@ def build_scenario_forecast(df: pd.DataFrame) -> ForecastResult:
         forecast_horizon_5d=_build_outlook_text(trend_regime, horizon_days=5, confidence_score=confidence_score),
         forecast_horizon_20d=_build_outlook_text(trend_regime, horizon_days=20, confidence_score=confidence_score),
         trend_regime=trend_regime,
+        trend_regime_zh=trend_regime_zh,
+        forecast_summary_en=forecast_summary_en,
+        forecast_summary_zh=forecast_summary_zh,
+        forecast_summary_bilingual=forecast_summary_bilingual,
         expected_range_upper=float(expected_range_upper),
         expected_range_lower=float(expected_range_lower),
         confidence_score=confidence_score,
@@ -250,4 +320,3 @@ def build_scenario_forecast(df: pd.DataFrame) -> ForecastResult:
         resistance_level=float(resistance_level),
         explanation_bullets=explanation_bullets,
     )
-

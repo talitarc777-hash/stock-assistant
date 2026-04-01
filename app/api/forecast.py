@@ -47,6 +47,11 @@ class ForecastResponse(BaseModel):
     ticker: str
     current_close: float
     trend_regime: str
+    trend_regime_en: str
+    trend_regime_zh: str
+    forecast_summary_en: str
+    forecast_summary_zh: str
+    forecast_summary_bilingual: str
     outlook_5d: str = Field(
         description="Scenario-based 5-day outlook, not a guaranteed prediction."
     )
@@ -103,6 +108,11 @@ def forecast_ticker(
         ticker=ticker.strip().upper(),
         current_close=float(to_json_safe(current_close)),
         trend_regime=forecast.trend_regime,
+        trend_regime_en=forecast.trend_regime,
+        trend_regime_zh=forecast.trend_regime_zh,
+        forecast_summary_en=forecast.forecast_summary_en,
+        forecast_summary_zh=forecast.forecast_summary_zh,
+        forecast_summary_bilingual=forecast.forecast_summary_bilingual,
         outlook_5d=forecast.forecast_horizon_5d,
         outlook_20d=forecast.forecast_horizon_20d,
         expected_range=ForecastRangeResponse(
@@ -116,4 +126,3 @@ def forecast_ticker(
         confidence_score=forecast.confidence_score,
         explanation_bullets=forecast.explanation_bullets,
     )
-

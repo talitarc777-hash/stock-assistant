@@ -213,7 +213,7 @@ Response includes:
   latest close, daily % change, score, label, action summary, above SMA200, RSI, and MACD bullish flag
 - `/paper-status` includes simulation-only cash/position/PnL state and hypothetical event history
 - `/forecast` includes scenario-based 5d/20d outlook, trend regime, expected range,
-  support/resistance, confidence score, and explanation bullets
+  support/resistance, confidence score, bilingual summaries, and explanation bullets
 
 ## Service Usage (Python)
 
