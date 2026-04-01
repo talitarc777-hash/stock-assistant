@@ -1,18 +1,21 @@
 import React from "react";
+import { term } from "../i18n/terms";
 
-export default function WatchlistTable({ rows, selectedTicker, onSelectTicker }) {
+export default function WatchlistTable({ rows, selectedTicker, onSelectTicker, languageMode }) {
   return (
     <section className="panel">
-      <h3>Watchlist (Ranked by Score)</h3>
+      <h3>
+        {term("Watchlist", languageMode)} ({term("Ranked by Score", languageMode)})
+      </h3>
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
               <th>Rank</th>
-              <th>Ticker</th>
-              <th>Score</th>
-              <th>Label</th>
-              <th>Action</th>
+              <th>{term("Ticker", languageMode)}</th>
+              <th>{term("Score", languageMode)}</th>
+              <th>{term("Label", languageMode)}</th>
+              <th>{term("Action", languageMode)}</th>
               <th>Close</th>
             </tr>
           </thead>

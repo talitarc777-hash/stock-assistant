@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { fetchAnalyze, fetchChartData, fetchWatchlistAnalyze } from "./api";
 import LineChart from "./components/LineChart";
 import WatchlistTable from "./components/WatchlistTable";
+import { term } from "./i18n/terms";
 import "./styles.css";
 
 const DEFAULT_WATCHLIST = ["VOO", "SPY", "QQQ", "AAPL", "MSFT", "NVDA"];
@@ -24,6 +25,7 @@ export default function App() {
   const [isLoadingWatchlist, setIsLoadingWatchlist] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [error, setError] = useState("");
+  const [languageMode, setLanguageMode] = useState("both");
 
   async function loadWatchlist() {
     setIsLoadingWatchlist(true);
@@ -101,7 +103,7 @@ export default function App() {
           <p>Simple decision-support view powered by the FastAPI backend.</p>
         </div>
         <div className="header-controls">
-          <label htmlFor="ticker-select">Ticker</label>
+          <label htmlFor="ticker-select">{term("Ticker", languageMode)}</label>
           <select
             id="ticker-select"
             value={selectedTicker}
@@ -113,8 +115,18 @@ export default function App() {
               </option>
             ))}
           </select>
+          <label htmlFor="lang-select">Language</label>
+          <select
+            id="lang-select"
+            value={languageMode}
+            onChange={(event) => setLanguageMode(event.target.value)}
+          >
+            <option value="both">EN + 中文</option>
+            <option value="en">EN</option>
+            <option value="zh">中文</option>
+          </select>
           <button type="button" onClick={loadWatchlist} disabled={isLoadingWatchlist}>
-            {isLoadingWatchlist ? "Refreshing..." : "Refresh"}
+            {isLoadingWatchlist ? `${term("Refresh", languageMode)}...` : term("Refresh", languageMode)}
           </button>
         </div>
       </header>
@@ -126,36 +138,40 @@ export default function App() {
           rows={watchlistRows}
           selectedTicker={selectedTicker}
           onSelectTicker={setSelectedTicker}
+          languageMode={languageMode}
         />
 
         <section className="panel">
-          <h3>Ticker Detail</h3>
+          <h3>{term("Ticker Detail", languageMode)}</h3>
           {isLoadingDetail || !analyzeData ? (
             <p>Loading ticker details...</p>
           ) : (
             <>
               <div className="detail-grid">
                 <p>
-                  <strong>Ticker:</strong> {analyzeData.ticker}
+                  <strong>{term("Ticker", languageMode)}:</strong> {analyzeData.ticker}
                 </p>
                 <p>
-                  <strong>Latest Close:</strong> {analyzeData.latest_close.toFixed(2)}
+                  <strong>{term("Latest Close", languageMode)}:</strong>{" "}
+                  {analyzeData.latest_close.toFixed(2)}
                 </p>
                 <p>
-                  <strong>Score:</strong> {analyzeData.score_breakdown.total_score}
+                  <strong>{term("Score", languageMode)}:</strong>{" "}
+                  {analyzeData.score_breakdown.total_score}
                 </p>
                 <p>
-                  <strong>Label:</strong> {analyzeData.label}
+                  <strong>{term("Label", languageMode)}:</strong> {analyzeData.label}
                 </p>
                 <p>
-                  <strong>Action:</strong> {analyzeData.action_summary}
+                  <strong>{term("Action Summary", languageMode)}:</strong>{" "}
+                  {analyzeData.action_summary}
                 </p>
                 <p>
                   <strong>Benchmark Strength:</strong>{" "}
                   {analyzeData.benchmark_relative?.benchmark_strength_score ?? "N/A"}
                 </p>
               </div>
-              <h4>Explanation</h4>
+              <h4>{term("Explanation", languageMode)}</h4>
               <ul className="bullet-list">
                 {analyzeData.explanation_bullets.map((bullet) => (
                   <li key={bullet}>{bullet}</li>
@@ -167,7 +183,7 @@ export default function App() {
       </div>
 
       <LineChart
-        title="Price with SMA20 / SMA50 / SMA200"
+        title={`${term("Price", languageMode)} + ${term("SMA", languageMode)}: SMA20 / SMA50 / SMA200`}
         points={chartSeries}
         lines={[
           { key: "close", label: "Close", color: "#111827" },
@@ -179,13 +195,13 @@ export default function App() {
 
       <div className="chart-grid">
         <LineChart
-          title="RSI (14)"
+          title={`${term("RSI", languageMode)} (14)`}
           points={chartSeries}
           lines={[{ key: "rsi_14", label: "RSI14", color: "#7c3aed" }]}
           height={180}
         />
         <LineChart
-          title="MACD"
+          title={term("MACD", languageMode)}
           points={chartSeries}
           lines={[
             { key: "macd_line", label: "MACD", color: "#0f766e" },
@@ -196,9 +212,9 @@ export default function App() {
       </div>
 
       <LineChart
-        title="Score Over Time"
+        title={term("Score Over Time", languageMode)}
         points={scoreSeries}
-        lines={[{ key: "total_score", label: "Total Score", color: "#374151" }]}
+        lines={[{ key: "total_score", label: `Total ${term("Score", languageMode)}`, color: "#374151" }]}
         height={180}
       />
     </main>
