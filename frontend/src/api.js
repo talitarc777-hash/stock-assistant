@@ -28,3 +28,7 @@ export async function fetchAnalyze(ticker, period = "5y") {
 export async function fetchChartData(ticker, period = "5y") {
   return fetchJson(`/chart-data?ticker=${encodeURIComponent(ticker)}&period=${period}`);
 }
+
+export async function fetchForecast(ticker, period = "2y") {
+  return fetchJson(`/forecast?ticker=${encodeURIComponent(ticker)}&period=${period}`);
+}

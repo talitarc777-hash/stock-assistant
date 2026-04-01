@@ -126,6 +126,29 @@ tbody tr:hover {
   margin-bottom: 6px;
 }
 
+.forecast-card {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.helper-text {
+  margin: 0 0 10px 0;
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.forecast-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.forecast-grid p {
+  margin: 0;
+}
+
 .error-box {
   background: #fee2e2;
   border: 1px solid #fecaca;

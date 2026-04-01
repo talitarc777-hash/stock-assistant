@@ -25,14 +25,20 @@ export type TermKey =
   | "Price"
   | "Price with SMA"
   | "Score Over Time"
-  | "Refresh";
+  | "Refresh"
+  | "Forecast"
+  | "Trend Regime"
+  | "5-Day Outlook"
+  | "20-Day Outlook"
+  | "Expected Range"
+  | "Confidence Score"
+  | "Scenario-Based Forecast Only";
 
 type TermEntry = {
   en: string;
   zh: string;
 };
 
-// Central bilingual term dictionary (Traditional Chinese, Hong Kong friendly).
 export const TERMS: Record<TermKey, TermEntry> = {
   SMA: { en: "SMA", zh: "簡單移動平均線" },
   EMA: { en: "EMA", zh: "指數移動平均線" },
@@ -59,6 +65,16 @@ export const TERMS: Record<TermKey, TermEntry> = {
   "Price with SMA": { en: "Price with SMA", zh: "價格及移動平均線" },
   "Score Over Time": { en: "Score Over Time", zh: "評分走勢" },
   Refresh: { en: "Refresh", zh: "更新" },
+  Forecast: { en: "Forecast", zh: "情景預測" },
+  "Trend Regime": { en: "Trend Regime", zh: "趨勢狀態" },
+  "5-Day Outlook": { en: "5-Day Outlook", zh: "5 日展望" },
+  "20-Day Outlook": { en: "20-Day Outlook", zh: "20 日展望" },
+  "Expected Range": { en: "Expected Range", zh: "預期波動區間" },
+  "Confidence Score": { en: "Confidence Score", zh: "信心評分" },
+  "Scenario-Based Forecast Only": {
+    en: "Scenario-based forecast only",
+    zh: "情景分析，並非保證預測",
+  },
 };
 
 export function term(key: TermKey, mode: LanguageMode = "both"): string {
@@ -69,4 +85,3 @@ export function term(key: TermKey, mode: LanguageMode = "both"): string {
   if (mode === "zh") return entry.zh;
   return `${entry.en} (${entry.zh})`;
 }
-

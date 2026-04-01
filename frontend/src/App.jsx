@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 
-import { fetchAnalyze, fetchChartData, fetchWatchlistAnalyze } from "./api";
+import { fetchAnalyze, fetchChartData, fetchForecast, fetchWatchlistAnalyze } from "./api";
 import LineChart from "./components/LineChart";
 import WatchlistTable from "./components/WatchlistTable";
 import { term } from "./i18n/terms";
@@ -22,6 +22,7 @@ export default function App() {
   const [selectedTicker, setSelectedTicker] = useState("VOO");
   const [analyzeData, setAnalyzeData] = useState(null);
   const [chartData, setChartData] = useState(null);
+  const [forecastData, setForecastData] = useState(null);
   const [isLoadingWatchlist, setIsLoadingWatchlist] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [error, setError] = useState("");
@@ -52,12 +53,14 @@ export default function App() {
     setIsLoadingDetail(true);
     setError("");
     try {
-      const [analysis, chart] = await Promise.all([
+      const [analysis, chart, forecast] = await Promise.all([
         fetchAnalyze(ticker, DEFAULT_PERIOD),
         fetchChartData(ticker, DEFAULT_PERIOD),
+        fetchForecast(ticker, "2y"),
       ]);
       setAnalyzeData(analysis);
       setChartData(chart);
+      setForecastData(forecast);
     } catch (err) {
       setError(err.message || "Failed to load ticker detail.");
     } finally {
@@ -177,6 +180,49 @@ export default function App() {
                   <li key={bullet}>{bullet}</li>
                 ))}
               </ul>
+              <section className="forecast-card">
+                <h4>{term("Forecast", "both")}</h4>
+                <p className="helper-text">
+                  Scenario-based forecast only
+                  <br />
+                  情景分析，並非保證預測
+                </p>
+                {!forecastData ? (
+                  <p>Loading forecast...</p>
+                ) : (
+                  <div className="forecast-grid">
+                    <p>
+                      <strong>{term("Trend Regime", "both")}:</strong>{" "}
+                      {forecastData.trend_regime_en} / {forecastData.trend_regime_zh}
+                    </p>
+                    <p>
+                      <strong>{term("5-Day Outlook", "both")}:</strong>{" "}
+                      {forecastData.outlook_5d}
+                    </p>
+                    <p>
+                      <strong>{term("20-Day Outlook", "both")}:</strong>{" "}
+                      {forecastData.outlook_20d}
+                    </p>
+                    <p>
+                      <strong>{term("Expected Range", "both")}:</strong>{" "}
+                      {forecastData.expected_range?.lower?.toFixed(2)} -{" "}
+                      {forecastData.expected_range?.upper?.toFixed(2)}
+                    </p>
+                    <p>
+                      <strong>{term("Support", "both")}:</strong>{" "}
+                      {forecastData.levels?.support_level?.toFixed(2)}
+                    </p>
+                    <p>
+                      <strong>{term("Resistance", "both")}:</strong>{" "}
+                      {forecastData.levels?.resistance_level?.toFixed(2)}
+                    </p>
+                    <p>
+                      <strong>{term("Confidence Score", "both")}:</strong>{" "}
+                      {forecastData.confidence_score}/100
+                    </p>
+                  </div>
+                )}
+              </section>
             </>
           )}
         </section>
@@ -220,3 +266,4 @@ export default function App() {
     </main>
   );
 }
+
