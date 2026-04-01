@@ -53,11 +53,17 @@ export default function App() {
     setIsLoadingDetail(true);
     setError("");
     try {
-      const [analysis, chart, forecast] = await Promise.all([
+      const [analysis, chart] = await Promise.all([
         fetchAnalyze(ticker, DEFAULT_PERIOD),
         fetchChartData(ticker, DEFAULT_PERIOD),
-        fetchForecast(ticker, "2y"),
       ]);
+      let forecast = null;
+      try {
+        forecast = await fetchForecast(ticker, "2y");
+      } catch {
+        // Graceful fallback: keep charts/details available without forecast overlays.
+        forecast = null;
+      }
       setAnalyzeData(analysis);
       setChartData(chart);
       setForecastData(forecast);
@@ -231,6 +237,32 @@ export default function App() {
       <LineChart
         title={`${term("Price", languageMode)} + ${term("SMA", languageMode)}: SMA20 / SMA50 / SMA200`}
         points={chartSeries}
+        overlays={{
+          horizontalLines: [
+            {
+              key: "support",
+              label: `${term("Support", "both")}`,
+              value: toNumeric(forecastData?.levels?.support_level),
+              color: "#0f766e",
+            },
+            {
+              key: "resistance",
+              label: `${term("Resistance", "both")}`,
+              value: toNumeric(forecastData?.levels?.resistance_level),
+              color: "#b45309",
+            },
+          ],
+          rangeBand:
+            forecastData && forecastData.expected_range
+              ? {
+                  key: "expected-range",
+                  label: `${term("Expected Range", "both")}`,
+                  lower: toNumeric(forecastData.expected_range.lower),
+                  upper: toNumeric(forecastData.expected_range.upper),
+                  color: "#2563eb",
+                }
+              : null,
+        }}
         lines={[
           { key: "close", label: "Close", color: "#111827" },
           { key: "sma_20", label: "SMA20", color: "#2563eb" },
