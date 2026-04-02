@@ -119,8 +119,13 @@ def _extract_ticker_symbols(text: str) -> list[str]:
         upper = token.upper()
         if upper in _COMMON_WORDS:
             continue
-        looks_like_ticker = token.isupper() or upper in _KNOWN_TICKERS
+        if upper in _KNOWN_TICKERS:
+            looks_like_ticker = True
+        else:
+            looks_like_ticker = token.isalpha() and len(token) <= 5
         if not looks_like_ticker:
+            continue
+        if (not token.isupper()) and upper not in _KNOWN_TICKERS and len(token) > 4:
             continue
         if upper in seen:
             continue

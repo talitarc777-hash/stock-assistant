@@ -36,6 +36,11 @@ class NaturalLanguageRouterTests(unittest.TestCase):
         self.assertEqual(parsed.intent, "add_watchlist")
         self.assertEqual(parsed.tickers, ["AAPL", "NVDA"])
 
+    def test_add_lowercase_ticker(self) -> None:
+        parsed = parse_natural_language_message("add acm to my watchlist")
+        self.assertEqual(parsed.intent, "add_watchlist")
+        self.assertEqual(parsed.tickers, ["ACM"])
+
     def test_company_name_resolves_for_analyze(self) -> None:
         parsed = parse_natural_language_message("check Apple")
         self.assertEqual(parsed.intent, "analyze")
