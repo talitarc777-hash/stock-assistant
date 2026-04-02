@@ -112,48 +112,48 @@ def score_from_indicators(
     # 1) Trend score (max 40)
     if pd.notna(latest["sma_200"]) and close_now > float(latest["sma_200"]):
         trend_score += 20
-        explanations.append("Price is above SMA200, which supports long-term trend strength (+20).")
+        explanations.append("Price is above SMA200, so the long-term trend remains constructive (+20).")
     else:
-        explanations.append("Price is not above SMA200, so long-term trend confirmation is missing (+0).")
+        explanations.append("Price is below or near SMA200, so long-term trend confirmation is limited (+0).")
 
     if pd.notna(latest["sma_50"]) and pd.notna(latest["sma_200"]) and float(latest["sma_50"]) > float(latest["sma_200"]):
         trend_score += 10
-        explanations.append("SMA50 is above SMA200, confirming medium-vs-long trend alignment (+10).")
+        explanations.append("SMA50 is above SMA200, supporting medium-to-long-term trend alignment (+10).")
     else:
-        explanations.append("SMA50 is not above SMA200 (+0).")
+        explanations.append("SMA50 is not above SMA200, so medium-to-long-term alignment is not confirmed (+0).")
 
     if pd.notna(latest["sma_20"]) and pd.notna(latest["sma_50"]) and float(latest["sma_20"]) > float(latest["sma_50"]):
         trend_score += 10
-        explanations.append("SMA20 is above SMA50, indicating short-term trend support (+10).")
+        explanations.append("SMA20 is above SMA50, which supports a constructive near-term trend (+10).")
     else:
-        explanations.append("SMA20 is not above SMA50 (+0).")
+        explanations.append("SMA20 is not above SMA50, so near-term trend support is limited (+0).")
 
     # 2) Momentum score (max 25)
     rsi = float(latest["rsi_14"]) if pd.notna(latest["rsi_14"]) else None
     if rsi is not None and 50 <= rsi <= 65:
         momentum_score += 10
-        explanations.append("RSI14 is between 50 and 65, a constructive momentum zone (+10).")
+        explanations.append("RSI14 is between 50 and 65, a balanced momentum zone (+10).")
     else:
-        explanations.append("RSI14 is outside the preferred 50-65 momentum zone (+0).")
+        explanations.append("RSI14 is outside the preferred 50-65 zone, so momentum is less balanced (+0).")
 
     if pd.notna(latest["macd_line"]) and pd.notna(latest["macd_signal"]) and float(latest["macd_line"]) > float(latest["macd_signal"]):
         momentum_score += 10
-        explanations.append("MACD line is above MACD signal, indicating positive momentum (+10).")
+        explanations.append("MACD line is above MACD signal, indicating momentum is improving (+10).")
     else:
-        explanations.append("MACD line is not above MACD signal (+0).")
+        explanations.append("MACD line is not above MACD signal, so momentum confirmation is limited (+0).")
 
     if close_20d_ago is not None and close_now > close_20d_ago:
         momentum_score += 5
-        explanations.append("Latest close is above the close from 20 trading days ago (+5).")
+        explanations.append("Latest close is above the close from 20 trading days ago, supporting near-term follow-through (+5).")
     else:
-        explanations.append("Latest close is not above the close from 20 trading days ago (+0).")
+        explanations.append("Latest close is not above the close from 20 trading days ago, so follow-through is not confirmed (+0).")
 
     # 3) Confirmation score (max 15)
     if pd.notna(latest["avg_volume_20"]) and float(latest["volume"]) > float(latest["avg_volume_20"]):
         confirmation_score += 10
-        explanations.append("Volume is above the 20-day average, adding confirmation (+10).")
+        explanations.append("Volume is above the 20-day average, adding participation confirmation (+10).")
     else:
-        explanations.append("Volume is not above the 20-day average (+0).")
+        explanations.append("Volume is not above the 20-day average, so confirmation is lighter (+0).")
 
     distance_52w = (
         float(latest["distance_from_52w_high_pct"])
@@ -162,22 +162,22 @@ def score_from_indicators(
     )
     if distance_52w is not None and distance_52w >= -10:
         confirmation_score += 5
-        explanations.append("Price is within 10% of the 52-week high (+5).")
+        explanations.append("Price is within 10% of the 52-week high, showing relative strength (+5).")
     else:
-        explanations.append("Price is not within 10% of the 52-week high (+0).")
+        explanations.append("Price is more than 10% below the 52-week high (+0).")
 
     # 4) Risk penalties (max -20)
     is_rsi_hot = rsi is not None and rsi > 75
     if is_rsi_hot:
         risk_penalty -= 5
-        explanations.append("RSI14 is above 75, signaling overbought risk (-5).")
+        explanations.append("RSI14 is above 75, so avoid chasing at the current level (-5).")
 
     is_close_far_above_sma50 = (
         pd.notna(latest["sma_50"]) and close_now > float(latest["sma_50"]) * 1.10
     )
     if is_close_far_above_sma50:
         risk_penalty -= 5
-        explanations.append("Price is more than 10% above SMA50, suggesting stretch risk (-5).")
+        explanations.append("Price is more than 10% above SMA50, so it may be stretched short term (-5).")
 
     rolling_volatility = (
         float(latest["rolling_volatility_20_pct"])
@@ -188,7 +188,7 @@ def score_from_indicators(
         risk_penalty -= 5
         explanations.append(
             f"Rolling volatility ({rolling_volatility:.2f}%) is above threshold "
-            f"({volatility_threshold_pct:.2f}%) (-5)."
+            f"({volatility_threshold_pct:.2f}%), so near-term swings may stay wide (-5)."
         )
 
     drawdown = (
@@ -200,7 +200,7 @@ def score_from_indicators(
         risk_penalty -= 5
         explanations.append(
             f"Drawdown ({drawdown:.2f}%) is worse than threshold "
-            f"({drawdown_threshold_pct:.2f}%) (-5)."
+            f"({drawdown_threshold_pct:.2f}%), so downside pressure remains elevated (-5)."
         )
 
     raw_total = trend_score + momentum_score + confirmation_score + risk_penalty
