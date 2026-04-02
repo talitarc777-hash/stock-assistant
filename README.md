@@ -175,6 +175,7 @@ Endpoint:
 - `GET /summary-dashboard?tickers=VOO,SPY,QQQ,AAPL,MSFT,NVDA`
 - `GET /paper-status?ticker=VOO`
 - `GET /forecast?ticker=VOO&period=2y`
+- `GET /forecast-history?ticker=VOO`
 
 Example (PowerShell):
 
@@ -190,6 +191,7 @@ Invoke-RestMethod "http://127.0.0.1:8000/chart-data?ticker=VOO&period=5y"
 Invoke-RestMethod "http://127.0.0.1:8000/summary-dashboard?tickers=VOO,SPY,QQQ,AAPL,MSFT,NVDA"
 Invoke-RestMethod "http://127.0.0.1:8000/paper-status?ticker=VOO"
 Invoke-RestMethod "http://127.0.0.1:8000/forecast?ticker=VOO&period=2y"
+Invoke-RestMethod "http://127.0.0.1:8000/forecast-history?ticker=VOO"
 ```
 
 Response includes:
@@ -214,6 +216,8 @@ Response includes:
 - `/paper-status` includes simulation-only cash/position/PnL state and hypothetical event history
 - `/forecast` includes scenario-based 5d/20d outlook, trend regime, expected range,
   support/resistance, confidence score, bilingual summaries, and explanation bullets
+- `/forecast-history` returns stored forecast snapshots (timestamp, outlook, expected range, confidence)
+  for later forecast-vs-actual evaluation
 
 ## Service Usage (Python)
 
@@ -255,6 +259,7 @@ Indicator columns added by `add_technical_indicators(...)`:
 - `GET /summary-dashboard?tickers=VOO,SPY,QQQ,AAPL,MSFT,NVDA` endpoint
 - `GET /paper-status?ticker=VOO` endpoint
 - `GET /forecast?ticker=VOO&period=2y` endpoint
+- `GET /forecast-history?ticker=VOO` endpoint
 - Typed settings loaded from `.env`
 - Market data service using `yfinance`
 - Technical indicator service with validation
@@ -265,6 +270,7 @@ Indicator columns added by `add_technical_indicators(...)`:
 - Minimal React + Vite dashboard (`frontend/`) connected to FastAPI
 - Paper-trading simulator module (simulation only, no broker integration)
 - Scenario-based forecast module (not a guaranteed prediction)
+- Local SQLite forecast snapshot persistence for future evaluation
 
 ## Next Suggested Steps
 

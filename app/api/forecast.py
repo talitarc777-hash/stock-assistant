@@ -9,6 +9,12 @@ from pydantic import BaseModel, Field
 
 from app.core.api_utils import PERIOD_PATTERN, TICKER_PATTERN, to_json_safe
 from app.services.forecast import ForecastInputError, build_scenario_forecast
+from app.services.forecast_store import (
+    ForecastSnapshot,
+    ForecastStoreError,
+    get_forecast_history,
+    save_forecast_snapshot,
+)
 from app.services.indicators import IndicatorInputError, add_technical_indicators
 from app.services.market_data import (
     EmptyDataError,
@@ -64,6 +70,27 @@ class ForecastResponse(BaseModel):
     explanation_bullets: list[str]
 
 
+class ForecastHistoryItemResponse(BaseModel):
+    """One persisted forecast snapshot item."""
+
+    timestamp_utc: str
+    ticker: str
+    close: float
+    trend_regime: str
+    outlook_5d: str
+    outlook_20d: str
+    expected_range: ForecastRangeResponse
+    confidence_score: int
+
+
+class ForecastHistoryResponse(BaseModel):
+    """Forecast snapshot history for one ticker."""
+
+    ticker: str
+    count: int
+    snapshots: list[ForecastHistoryItemResponse]
+
+
 @router.get("/forecast", response_model=ForecastResponse)
 def forecast_ticker(
     ticker: str = Query(
@@ -103,6 +130,20 @@ def forecast_ticker(
         raise HTTPException(status_code=500, detail="Unexpected server error.") from exc
 
     current_close = float(indicators_df.iloc[-1]["close"])
+    try:
+        save_forecast_snapshot(
+            ticker=ticker,
+            close=current_close,
+            trend_regime=forecast.trend_regime,
+            outlook_5d=forecast.forecast_horizon_5d,
+            outlook_20d=forecast.forecast_horizon_20d,
+            expected_range_lower=forecast.expected_range_lower,
+            expected_range_upper=forecast.expected_range_upper,
+            confidence_score=forecast.confidence_score,
+        )
+    except ForecastStoreError as exc:
+        logger.exception("Failed to persist forecast snapshot")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return ForecastResponse(
         ticker=ticker.strip().upper(),
@@ -125,4 +166,52 @@ def forecast_ticker(
         ),
         confidence_score=forecast.confidence_score,
         explanation_bullets=forecast.explanation_bullets,
+    )
+
+
+@router.get("/forecast-history", response_model=ForecastHistoryResponse)
+def forecast_history(
+    ticker: str = Query(
+        ...,
+        min_length=1,
+        max_length=15,
+        pattern=TICKER_PATTERN,
+        description="Ticker symbol, e.g. VOO",
+    ),
+    limit: int = Query(
+        200,
+        ge=1,
+        le=1000,
+        description="Maximum number of snapshots to return (1-1000).",
+    ),
+) -> ForecastHistoryResponse:
+    """Return persisted forecast snapshots for future forecast-vs-actual evaluation."""
+    logger.info("Request /forecast-history ticker=%s limit=%s", ticker, limit)
+    try:
+        snapshots: list[ForecastSnapshot] = get_forecast_history(ticker=ticker, limit=limit)
+    except ForecastStoreError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover - defensive guard
+        logger.exception("Unexpected error in /forecast-history")
+        raise HTTPException(status_code=500, detail="Unexpected server error.") from exc
+
+    return ForecastHistoryResponse(
+        ticker=ticker.strip().upper(),
+        count=len(snapshots),
+        snapshots=[
+            ForecastHistoryItemResponse(
+                timestamp_utc=item.timestamp_utc,
+                ticker=item.ticker,
+                close=float(to_json_safe(item.close)),
+                trend_regime=item.trend_regime,
+                outlook_5d=item.outlook_5d,
+                outlook_20d=item.outlook_20d,
+                expected_range=ForecastRangeResponse(
+                    lower=float(to_json_safe(item.expected_range_lower)),
+                    upper=float(to_json_safe(item.expected_range_upper)),
+                ),
+                confidence_score=item.confidence_score,
+            )
+            for item in snapshots
+        ],
     )
