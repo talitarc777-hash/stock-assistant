@@ -1,8 +1,4 @@
-"""Scan watchlist alerts via existing backend APIs and format for Discord.
-
-This script is API-driven (uses /watchlist-analyze and /chart-data) so it can
-run independently from local indicator/scoring internals.
-"""
+"""Scan unified user alerts and format them for Discord-friendly delivery."""
 
 from __future__ import annotations
 
@@ -15,9 +11,9 @@ from bootstrap import ensure_project_root_on_path
 
 ensure_project_root_on_path()
 
+from app.services.alert_settings_service import scan_all_enabled_user_alerts  # noqa: E402
 from bot.alert_engine import (  # noqa: E402
     AlertEvent,
-    build_ticker_alerts,
     format_alert_batch_for_discord,
 )
 from bot.stock_api_client import chart_data, watchlist  # noqa: E402
@@ -118,7 +114,29 @@ def main() -> None:
         default="config/alerts_watchlist.json",
         help="Path to backend alert scan config JSON.",
     )
+    parser.add_argument(
+        "--all-users",
+        action="store_true",
+        help="Scan all users with alerts enabled in the shared profile store.",
+    )
     args = parser.parse_args()
+
+    if args.all_users:
+        print("\n=== UNIFIED USER ALERTS ===")
+        for result in scan_all_enabled_user_alerts():
+            alert_events = [
+                AlertEvent(
+                    ticker=item.ticker,
+                    rule=item.rule,
+                    severity=item.severity,
+                    message_en=item.message_en,
+                    message_zh=item.message_zh,
+                )
+                for item in result.alerts
+            ]
+            title = f"Stock Assistant Alerts | user={result.user_id}"
+            print(format_alert_batch_for_discord(alert_events, title=title, language="bilingual"))
+        return
 
     config_path = Path(args.config)
     config = load_scan_config(config_path)

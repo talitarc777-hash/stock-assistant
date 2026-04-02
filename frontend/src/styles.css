@@ -173,6 +173,74 @@ tbody tr:hover {
   margin-bottom: 6px;
 }
 
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 16px;
+}
+
+.settings-form,
+.watchlist-form {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-form label,
+.watchlist-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.settings-form input,
+.settings-form select,
+.settings-form textarea,
+.settings-form button,
+.watchlist-form input,
+.watchlist-form button {
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.settings-form button,
+.watchlist-form button,
+.watchlist-chip {
+  cursor: pointer;
+}
+
+.checkbox-row {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+}
+
+.success-box {
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  color: #166534;
+  border-radius: 8px;
+  padding: 10px;
+  margin-top: 12px;
+}
+
+.watchlist-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.watchlist-chip {
+  border: 1px solid #d1d5db;
+  background: #f9fafb;
+  color: #111827;
+  border-radius: 999px;
+  padding: 6px 10px;
+}
+
 .forecast-card {
   margin-top: 14px;
   padding-top: 10px;
@@ -256,6 +324,10 @@ tbody tr:hover {
   }
 
   .chart-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-grid {
     grid-template-columns: 1fr;
   }
 

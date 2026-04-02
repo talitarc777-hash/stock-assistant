@@ -40,8 +40,8 @@ def detect_score_alerts(ticker: str, summary_row: dict[str, Any]) -> list[AlertE
                 ticker=ticker,
                 rule="score_above_80",
                 severity="high",
-                message_en=f"{ticker}: score is {int(score_float)} (>80), label: {label}.",
-                message_zh=f"{ticker}: 評分為 {int(score_float)}（高於 80），標籤：{label}。",
+                message_en=f"{ticker}: score moved above 80. Current label: {label}.",
+                message_zh=f"{ticker}: 評分升穿 80。現時標籤：{label}。",
             )
         )
     if score_float < 45:
@@ -50,8 +50,8 @@ def detect_score_alerts(ticker: str, summary_row: dict[str, Any]) -> list[AlertE
                 ticker=ticker,
                 rule="score_below_45",
                 severity="high",
-                message_en=f"{ticker}: score is {int(score_float)} (<45), label: {label}.",
-                message_zh=f"{ticker}: 評分為 {int(score_float)}（低於 45），標籤：{label}。",
+                message_en=f"{ticker}: score fell below 45. Current label: {label}.",
+                message_zh=f"{ticker}: 評分跌穿 45。現時標籤：{label}。",
             )
         )
     return alerts
@@ -85,12 +85,12 @@ def detect_price_and_macd_alerts(ticker: str, series: list[dict[str, Any]]) -> l
                     rule="close_cross_above_sma200",
                     severity="medium",
                     message_en=(
-                        f"{ticker}: close crossed above SMA200 "
+                        f"{ticker}: price moved back above SMA200 "
                         f"({latest_close:.2f} > {latest_sma200:.2f})."
                     ),
                     message_zh=(
-                        f"{ticker}: 收市價升穿 SMA200 "
-                        f"（{latest_close:.2f} > {latest_sma200:.2f}）。"
+                        f"{ticker}: 價格重新升穿 SMA200 "
+                        f"({latest_close:.2f} > {latest_sma200:.2f})。"
                     ),
                 )
             )
@@ -101,12 +101,12 @@ def detect_price_and_macd_alerts(ticker: str, series: list[dict[str, Any]]) -> l
                     rule="close_cross_below_sma200",
                     severity="medium",
                     message_en=(
-                        f"{ticker}: close crossed below SMA200 "
+                        f"{ticker}: price slipped below SMA200 "
                         f"({latest_close:.2f} < {latest_sma200:.2f})."
                     ),
                     message_zh=(
-                        f"{ticker}: 收市價跌穿 SMA200 "
-                        f"（{latest_close:.2f} < {latest_sma200:.2f}）。"
+                        f"{ticker}: 價格跌穿 SMA200 "
+                        f"({latest_close:.2f} < {latest_sma200:.2f})。"
                     ),
                 )
             )
@@ -118,8 +118,8 @@ def detect_price_and_macd_alerts(ticker: str, series: list[dict[str, Any]]) -> l
                     ticker=ticker,
                     rule="macd_bearish_to_bullish",
                     severity="medium",
-                    message_en=f"{ticker}: MACD changed from bearish to bullish.",
-                    message_zh=f"{ticker}: MACD 由偏弱轉為偏強。",
+                    message_en=f"{ticker}: MACD turned bullish.",
+                    message_zh=f"{ticker}: MACD 轉為偏強。",
                 )
             )
         elif prev_macd >= prev_signal and latest_macd < latest_signal:
@@ -128,8 +128,8 @@ def detect_price_and_macd_alerts(ticker: str, series: list[dict[str, Any]]) -> l
                     ticker=ticker,
                     rule="macd_bullish_to_bearish",
                     severity="medium",
-                    message_en=f"{ticker}: MACD changed from bullish to bearish.",
-                    message_zh=f"{ticker}: MACD 由偏強轉為偏弱。",
+                    message_en=f"{ticker}: MACD turned bearish.",
+                    message_zh=f"{ticker}: MACD 轉為偏弱。",
                 )
             )
 
@@ -150,7 +150,7 @@ def build_ticker_alerts(
 
 def format_alert_for_discord(alert: AlertEvent, language: str = "zh") -> str:
     """Render one alert as a compact Discord-friendly line."""
-    icon = "🚨" if alert.severity == "high" else "⚠️"
+    icon = "⚠️" if alert.severity == "high" else "•"
     if language == "en":
         message = alert.message_en
     elif language == "bilingual":

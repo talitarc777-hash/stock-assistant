@@ -36,7 +36,7 @@ def _select_language_text(data: dict[str, Any], base_key: str, language: str) ->
     return data.get(f"{base_key}_zh", data.get(base_key))
 
 
-def _format_bullets(items: list[str], limit: int = 3, fallback: str = "- No details yet") -> str:
+def _format_bullets(items: list[str], limit: int = 3, fallback: str = "- No details yet.") -> str:
     """Render a short bullet list for Discord."""
     if not items:
         return fallback
@@ -46,12 +46,16 @@ def _format_bullets(items: list[str], limit: int = 3, fallback: str = "- No deta
 def format_settings_message(user_id: int, settings: dict[str, Any]) -> str:
     """Render current per-user settings clearly and briefly."""
     watchlist = ", ".join(settings.get("default_watchlist", [])) or "system default"
+    alert_watchlist = ", ".join(settings.get("alert_watchlist", [])) or "same as watchlist"
     return (
         "Your settings\n"
         f"- User ID: {user_id}\n"
         f"- Language: {settings.get('language', 'zh')}\n"
         f"- Compact mode: {_format_bool(bool(settings.get('compact_mode', False)))}\n"
         f"- Watchlist: {watchlist}\n"
+        f"- Alerts: {_format_bool(bool(settings.get('alert_enabled', True)))} "
+        f"(low {settings.get('alert_threshold_low', 45)} / high {settings.get('alert_threshold_high', 80)})\n"
+        f"- Alert watchlist: {alert_watchlist}\n"
         "Tip: use `!addticker` or `!removeticker` for quick changes."
     )
 
@@ -60,8 +64,7 @@ def format_help_message(prefix: str) -> str:
     """Render a short, practical help guide."""
     return (
         "Stock bot help\n"
-        "Use these commands to check one ticker, your watchlist, or alerts.\n"
-        "You can also type simple natural requests like `analyze VOO` or `show my settings`.\n"
+        "Use a command or type a simple request in plain language.\n"
         "\n"
         "Main commands\n"
         f"- `{prefix}analyze VOO` check one ticker\n"
@@ -84,12 +87,7 @@ def format_help_message(prefix: str) -> str:
         "- `add Tesla to my watchlist`\n"
         "- `show my watchlist`\n"
         "- `what do you think about NVDA`\n"
-        "- `what is the outlook for Apple`\n"
-        "\n"
-        "Quick start\n"
-        f"1. `{prefix}setlang bilingual`\n"
-        f"2. `{prefix}addticker AMZN`\n"
-        f"3. `{prefix}watchlist`"
+        "- `show me the forecast for Apple`"
     )
 
 
@@ -123,7 +121,7 @@ def format_analyze_message(symbol: str, data: dict[str, Any], settings: dict[str
         f"- Action: {action}\n"
         "\n"
         "Why it stands out\n"
-        f"{_format_bullets(bullets, limit=3, fallback='- No explanation available yet')}"
+        f"{_format_bullets(bullets, limit=3)}"
     )
 
 
@@ -147,12 +145,12 @@ def format_forecast_message(symbol: str, data: dict[str, Any], settings: dict[st
     resistance = _format_price(levels.get("resistance_level"))
     confidence = data.get("confidence_score", "N/A")
 
-    title = _text(language, "Forecast", "預測")
-    trend_label = _text(language, "Trend", "趨勢")
+    title = _text(language, "Forecast", "展望")
+    trend_label = _text(language, "Trend regime", "趨勢狀態")
     range_label = _text(language, "Expected range", "預期區間")
     confidence_label = _text(language, "Confidence", "信心")
-    support_label = _text(language, "Support", "支撐")
-    resistance_label = _text(language, "Resistance", "阻力")
+    support_label = _text(language, "Support", "支撐位")
+    resistance_label = _text(language, "Resistance", "阻力位")
 
     if compact_mode:
         return (
@@ -192,7 +190,7 @@ def format_watchlist_message(
             lines.append(f"{index}. {ticker} | Score: {score} | {label}")
         ranked_text = "\n".join(lines)
     else:
-        ranked_text = _text(language, "No ranked results yet.", "暫時未有排名結果。")
+        ranked_text = _text(language, "No ranked results yet.", "暫時沒有排序結果。")
 
     title = _text(language, "Watchlist", "觀察名單")
     using_label = _text(language, "Using", "使用中")
@@ -227,8 +225,8 @@ def format_watchlist_message(
 def format_alerts_message(alert_lines: list[str], settings: dict[str, Any]) -> str:
     """Format a Discord alert block for current watchlist alerts."""
     language = settings.get("language", "zh")
-    title = _text(language, "Current alerts", "目前提醒")
-    no_alerts = _text(language, "No new alerts right now.", "暫時未有新提醒。")
+    title = _text(language, "Current alerts", "目前提示")
+    no_alerts = _text(language, "No new alerts right now.", "目前沒有新的提示。")
     if not alert_lines:
         return f"{title}\n{no_alerts}"
     return f"{title}\n" + "\n".join(alert_lines)

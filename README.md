@@ -75,6 +75,37 @@ Open the dashboard at:
 
 - http://127.0.0.1:5173
 
+The dashboard now also includes a shared settings page at:
+
+- http://127.0.0.1:5173/settings
+
+The dashboard home page also shows a shared current-alerts panel that reads from:
+
+- `GET /user-alerts/scan?user_id=...`
+
+To run backend, dashboard, and Discord bot together, use three terminals:
+
+Terminal 1:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+uvicorn app.main:app --reload
+```
+
+Terminal 2:
+
+```powershell
+cd frontend
+npm run dev
+```
+
+Terminal 3:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python bot/main.py
+```
+
 ## Discord Bot
 
 The project includes a simple Python Discord bot in `bot/`.
@@ -97,10 +128,18 @@ python bot/main.py
 
 Per-user settings:
 
-- Settings are stored locally in JSON at `USER_SETTINGS_PATH`
-- Settings are saved per Discord user ID
-- If a user has no saved settings, the bot uses sensible defaults
+- Shared settings are primarily stored in backend SQLite at `PROFILE_DB_PATH`
+- The bot still keeps local JSON fallback storage at `USER_SETTINGS_PATH` for safe offline behavior
+- Settings are saved per user ID
+- If a user has no saved settings yet, the backend creates a default profile on first access
 - Per-user language overrides the global `REPLY_LANGUAGE` default
+
+Shared profile model:
+
+- The backend is now the main source of truth for user profiles in SQLite at `PROFILE_DB_PATH`
+- Shared fields include language, compact mode, default watchlist, alert settings, and alert watchlist
+- Discord reads shared settings from the backend first, then falls back to local bot storage if the profile API is unavailable
+- The dashboard reads and writes the same shared backend profile
 
 Available Discord commands:
 
@@ -172,6 +211,26 @@ How settings affect replies:
 Resetting settings:
 
 - Use `!resetsettings` to clear your saved preferences and return to defaults
+
+Watchlist sync:
+
+- Discord `!watchlist`, `!addticker`, `!removeticker`, and `!setwatchlist` now use the shared backend profile watchlist
+- The dashboard settings page and watchlist manager update the same watchlist
+- If a user has no saved watchlist, the backend falls back to `WATCHLIST_TICKERS`
+
+Alert sync:
+
+- Alert preferences are stored with the shared user profile
+- Shared alert fields include `alert_enabled`, `alert_threshold_high`, `alert_threshold_low`, and `alert_watchlist`
+- Discord `!alerts` now tries the shared backend alert scan first, then falls back to local alert logic if needed
+- Duplicate alert spam is reduced by storing the last triggered state per user/ticker/rule in SQLite
+
+Current local-user limitation:
+
+- There is no full authentication layer yet
+- Discord uses the real Discord user ID as `user_id`
+- The dashboard uses a profile ID you can edit in the Settings page
+- To make dashboard and Discord share the exact same profile, use the same profile ID in both places
 
 ## Daily Scan + OpenClaw Placeholder
 
@@ -274,6 +333,16 @@ Endpoint:
 - `GET /paper-status?ticker=VOO`
 - `GET /forecast?ticker=VOO&period=2y`
 - `GET /forecast-history?ticker=VOO`
+- `GET /user-profile?user_id=...`
+- `POST /user-profile/settings`
+- `GET /user-watchlist?user_id=...`
+- `POST /user-watchlist/add`
+- `POST /user-watchlist/remove`
+- `GET /user-alert-settings?user_id=...`
+- `POST /user-alert-settings/update`
+- `GET /user-alerts/scan?user_id=...`
+- `GET /user-alerts/enabled-users`
+- `POST /user-profile/reset`
 
 Example (PowerShell):
 
@@ -290,7 +359,31 @@ Invoke-RestMethod "http://127.0.0.1:8000/summary-dashboard?tickers=VOO,SPY,QQQ,A
 Invoke-RestMethod "http://127.0.0.1:8000/paper-status?ticker=VOO"
 Invoke-RestMethod "http://127.0.0.1:8000/forecast?ticker=VOO&period=2y"
 Invoke-RestMethod "http://127.0.0.1:8000/forecast-history?ticker=VOO"
+Invoke-RestMethod "http://127.0.0.1:8000/user-profile?user_id=demo-user"
 ```
+
+Unified profile endpoints:
+
+- `GET /user-profile?user_id=demo-user`
+  returns the shared profile row and creates it on first access if needed
+- `POST /user-profile/settings`
+  updates shared language, compact mode, and default watchlist
+- `GET /user-watchlist?user_id=demo-user`
+  returns the user watchlist or the system default fallback
+- `POST /user-watchlist/add`
+  adds one ticker to the shared watchlist
+- `POST /user-watchlist/remove`
+  removes one ticker from the shared watchlist
+- `GET /user-alert-settings?user_id=demo-user`
+  returns shared alert preferences
+- `POST /user-alert-settings/update`
+  updates alert enabled state, thresholds, alert watchlist, and delivery source
+- `GET /user-alerts/scan?user_id=demo-user`
+  returns user-specific deduplicated alert events for Discord-friendly delivery
+- `GET /user-alerts/enabled-users`
+  returns all alert-enabled users for scheduler or batch delivery integration
+- `POST /user-profile/reset`
+  resets a shared user profile back to default language, compact mode, watchlist, and alert preferences
 
 Response includes:
 

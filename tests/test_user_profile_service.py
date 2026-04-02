@@ -1,0 +1,124 @@
+"""Tests for the shared SQLite-backed user profile store."""
+
+from __future__ import annotations
+
+import unittest
+from pathlib import Path
+from uuid import uuid4
+
+from app.models.user_profile import (
+    UserAlertSettingsUpdateRequest,
+    UserProfileResetRequest,
+    UserProfileSettingsUpdateRequest,
+)
+from app.services.user_profile_service import UserProfileStore
+
+
+class UserProfileStoreTests(unittest.TestCase):
+    """Verify shared profile/watchlist/alert persistence and defaults."""
+
+    def setUp(self) -> None:
+        self.test_dir = Path("data") / "test_user_profiles"
+        self.test_dir.mkdir(parents=True, exist_ok=True)
+        self.db_path = self.test_dir / f"user_profiles_{uuid4().hex}.db"
+        self.store = UserProfileStore(db_path=str(self.db_path))
+
+    def tearDown(self) -> None:
+        if self.db_path.exists():
+            try:
+                self.db_path.unlink()
+            except PermissionError:
+                pass
+
+    def test_get_or_create_profile_uses_defaults(self) -> None:
+        profile = self.store.get_or_create_profile("demo-user")
+
+        self.assertEqual(profile.user_id, "demo-user")
+        self.assertEqual(profile.preferred_language, "bilingual")
+        self.assertEqual(profile.default_watchlist, [])
+        self.assertTrue(profile.alert_enabled)
+
+    def test_effective_watchlist_falls_back_to_system_default(self) -> None:
+        watchlist, using_system_default, _ = self.store.get_effective_watchlist("demo-user")
+
+        self.assertTrue(using_system_default)
+        self.assertEqual(watchlist, self.store.default_watchlist)
+
+    def test_watchlist_updates_normalize_special_tickers(self) -> None:
+        profile = self.store.update_profile_settings(
+            UserProfileSettingsUpdateRequest(
+                user_id="demo-user",
+                default_watchlist=["BRK.B", "tsla"],
+                last_active_source="dashboard",
+            )
+        )
+
+        self.assertEqual(profile.default_watchlist, ["BRK-B", "TSLA"])
+
+    def test_alert_settings_update_persists(self) -> None:
+        profile = self.store.update_alert_settings(
+            UserAlertSettingsUpdateRequest(
+                user_id="demo-user",
+                alert_enabled=False,
+                alert_threshold_high=85,
+                alert_threshold_low=40,
+                alert_watchlist=["AAPL", "MSFT"],
+                preferred_delivery_source="discord",
+                last_active_source="discord",
+            )
+        )
+
+        self.assertFalse(profile.alert_enabled)
+        self.assertEqual(profile.alert_threshold_high, 85)
+        self.assertEqual(profile.alert_threshold_low, 40)
+        self.assertEqual(profile.alert_watchlist, ["AAPL", "MSFT"])
+
+    def test_reset_profile_restores_shared_defaults(self) -> None:
+        self.store.update_profile_settings(
+            UserProfileSettingsUpdateRequest(
+                user_id="demo-user",
+                preferred_language="zh",
+                compact_mode=True,
+                default_watchlist=["TSLA"],
+                last_active_source="dashboard",
+            )
+        )
+        self.store.update_alert_settings(
+            UserAlertSettingsUpdateRequest(
+                user_id="demo-user",
+                alert_enabled=False,
+                alert_threshold_high=90,
+                alert_threshold_low=30,
+                alert_watchlist=["NVDA"],
+            )
+        )
+
+        profile = self.store.reset_profile(
+            UserProfileResetRequest(user_id="demo-user", last_active_source="discord")
+        )
+
+        self.assertEqual(profile.preferred_language, "bilingual")
+        self.assertFalse(profile.compact_mode)
+        self.assertEqual(profile.default_watchlist, [])
+        self.assertTrue(profile.alert_enabled)
+        self.assertEqual(profile.alert_threshold_high, 80)
+        self.assertEqual(profile.alert_threshold_low, 45)
+        self.assertEqual(profile.alert_watchlist, [])
+        self.assertEqual(profile.last_active_source, "discord")
+
+    def test_list_alert_enabled_user_summaries_uses_fallback_watchlist(self) -> None:
+        self.store.update_profile_settings(
+            UserProfileSettingsUpdateRequest(
+                user_id="demo-user",
+                default_watchlist=["AAPL", "MSFT"],
+            )
+        )
+        summaries = self.store.list_alert_enabled_user_summaries()
+
+        self.assertEqual(len(summaries), 1)
+        self.assertEqual(summaries[0].user_id, "demo-user")
+        self.assertEqual(summaries[0].alert_watchlist, ["AAPL", "MSFT"])
+
+
+if __name__ == "__main__":
+    unittest.main()

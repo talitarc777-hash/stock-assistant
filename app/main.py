@@ -12,6 +12,7 @@ from app.api.dashboard import router as dashboard_router
 from app.api.forecast import router as forecast_router
 from app.api.market_data import router as market_data_router
 from app.api.paper import router as paper_router
+from app.api.user_profile import router as user_profile_router
 from app.core.settings import get_settings
 
 logging.basicConfig(
@@ -58,6 +59,7 @@ app.include_router(backtest_router)
 app.include_router(dashboard_router)
 app.include_router(forecast_router)
 app.include_router(paper_router)
+app.include_router(user_profile_router)
 
 
 @app.get("/health", response_model=HealthResponse, tags=["system"])

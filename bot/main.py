@@ -17,16 +17,24 @@ try:
     )
     from .alert_engine import build_ticker_alerts, format_alert_for_discord
     from .nlp_router import parse_natural_language_message
+    from .profile_client import (
+        add_user_watchlist_ticker as backend_add_user_watchlist_ticker,
+        fetch_user_profile,
+        fetch_user_watchlist,
+        remove_user_watchlist_ticker as backend_remove_user_watchlist_ticker,
+        reset_user_profile as backend_reset_user_profile,
+        scan_user_alerts as backend_scan_user_alerts,
+        update_user_profile_settings,
+    )
     from .settings_store import (
-        add_user_ticker,
-        get_effective_watchlist,
-        get_user_settings,
+        add_user_ticker as fallback_add_user_ticker,
+        get_effective_watchlist as fallback_get_effective_watchlist,
+        get_user_settings as fallback_get_user_settings,
         parse_watchlist_input,
-        reset_user_settings,
-        remove_user_ticker,
-        set_user_compact_mode,
-        set_user_language,
-        set_user_watchlist,
+        remove_user_ticker as fallback_remove_user_ticker,
+        set_user_compact_mode as fallback_set_user_compact_mode,
+        set_user_language as fallback_set_user_language,
+        set_user_watchlist as fallback_set_user_watchlist,
     )
     from .stock_api_client import (
         ApiClientError,
@@ -54,16 +62,24 @@ except ImportError:  # pragma: no cover - script execution fallback
     )
     from alert_engine import build_ticker_alerts, format_alert_for_discord
     from nlp_router import parse_natural_language_message
+    from profile_client import (
+        add_user_watchlist_ticker as backend_add_user_watchlist_ticker,
+        fetch_user_profile,
+        fetch_user_watchlist,
+        remove_user_watchlist_ticker as backend_remove_user_watchlist_ticker,
+        reset_user_profile as backend_reset_user_profile,
+        scan_user_alerts as backend_scan_user_alerts,
+        update_user_profile_settings,
+    )
     from settings_store import (
-        add_user_ticker,
-        get_effective_watchlist,
-        get_user_settings,
+        add_user_ticker as fallback_add_user_ticker,
+        get_effective_watchlist as fallback_get_effective_watchlist,
+        get_user_settings as fallback_get_user_settings,
         parse_watchlist_input,
-        reset_user_settings,
-        remove_user_ticker,
-        set_user_compact_mode,
-        set_user_language,
-        set_user_watchlist,
+        remove_user_ticker as fallback_remove_user_ticker,
+        set_user_compact_mode as fallback_set_user_compact_mode,
+        set_user_language as fallback_set_user_language,
+        set_user_watchlist as fallback_set_user_watchlist,
     )
     from stock_api_client import (
         ApiClientError,
@@ -93,19 +109,19 @@ def is_allowed(ctx) -> bool:
 def _friendly_error_message(exc: Exception) -> str:
     """Convert known exceptions into short, friendly chat messages."""
     if isinstance(exc, InvalidTickerApiError):
-        return "I couldn't recognise that ticker. Please check it and try again, for example `!analyze VOO`."
+        return "I couldn't recognise that ticker. Please check the symbol and try again, for example `!analyze VOO`."
     if isinstance(exc, BackendTimeoutError):
-        return "The backend is taking a bit too long to reply. Please try again in a moment."
+        return "The backend is taking a little longer than usual to reply. Please try again in a moment."
     if isinstance(exc, BackendUnavailableError):
         return "The backend isn't available right now. Please try again a little later."
     if isinstance(exc, ValueError):
         message = str(exc)
         if "Language must be one of" in message:
-            return "That language option isn't valid. Use `en`, `zh`, or `bilingual`."
+            return "That language option isn't valid. Please use `en`, `zh`, or `bilingual`."
         if "Ticker cannot be empty" in message:
             return "Please enter a ticker. Try something like `!addticker MSFT`."
         if "Watchlist cannot be empty" in message:
-            return "Your watchlist is empty. Try `!setwatchlist VOO,QQQ,AAPL`."
+            return "Your watchlist is empty right now. Try `!setwatchlist VOO,QQQ,AAPL`."
         if "Unexpected API shape" in message:
             return "The API reply was missing some expected fields. Please try again later."
         return message
@@ -138,31 +154,189 @@ def _language_label(language: str) -> str:
     return labels.get(str(language).lower(), str(language))
 
 
+def _discord_user_id(ctx) -> str:
+    """Return the shared profile ID used for Discord-backed profiles."""
+    return str(ctx.author.id)
+
+
+def _language_label(language: str) -> str:
+    """Render a short human-friendly language label."""
+    labels = {
+        "en": "English",
+        "zh": "中文",
+        "bilingual": "English + 中文",
+    }
+    return labels.get(str(language).lower(), str(language))
+
+
+def _discord_display_name(ctx) -> str:
+    """Return the best display name available from Discord context."""
+    return getattr(ctx.author, "display_name", None) or getattr(ctx.author, "name", "")
+
+
+def _normalize_profile_settings(profile: dict) -> dict:
+    """Shape backend profile payloads into the existing formatter-friendly settings shape."""
+    return {
+        "language": profile.get("preferred_language", "zh"),
+        "compact_mode": bool(profile.get("compact_mode", False)),
+        "default_watchlist": list(profile.get("default_watchlist", [])),
+        "alert_enabled": bool(profile.get("alert_enabled", True)),
+        "alert_threshold_high": profile.get("alert_threshold_high", 80),
+        "alert_threshold_low": profile.get("alert_threshold_low", 45),
+        "alert_watchlist": list(profile.get("alert_watchlist", [])),
+        "preferred_delivery_source": profile.get("preferred_delivery_source", "discord"),
+    }
+
+
+def _get_shared_user_settings(ctx) -> dict:
+    """Read settings from the shared backend profile, falling back to local storage if needed."""
+    user_id = _discord_user_id(ctx)
+    display_name = _discord_display_name(ctx)
+    try:
+        profile = fetch_user_profile(user_id=user_id, display_name=display_name, source="discord")
+        return _normalize_profile_settings(profile)
+    except Exception as exc:
+        print("PROFILE FALLBACK get settings:", repr(exc))
+        return fallback_get_user_settings(ctx.author.id)
+
+
+def _set_shared_language(ctx, language: str) -> dict:
+    """Persist language to shared backend profile with local fallback."""
+    payload = {
+        "user_id": _discord_user_id(ctx),
+        "display_name": _discord_display_name(ctx),
+        "preferred_language": language,
+        "last_active_source": "discord",
+    }
+    try:
+        profile = update_user_profile_settings(payload)
+        return _normalize_profile_settings(profile)
+    except Exception as exc:
+        print("PROFILE FALLBACK set language:", repr(exc))
+        return fallback_set_user_language(ctx.author.id, language)
+
+
+def _set_shared_compact_mode(ctx, compact_mode: bool) -> dict:
+    """Persist compact mode to shared backend profile with local fallback."""
+    payload = {
+        "user_id": _discord_user_id(ctx),
+        "display_name": _discord_display_name(ctx),
+        "compact_mode": compact_mode,
+        "last_active_source": "discord",
+    }
+    try:
+        profile = update_user_profile_settings(payload)
+        return _normalize_profile_settings(profile)
+    except Exception as exc:
+        print("PROFILE FALLBACK set compact:", repr(exc))
+        return fallback_set_user_compact_mode(ctx.author.id, compact_mode)
+
+
+def _set_shared_watchlist(ctx, tickers: list[str]) -> dict:
+    """Persist the full shared watchlist with local fallback."""
+    payload = {
+        "user_id": _discord_user_id(ctx),
+        "display_name": _discord_display_name(ctx),
+        "default_watchlist": tickers,
+        "last_active_source": "discord",
+    }
+    try:
+        profile = update_user_profile_settings(payload)
+        return _normalize_profile_settings(profile)
+    except Exception as exc:
+        print("PROFILE FALLBACK set watchlist:", repr(exc))
+        return fallback_set_user_watchlist(ctx.author.id, tickers)
+
+
+def _merge_watchlist_response_with_settings(ctx, response: dict) -> dict:
+    """Keep add/remove watchlist results aligned with the shared settings shape."""
+    current_settings = _get_shared_user_settings(ctx)
+    return {
+        **current_settings,
+        "default_watchlist": list(
+            response.get("watchlist", current_settings.get("default_watchlist", []))
+        ),
+    }
+
+
+def _add_shared_watchlist_ticker(ctx, ticker: str) -> dict:
+    """Add one ticker through the shared backend profile with local fallback."""
+    payload = {
+        "user_id": _discord_user_id(ctx),
+        "display_name": _discord_display_name(ctx),
+        "ticker": ticker,
+        "last_active_source": "discord",
+    }
+    try:
+        response = backend_add_user_watchlist_ticker(payload)
+        return _merge_watchlist_response_with_settings(ctx, response)
+    except Exception as exc:
+        print("PROFILE FALLBACK add ticker:", repr(exc))
+        return fallback_add_user_ticker(ctx.author.id, ticker)
+
+
+def _remove_shared_watchlist_ticker(ctx, ticker: str) -> dict:
+    """Remove one ticker through the shared backend profile with local fallback."""
+    payload = {
+        "user_id": _discord_user_id(ctx),
+        "display_name": _discord_display_name(ctx),
+        "ticker": ticker,
+        "last_active_source": "discord",
+    }
+    try:
+        response = backend_remove_user_watchlist_ticker(payload)
+        return _merge_watchlist_response_with_settings(ctx, response)
+    except Exception as exc:
+        print("PROFILE FALLBACK remove ticker:", repr(exc))
+        return fallback_remove_user_ticker(ctx.author.id, ticker)
+
+
+def _get_shared_effective_watchlist(ctx) -> list[str]:
+    """Read the shared effective watchlist with system-default fallback behavior."""
+    try:
+        response = fetch_user_watchlist(_discord_user_id(ctx))
+        return list(response.get("watchlist", []))
+    except Exception as exc:
+        print("PROFILE FALLBACK get watchlist:", repr(exc))
+        return fallback_get_effective_watchlist(ctx.author.id)
+
+
+def _reset_shared_settings(ctx) -> dict:
+    """Reset Discord-visible settings via the shared backend profile."""
+    payload = {
+        "user_id": _discord_user_id(ctx),
+        "display_name": _discord_display_name(ctx),
+        "last_active_source": "discord",
+    }
+    profile = backend_reset_user_profile(payload)
+    return _normalize_profile_settings(profile)
+
+
 async def _send_settings(ctx) -> None:
     """Send the current user's saved settings."""
-    user_settings = get_user_settings(ctx.author.id)
+    user_settings = _get_shared_user_settings(ctx)
     print(f"SETTINGS user={ctx.author.id} settings={user_settings}")
     await ctx.send(format_settings_message(ctx.author.id, user_settings))
 
 
 async def _apply_language_setting(ctx, language: str) -> None:
     """Save language preference and send a friendly confirmation."""
-    user_settings = set_user_language(ctx.author.id, language)
+    user_settings = _set_shared_language(ctx, language)
     print(f"SETLANG user={ctx.author.id} language={user_settings['language']}")
     await ctx.send(
-        f"Done — I'll reply in {_language_label(user_settings['language'])} from now on.\n"
+        f"Saved. I'll reply in {_language_label(user_settings['language'])} from now on.\n"
         f"Use `{COMMAND_PREFIX}settings` any time to review your setup."
     )
 
 
 async def _apply_compact_setting(ctx, compact_mode: bool) -> None:
     """Save compact mode preference and send a friendly confirmation."""
-    user_settings = set_user_compact_mode(ctx.author.id, compact_mode)
+    user_settings = _set_shared_compact_mode(ctx, compact_mode)
     print(f"SETCOMPACT user={ctx.author.id} compact_mode={user_settings['compact_mode']}")
     mode_text = "on" if user_settings["compact_mode"] else "off"
     extra = "I'll keep replies shorter." if user_settings["compact_mode"] else "I'll include a bit more detail."
     await ctx.send(
-        f"Done — compact mode is now `{mode_text}`.\n"
+        f"Saved. Compact mode is now `{mode_text}`.\n"
         f"{extra}"
     )
 
@@ -170,33 +344,31 @@ async def _apply_compact_setting(ctx, compact_mode: bool) -> None:
 async def _apply_watchlist_update(ctx, tickers: list[str], action: str) -> None:
     """Add or remove one or more tickers from the user's watchlist."""
     if action == "add":
-        updated = get_user_settings(ctx.author.id)
         for ticker in tickers:
-            updated = add_user_ticker(ctx.author.id, ticker)
+            updated = _add_shared_watchlist_ticker(ctx, ticker)
         print(f"ADDTICKER user={ctx.author.id} watchlist={updated['default_watchlist']}")
         added_text = ", ".join(tickers)
         watchlist_text = ", ".join(updated["default_watchlist"])
         await ctx.send(
             f"Added `{added_text}` to your watchlist.\n"
-            f"Now using: `{watchlist_text}`"
+            f"Current watchlist: `{watchlist_text}`"
         )
         return
 
-    updated = get_user_settings(ctx.author.id)
     for ticker in tickers:
-        updated = remove_user_ticker(ctx.author.id, ticker)
+        updated = _remove_shared_watchlist_ticker(ctx, ticker)
     print(f"REMOVETICKER user={ctx.author.id} watchlist={updated['default_watchlist']}")
     removed_text = ", ".join(tickers)
     watchlist_text = ", ".join(updated["default_watchlist"])
     await ctx.send(
         f"Removed `{removed_text}` from your watchlist.\n"
-        f"Now using: `{watchlist_text}`"
+        f"Current watchlist: `{watchlist_text}`"
     )
 
 
 async def _send_analyze(ctx, symbol: str) -> None:
     """Fetch and send an analysis reply for one ticker."""
-    user_settings = get_user_settings(ctx.author.id)
+    user_settings = _get_shared_user_settings(ctx)
     data = analyze(symbol)
     print("ANALYZE RAW RESPONSE:", data)
     data = _require_dict(data, "analyze response")
@@ -206,7 +378,7 @@ async def _send_analyze(ctx, symbol: str) -> None:
 
 async def _send_forecast(ctx, symbol: str) -> None:
     """Fetch and send a forecast reply for one ticker."""
-    user_settings = get_user_settings(ctx.author.id)
+    user_settings = _get_shared_user_settings(ctx)
     data = forecast(symbol, period="2y")
     print("FORECAST RAW RESPONSE:", data)
     data = _require_dict(data, "forecast response")
@@ -217,8 +389,8 @@ async def _send_forecast(ctx, symbol: str) -> None:
 
 async def _send_watchlist(ctx) -> None:
     """Fetch and send ranked watchlist results."""
-    user_settings = get_user_settings(ctx.author.id)
-    effective_watchlist = get_effective_watchlist(ctx.author.id)
+    user_settings = _get_shared_user_settings(ctx)
+    effective_watchlist = _get_shared_effective_watchlist(ctx)
     if not effective_watchlist:
         raise ValueError("Watchlist cannot be empty. Add one with `!setwatchlist VOO,QQQ,AAPL`.")
 
@@ -232,10 +404,27 @@ async def _send_watchlist(ctx) -> None:
 
 async def _send_alerts(ctx) -> None:
     """Fetch and send current alert messages for the effective watchlist."""
-    user_settings = get_user_settings(ctx.author.id)
-    effective_watchlist = get_effective_watchlist(ctx.author.id)
+    user_settings = _get_shared_user_settings(ctx)
+    effective_watchlist = _get_shared_effective_watchlist(ctx)
     if not effective_watchlist:
         raise ValueError("Watchlist cannot be empty. Add one with `!setwatchlist VOO,QQQ,AAPL`.")
+
+    try:
+        alert_payload = backend_scan_user_alerts(_discord_user_id(ctx))
+        print("ALERTS PROFILE RAW RESPONSE:", alert_payload)
+        alert_lines = []
+        for item in alert_payload.get("alerts", []):
+            message = item.get("message_zh", "")
+            if str(user_settings.get("language")) == "en":
+                message = item.get("message_en", message)
+            elif str(user_settings.get("language")) == "bilingual":
+                message = f"{item.get('message_en', '')} / {item.get('message_zh', '')}"
+            icon = "🚨" if item.get("severity") == "high" else "⚠️"
+            alert_lines.append(f"{icon} {message}")
+        await ctx.send(format_alerts_message(alert_lines, user_settings))
+        return
+    except Exception as exc:
+        print("ALERTS PROFILE FALLBACK:", repr(exc))
 
     watchlist_payload = watchlist(",".join(effective_watchlist), period="5y")
     print("ALERTS WATCHLIST RAW RESPONSE:", watchlist_payload)
@@ -409,7 +598,7 @@ async def setwatchlist_cmd(ctx, *, raw_watchlist: str):
 
     try:
         tickers = parse_watchlist_input(raw_watchlist)
-        user_settings = set_user_watchlist(ctx.author.id, tickers)
+        user_settings = _set_shared_watchlist(ctx, tickers)
         print(f"SETWATCHLIST user={ctx.author.id} watchlist={user_settings['default_watchlist']}")
         watchlist_text = ", ".join(user_settings["default_watchlist"])
         await ctx.send(
@@ -450,7 +639,7 @@ async def resetsettings_cmd(ctx):
     if not is_allowed(ctx):
         return
 
-    user_settings = reset_user_settings(ctx.author.id)
+    user_settings = _reset_shared_settings(ctx)
     print(f"RESETSETTINGS user={ctx.author.id}")
     await ctx.send(
         "Your settings are back to the defaults.\n"
