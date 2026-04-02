@@ -63,3 +63,9 @@ def forecast(ticker: str, period: str = "2y"):
 def watchlist(tickers_csv: str, period: str = "5y"):
     url = f"{BACKEND_BASE_URL}/watchlist-analyze?tickers={tickers_csv}&period={period}"
     return _get_json(url)
+
+
+def chart_data(ticker: str, period: str = "6mo"):
+    """Fetch chart + indicator history for one ticker from backend."""
+    url = f"{BACKEND_BASE_URL}/chart-data?ticker={ticker}&period={period}"
+    return _get_json(url)

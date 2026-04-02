@@ -1,0 +1,5 @@
+{
+  "watchlist": ["VOO", "SPY", "QQQ", "AAPL", "MSFT", "NVDA"],
+  "analysis_period": "5y",
+  "chart_period": "6mo"
+}
