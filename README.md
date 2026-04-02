@@ -116,6 +116,49 @@ Available Discord commands:
 - `!analyze VOO`
 - `!forecast NVDA`
 - `!watchlist`
+- `!alerts`
+
+Natural-language examples:
+
+- `set my language to Chinese`
+- `change language to English`
+- `use bilingual mode`
+- `show my settings`
+- `turn on compact mode`
+- `disable compact mode`
+- `add Tesla to my watchlist`
+- `add AAPL and NVDA to my watchlist`
+- `remove TSLA from my watchlist`
+- `show my watchlist`
+- `analyze VOO`
+- `check Apple`
+- `what do you think about NVDA`
+- `forecast QQQ`
+- `what is the outlook for Tesla`
+
+Supported language-setting phrases:
+
+- `set my language to Chinese`
+- `change language to English`
+- `reply in Chinese`
+- `use bilingual mode`
+- `speak in English and Chinese`
+
+Watchlist add/remove examples:
+
+- `add Tesla to my watchlist`
+- `add TSLA`
+- `add AAPL and NVDA to my watchlist`
+- `remove Tesla from my watchlist`
+- `remove TSLA`
+- `delete AAPL from my watchlist`
+
+Natural-language limitations:
+
+- Parsing is rule-based, not AI-based
+- Explicit `!commands` still work first and are the most reliable
+- The bot only responds to clear supported phrases
+- If a company name is ambiguous, the bot will ask you to use the ticker symbol
 
 How settings affect replies:
 
