@@ -41,6 +41,32 @@ function navigateTo(path, setRoutePath) {
   setRoutePath(normalized);
 }
 
+function getActionSummaryByMode(analyzeData, mode) {
+  if (!analyzeData) return "";
+  if (mode === "zh") {
+    return analyzeData.action_summary_zh || analyzeData.action_summary;
+  }
+  if (mode === "both") {
+    return analyzeData.action_summary_bilingual || analyzeData.action_summary;
+  }
+  return analyzeData.action_summary_en || analyzeData.action_summary;
+}
+
+function getExplanationBulletsByMode(analyzeData, mode) {
+  if (!analyzeData) return [];
+  if (mode === "zh") {
+    return analyzeData.explanation_bullets_zh || analyzeData.explanation_bullets || [];
+  }
+  if (mode === "both") {
+    return (
+      analyzeData.explanation_bullets_bilingual ||
+      analyzeData.explanation_bullets ||
+      []
+    );
+  }
+  return analyzeData.explanation_bullets_en || analyzeData.explanation_bullets || [];
+}
+
 function DashboardPage({ languageMode }) {
   const [watchlistRows, setWatchlistRows] = useState([]);
   const [selectedTicker, setSelectedTicker] = useState("VOO");
@@ -126,6 +152,16 @@ function DashboardPage({ languageMode }) {
     }));
   }, [chartData]);
 
+  const explanationBullets = useMemo(
+    () => getExplanationBulletsByMode(analyzeData, languageMode),
+    [analyzeData, languageMode]
+  );
+
+  const actionSummaryDisplay = useMemo(
+    () => getActionSummaryByMode(analyzeData, languageMode),
+    [analyzeData, languageMode]
+  );
+
   return (
     <>
       <header className="app-header">
@@ -191,7 +227,7 @@ function DashboardPage({ languageMode }) {
                 </p>
                 <p>
                   <strong>{term("Action Summary", languageMode)}:</strong>{" "}
-                  {analyzeData.action_summary}
+                  {actionSummaryDisplay}
                 </p>
                 <p>
                   <strong>{term("Benchmark Strength", languageMode)}:</strong>{" "}
@@ -200,7 +236,7 @@ function DashboardPage({ languageMode }) {
               </div>
               <h4>{term("Explanation", languageMode)}</h4>
               <ul className="bullet-list">
-                {analyzeData.explanation_bullets.map((bullet) => (
+                {explanationBullets.map((bullet) => (
                   <li key={bullet}>{bullet}</li>
                 ))}
               </ul>

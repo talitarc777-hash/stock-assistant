@@ -105,19 +105,17 @@ def _build_outlook_text(trend_regime: str, horizon_days: int, confidence_score: 
     """Build simple, readable scenario text for a forecast horizon."""
     if trend_regime == "bullish":
         if horizon_days == 5:
-            return (
-                "Short-term outlook remains constructive if price stays above nearby support."
-            )
+            return "Near-term outlook remains constructive while price holds above support."
         return (
-            "Medium-term outlook stays constructive while the broader uptrend and momentum hold."
+            "Medium-term outlook remains constructive if trend structure and momentum continue to hold."
         )
     if trend_regime == "bearish":
         if horizon_days == 5:
-            return "Short-term outlook remains cautious unless momentum improves."
-        return "Medium-term outlook remains weak unless trend structure recovers."
+            return "Near-term outlook is cautious; watch resistance and momentum for stabilization."
+        return "Medium-term outlook stays fragile unless trend structure improves."
     if confidence_score >= 60:
-        return "Outlook is mixed but stable, with range-bound movement more likely than breakout."
-    return "Outlook is uncertain, with sideways movement and quick reversals both possible."
+        return "Near-term outlook is neutral, with range-bound movement more likely than a breakout."
+    return "Near-term outlook is neutral-to-cautious, with two-way swings still possible."
 
 
 def _trend_regime_zh(trend_regime: str) -> str:
@@ -139,10 +137,11 @@ def _build_forecast_summary_en(
 ) -> str:
     """Build short English summary for the forecast."""
     return (
-        f"Trend regime is {trend_regime}. "
-        f"Expected range {expected_range_lower:.2f}–{expected_range_upper:.2f}. "
-        f"Support near {support_level:.2f}, resistance near {resistance_level:.2f}. "
-        f"Confidence score {confidence_score}/100."
+        f"Trend regime: {trend_regime}. "
+        f"Expected range: {expected_range_lower:.2f}–{expected_range_upper:.2f}. "
+        f"Watch support near {support_level:.2f} and resistance near {resistance_level:.2f}. "
+        f"Confidence score: {confidence_score}/100. "
+        "This is scenario guidance, not a guaranteed prediction."
     )
 
 
@@ -158,8 +157,9 @@ def _build_forecast_summary_zh(
     return (
         f"趨勢偏向：{trend_regime_zh}。"
         f"預期波動區間：{expected_range_lower:.2f}–{expected_range_upper:.2f}。"
-        f"支撐位約 {support_level:.2f}，阻力位約 {resistance_level:.2f}。"
-        f"信心評分 {confidence_score}/100。"
+        f"可留意支撐位約 {support_level:.2f}、阻力位約 {resistance_level:.2f}。"
+        f"信心評分：{confidence_score}/100。"
+        "此為情景分析，並非保證預測。"
     )
 
 
@@ -231,48 +231,48 @@ def build_scenario_forecast(df: pd.DataFrame) -> ForecastResult:
     if trend_regime == "bullish":
         confidence_score += 20
         explanation_bullets.append(
-            "Price is above SMA50 and SMA200, which keeps the broader trend constructive."
+            "Price is above SMA50 and SMA200, so the broader trend remains constructive."
         )
     elif trend_regime == "bearish":
         confidence_score -= 15
         explanation_bullets.append(
-            "Price is below SMA50 and SMA200, which points to a weaker trend regime."
+            "Price is below SMA50 and SMA200, so trend conditions remain weaker."
         )
     else:
         explanation_bullets.append(
-            "Price is between major moving average signals, so the trend regime is mixed."
+            "Price is between major moving-average signals, so the trend setup is neutral."
         )
 
     if sma_20 > sma_50:
         confidence_score += 10
-        explanation_bullets.append("SMA20 is above SMA50, which supports short-term trend follow-through.")
+        explanation_bullets.append("SMA20 is above SMA50, supporting near-term trend continuation.")
     else:
         confidence_score -= 5
-        explanation_bullets.append("SMA20 is not above SMA50, so short-term trend support is limited.")
+        explanation_bullets.append("SMA20 is not above SMA50, so near-term trend support is limited.")
 
     if macd_line > macd_signal:
         confidence_score += 10
-        explanation_bullets.append("MACD remains above its signal line, which supports positive momentum.")
+        explanation_bullets.append("MACD remains above its signal line, suggesting momentum remains constructive.")
     else:
         confidence_score -= 10
-        explanation_bullets.append("MACD is below its signal line, which keeps momentum softer.")
+        explanation_bullets.append("MACD is below its signal line, so momentum remains softer.")
 
     if 45 <= rsi_14 <= 65:
         confidence_score += 10
-        explanation_bullets.append("RSI is in a balanced zone, which supports a steadier outlook.")
+        explanation_bullets.append("RSI is in a balanced zone, supporting a steadier near-term outlook.")
     elif rsi_14 > 75 or rsi_14 < 30:
         confidence_score -= 10
-        explanation_bullets.append("RSI is in an extreme zone, so short-term swings may be less stable.")
+        explanation_bullets.append("RSI is in an extreme zone, so avoid chasing and expect larger swings.")
 
     if rolling_volatility > 35:
         confidence_score -= 10
-        explanation_bullets.append("Rolling volatility is elevated, so the expected range is wider.")
+        explanation_bullets.append("Rolling volatility is elevated, so the expected range may stay wider.")
     else:
         confidence_score += 5
         explanation_bullets.append("Rolling volatility is moderate, which improves scenario confidence.")
 
     explanation_bullets.append(
-        f"Support is estimated near {support_level:.2f} and resistance near {resistance_level:.2f}."
+        f"Watch support near {support_level:.2f} and resistance near {resistance_level:.2f}."
     )
     explanation_bullets.append(
         f"Expected range is centered around recent ATR/range behaviour, roughly {expected_range_lower:.2f} to {expected_range_upper:.2f}."

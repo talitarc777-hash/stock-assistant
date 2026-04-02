@@ -36,11 +36,11 @@ def _score_cross_alerts(ticker: str, previous_score: int, latest_score: int) -> 
     alerts: list[str] = []
     if previous_score < 80 <= latest_score:
         alerts.append(
-            f"[{ticker}] Score crossed above 80 ({previous_score} -> {latest_score}). Attractive setup to watch."
+            f"[{ticker}] Score crossed above 80 ({previous_score} -> {latest_score}). Trend setup looks stronger; keep it on watchlist."
         )
     if previous_score >= 45 > latest_score:
         alerts.append(
-            f"[{ticker}] Score fell below 45 ({previous_score} -> {latest_score}). Risk has increased."
+            f"[{ticker}] Score fell below 45 ({previous_score} -> {latest_score}). Risk has increased; review position sizing."
         )
     return alerts
 
@@ -57,9 +57,9 @@ def _sma200_cross_alerts(ticker: str, previous_row: pd.Series, latest_row: pd.Se
     latest_sma200 = float(latest_row["sma_200"])
 
     if prev_close <= prev_sma200 and latest_close > latest_sma200:
-        alerts.append(f"[{ticker}] Close crossed above SMA200. Trend confirmation improved.")
+        alerts.append(f"[{ticker}] Close crossed above SMA200. Trend tone improved.")
     if prev_close >= prev_sma200 and latest_close < latest_sma200:
-        alerts.append(f"[{ticker}] Close crossed below SMA200. Long-term trend weakened.")
+        alerts.append(f"[{ticker}] Close crossed below SMA200. Long-term trend tone weakened; watch support.")
     return alerts
 
 
@@ -80,7 +80,7 @@ def _macd_bullish_change_alert(ticker: str, previous_row: pd.Series, latest_row:
     is_bullish = float(latest_row["macd_line"]) > float(latest_row["macd_signal"])
 
     if was_bearish and is_bullish:
-        return [f"[{ticker}] MACD changed from bearish to bullish momentum."]
+        return [f"[{ticker}] MACD changed from bearish to bullish; momentum is improving."]
     return []
 
 
@@ -129,4 +129,3 @@ def summarize_attractive_and_risky(results: list[TickerScanResult]) -> dict[str,
         "attractive": attractive,
         "risky": risky,
     }
-

@@ -26,7 +26,10 @@ from app.services.market_data import (
     get_price_history,
 )
 from app.services.scoring import ScoringInputError, score_from_indicators
-from app.core.translation_terms import translate_explanation_bullets
+from app.core.translation_terms import (
+    translate_action_summary_to_zh,
+    translate_explanation_bullets,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +71,9 @@ class AnalyzeResponse(BaseModel):
     score_breakdown: ScoreBreakdownResponse
     label: str
     action_summary: str
+    action_summary_en: str
+    action_summary_zh: str
+    action_summary_bilingual: str
     explanation_bullets: list[str]
     explanation_bullets_en: list[str]
     explanation_bullets_zh: list[str]
@@ -122,6 +128,7 @@ def _build_ticker_analysis_response(
     explanation_bullets_zh, explanation_bullets_bilingual = translate_explanation_bullets(
         score.explanations
     )
+    action_summary_zh = translate_action_summary_to_zh(score.action_summary)
 
     return AnalyzeResponse(
         ticker=ticker.strip().upper(),
@@ -135,6 +142,9 @@ def _build_ticker_analysis_response(
         ),
         label=score.label,
         action_summary=score.action_summary,
+        action_summary_en=score.action_summary,
+        action_summary_zh=action_summary_zh,
+        action_summary_bilingual=f"{score.action_summary} / {action_summary_zh}",
         explanation_bullets=score.explanations,
         explanation_bullets_en=score.explanations,
         explanation_bullets_zh=explanation_bullets_zh,
