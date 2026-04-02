@@ -5,6 +5,7 @@ from config import (
     ALLOWED_CHANNEL_IDS,
     COMMAND_PREFIX,
     DISCORD_BOT_TOKEN,
+    REPLY_LANGUAGE,
     WATCHLIST_TICKERS,
 )
 from stock_api_client import (
@@ -43,6 +44,32 @@ def _format_price(value) -> str:
         return f"{float(value):.2f}"
     except (TypeError, ValueError):
         return "N/A"
+
+
+def _select_action_summary(data: dict) -> str:
+    """Pick action summary field based on configured reply language."""
+    if REPLY_LANGUAGE == "en":
+        return data.get("action_summary_en", data.get("action_summary", "N/A"))
+    if REPLY_LANGUAGE == "bilingual":
+        return data.get(
+            "action_summary_bilingual",
+            data.get("action_summary", "N/A"),
+        )
+    return data.get("action_summary_zh", data.get("action_summary", "N/A"))
+
+
+def _select_explanation_bullets(data: dict) -> list[str]:
+    """Pick explanation bullet field based on configured reply language."""
+    if REPLY_LANGUAGE == "en":
+        bullets = data.get("explanation_bullets_en", data.get("explanation_bullets", []))
+    elif REPLY_LANGUAGE == "bilingual":
+        bullets = data.get(
+            "explanation_bullets_bilingual",
+            data.get("explanation_bullets", []),
+        )
+    else:
+        bullets = data.get("explanation_bullets_zh", data.get("explanation_bullets", []))
+    return _require_list(bullets, "explanation_bullets")
 
 
 def _friendly_error_message(exc: Exception) -> str:
@@ -94,9 +121,8 @@ async def analyze_cmd(ctx, ticker: str):
         score_breakdown = _require_dict(data.get("score_breakdown", {}), "score_breakdown")
         score = score_breakdown.get("total_score", "N/A")
         label = data.get("label", "N/A")
-        action = data.get("action_summary_zh", data.get("action_summary", "N/A"))
-        bullets = data.get("explanation_bullets_zh", data.get("explanation_bullets", []))
-        bullets = _require_list(bullets, "explanation_bullets_zh")
+        action = _select_action_summary(data)
+        bullets = _select_explanation_bullets(data)
 
         msg = f"""📊 {symbol}
 
@@ -155,7 +181,7 @@ async def watchlist_cmd(ctx):
         return
 
     try:
-        data = watchlist(WATCHLIST_TICKERS, period="5y")
+        data = watchlist(",".join(WATCHLIST_TICKERS), period="5y")
         print("WATCHLIST RAW RESPONSE:", data)
         data = _require_dict(data, "watchlist response")
 
