@@ -19,6 +19,27 @@ body {
   padding: 20px;
 }
 
+.top-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nav-link {
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #111827;
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.nav-link.active {
+  background: #111827;
+  color: #ffffff;
+  border-color: #111827;
+}
+
 .app-header {
   display: flex;
   justify-content: space-between;
@@ -75,6 +96,25 @@ body {
 
 .panel h4 {
   margin-bottom: 6px;
+}
+
+.glossary-panel h2 {
+  margin: 0 0 8px 0;
+}
+
+.glossary-search-label {
+  display: inline-block;
+  margin: 6px 0;
+  font-weight: 600;
+}
+
+.glossary-search-input {
+  width: 100%;
+  max-width: 500px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
 }
 
 .table-wrap {

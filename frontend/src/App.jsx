@@ -1,13 +1,20 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import { fetchAnalyze, fetchChartData, fetchForecast, fetchWatchlistAnalyze } from "./api";
 import LineChart from "./components/LineChart";
 import WatchlistTable from "./components/WatchlistTable";
 import { term } from "./i18n/terms";
+import GlossaryPage from "./pages/GlossaryPage";
 import "./styles.css";
 
 const DEFAULT_WATCHLIST = ["VOO", "SPY", "QQQ", "AAPL", "MSFT", "NVDA"];
 const DEFAULT_PERIOD = "5y";
+const DASHBOARD_PATH = "/";
+const GLOSSARY_PATH = "/glossary";
+
+function normalizePath(pathname) {
+  return pathname === GLOSSARY_PATH ? GLOSSARY_PATH : DASHBOARD_PATH;
+}
 
 function toNumeric(value) {
   if (value === null || value === undefined) {
@@ -17,7 +24,15 @@ function toNumeric(value) {
   return Number.isFinite(num) ? num : Number.NaN;
 }
 
-export default function App() {
+function navigateTo(path, setRoutePath) {
+  const normalized = normalizePath(path);
+  if (window.location.pathname !== normalized) {
+    window.history.pushState({}, "", normalized);
+  }
+  setRoutePath(normalized);
+}
+
+function DashboardPage() {
   const [watchlistRows, setWatchlistRows] = useState([]);
   const [selectedTicker, setSelectedTicker] = useState("VOO");
   const [analyzeData, setAnalyzeData] = useState(null);
@@ -61,7 +76,6 @@ export default function App() {
       try {
         forecast = await fetchForecast(ticker, "2y");
       } catch {
-        // Graceful fallback: keep charts/details available without forecast overlays.
         forecast = null;
       }
       setAnalyzeData(analysis);
@@ -105,7 +119,7 @@ export default function App() {
   }, [chartData]);
 
   return (
-    <main className="app-shell">
+    <>
       <header className="app-header">
         <div>
           <h1>Stock Assistant Dashboard</h1>
@@ -202,12 +216,10 @@ export default function App() {
                       {forecastData.trend_regime_en} / {forecastData.trend_regime_zh}
                     </p>
                     <p>
-                      <strong>{term("5-Day Outlook", "both")}:</strong>{" "}
-                      {forecastData.outlook_5d}
+                      <strong>{term("5-Day Outlook", "both")}:</strong> {forecastData.outlook_5d}
                     </p>
                     <p>
-                      <strong>{term("20-Day Outlook", "both")}:</strong>{" "}
-                      {forecastData.outlook_20d}
+                      <strong>{term("20-Day Outlook", "both")}:</strong> {forecastData.outlook_20d}
                     </p>
                     <p>
                       <strong>{term("Expected Range", "both")}:</strong>{" "}
@@ -295,7 +307,39 @@ export default function App() {
         lines={[{ key: "total_score", label: `Total ${term("Score", languageMode)}`, color: "#374151" }]}
         height={180}
       />
-    </main>
+    </>
   );
 }
 
+export default function App() {
+  const [routePath, setRoutePath] = useState(() => normalizePath(window.location.pathname));
+
+  useEffect(() => {
+    const onPopState = () => setRoutePath(normalizePath(window.location.pathname));
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  return (
+    <main className="app-shell">
+      <nav className="top-nav panel">
+        <button
+          type="button"
+          className={routePath === DASHBOARD_PATH ? "nav-link active" : "nav-link"}
+          onClick={() => navigateTo(DASHBOARD_PATH, setRoutePath)}
+        >
+          Dashboard
+        </button>
+        <button
+          type="button"
+          className={routePath === GLOSSARY_PATH ? "nav-link active" : "nav-link"}
+          onClick={() => navigateTo(GLOSSARY_PATH, setRoutePath)}
+        >
+          Glossary
+        </button>
+      </nav>
+
+      {routePath === GLOSSARY_PATH ? <GlossaryPage /> : <DashboardPage />}
+    </main>
+  );
+}
