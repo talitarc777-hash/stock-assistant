@@ -25,8 +25,16 @@ def is_allowed(ctx) -> bool:
 def _format_bullets(items: list[str], limit: int = 3) -> str:
     """Render a short bullet list for Discord replies."""
     if not items:
-        return "• No explanation available"
+        return "• 暫無說明"
     return "\n".join(f"• {text}" for text in items[:limit])
+
+
+def _format_price(value) -> str:
+    """Format numeric fields with graceful fallback."""
+    try:
+        return f"{float(value):.2f}"
+    except (TypeError, ValueError):
+        return "N/A"
 
 
 @bot.event
@@ -44,20 +52,19 @@ async def analyze_cmd(ctx, ticker: str):
         data = analyze(symbol)
         print("ANALYZE RAW RESPONSE:", data)
 
+        latest_close = _format_price(data.get("latest_close"))
         score = data.get("score_breakdown", {}).get("total_score", "N/A")
         label = data.get("label", "N/A")
-        action = data.get("action_summary_bilingual", data.get("action_summary", "N/A"))
-        bullets = data.get("explanation_bullets_bilingual", data.get("explanation_bullets", []))
+        action = data.get("action_summary_zh", data.get("action_summary", "N/A"))
+        bullets = data.get("explanation_bullets_zh", data.get("explanation_bullets", []))
 
-        msg = f"""📊 {symbol} Analysis
+        msg = f"""📊 {symbol}
 
+Latest Close: {latest_close}
 Score: {score}
 Label: {label}
-
-Action:
-{action}
-
-Why:
+操作摘要: {action}
+重點:
 {_format_bullets(bullets, limit=3)}
 """
     except Exception as exc:
@@ -78,32 +85,20 @@ async def forecast_cmd(ctx, ticker: str):
         print("FORECAST RAW RESPONSE:", data)
 
         trend = data.get("trend_regime_zh", data.get("trend_regime_en", "N/A"))
-        summary = data.get("forecast_summary_bilingual", data.get("forecast_summary_en", "N/A"))
         expected_range = data.get("expected_range", {})
-        lower = expected_range.get("lower", "N/A")
-        upper = expected_range.get("upper", "N/A")
-        support = data.get("levels", {}).get("support_level", "N/A")
-        resistance = data.get("levels", {}).get("resistance_level", "N/A")
+        lower = _format_price(expected_range.get("lower"))
+        upper = _format_price(expected_range.get("upper"))
+        support = _format_price(data.get("levels", {}).get("support_level"))
+        resistance = _format_price(data.get("levels", {}).get("resistance_level"))
         confidence = data.get("confidence_score", "N/A")
-        bullets = data.get("explanation_bullets", [])
 
-        msg = f"""🔮 {symbol} Forecast
+        msg = f"""🔮 {symbol}
 
-Trend: {trend}
+Trend Regime: {trend}
+Expected Range: {lower} - {upper}
 Confidence: {confidence}/100
-
-Expected Range:
-{lower} - {upper}
-
-Levels:
 Support: {support}
 Resistance: {resistance}
-
-Summary:
-{summary}
-
-Why:
-{_format_bullets(bullets, limit=3)}
 """
     except Exception as exc:
         print("FORECAST ERROR:", repr(exc))
@@ -131,8 +126,7 @@ async def watchlist_cmd(ctx):
                 ticker = item.get("ticker", "N/A")
                 score = item.get("score_breakdown", {}).get("total_score", "N/A")
                 label = item.get("label", "N/A")
-                action = item.get("action_summary_bilingual", item.get("action_summary", "N/A"))
-                lines.append(f"{index}. {ticker} | Score: {score} | {label} | {action}")
+                lines.append(f"{index}. {ticker} | Score: {score} | {label}")
             ranked_text = "\n".join(lines)
         else:
             ranked_text = "No ranked results returned."
@@ -143,12 +137,7 @@ async def watchlist_cmd(ctx):
             else "• None"
         )
 
-        msg = f"""📋 Watchlist Snapshot
-
-Tickers:
-{WATCHLIST_TICKERS}
-
-Top Ranked:
+        msg = f"""📋 Watchlist Top Ranked
 {ranked_text}
 
 Failed:
