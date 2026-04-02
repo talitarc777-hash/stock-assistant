@@ -25,6 +25,13 @@ body {
   gap: 10px;
 }
 
+.global-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
 .nav-link {
   border: 1px solid #d1d5db;
   background: #ffffff;
@@ -239,6 +246,11 @@ tbody tr:hover {
 }
 
 @media (max-width: 980px) {
+  .global-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .layout-grid {
     grid-template-columns: 1fr;
   }

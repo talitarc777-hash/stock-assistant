@@ -11,9 +11,18 @@ const DEFAULT_WATCHLIST = ["VOO", "SPY", "QQQ", "AAPL", "MSFT", "NVDA"];
 const DEFAULT_PERIOD = "5y";
 const DASHBOARD_PATH = "/";
 const GLOSSARY_PATH = "/glossary";
+const LANGUAGE_STORAGE_KEY = "stock-assistant-language-mode";
 
 function normalizePath(pathname) {
   return pathname === GLOSSARY_PATH ? GLOSSARY_PATH : DASHBOARD_PATH;
+}
+
+function getInitialLanguageMode() {
+  const saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+  if (saved === "en" || saved === "zh" || saved === "both") {
+    return saved;
+  }
+  return "both";
 }
 
 function toNumeric(value) {
@@ -32,7 +41,7 @@ function navigateTo(path, setRoutePath) {
   setRoutePath(normalized);
 }
 
-function DashboardPage() {
+function DashboardPage({ languageMode }) {
   const [watchlistRows, setWatchlistRows] = useState([]);
   const [selectedTicker, setSelectedTicker] = useState("VOO");
   const [analyzeData, setAnalyzeData] = useState(null);
@@ -41,7 +50,6 @@ function DashboardPage() {
   const [isLoadingWatchlist, setIsLoadingWatchlist] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [error, setError] = useState("");
-  const [languageMode, setLanguageMode] = useState("both");
 
   async function loadWatchlist() {
     setIsLoadingWatchlist(true);
@@ -122,8 +130,14 @@ function DashboardPage() {
     <>
       <header className="app-header">
         <div>
-          <h1>Stock Assistant Dashboard</h1>
-          <p>Simple decision-support view powered by the FastAPI backend.</p>
+          <h1>{term("Dashboard", languageMode)}</h1>
+          <p>
+            {languageMode === "zh"
+              ? "以 FastAPI 後端提供的簡潔決策輔助面板。"
+              : languageMode === "en"
+              ? "Simple decision-support view powered by the FastAPI backend."
+              : "Simple decision-support view powered by the FastAPI backend. / 以 FastAPI 後端提供的簡潔決策輔助面板。"}
+          </p>
         </div>
         <div className="header-controls">
           <label htmlFor="ticker-select">{term("Ticker", languageMode)}</label>
@@ -137,16 +151,6 @@ function DashboardPage() {
                 {row.ticker}
               </option>
             ))}
-          </select>
-          <label htmlFor="lang-select">Language</label>
-          <select
-            id="lang-select"
-            value={languageMode}
-            onChange={(event) => setLanguageMode(event.target.value)}
-          >
-            <option value="both">EN + 中文</option>
-            <option value="en">EN</option>
-            <option value="zh">中文</option>
           </select>
           <button type="button" onClick={loadWatchlist} disabled={isLoadingWatchlist}>
             {isLoadingWatchlist ? `${term("Refresh", languageMode)}...` : term("Refresh", languageMode)}
@@ -167,7 +171,7 @@ function DashboardPage() {
         <section className="panel">
           <h3>{term("Ticker Detail", languageMode)}</h3>
           {isLoadingDetail || !analyzeData ? (
-            <p>Loading ticker details...</p>
+            <p>{term("Loading", languageMode)}...</p>
           ) : (
             <>
               <div className="detail-grid">
@@ -190,7 +194,7 @@ function DashboardPage() {
                   {analyzeData.action_summary}
                 </p>
                 <p>
-                  <strong>Benchmark Strength:</strong>{" "}
+                  <strong>{term("Benchmark Strength", languageMode)}:</strong>{" "}
                   {analyzeData.benchmark_relative?.benchmark_strength_score ?? "N/A"}
                 </p>
               </div>
@@ -201,41 +205,37 @@ function DashboardPage() {
                 ))}
               </ul>
               <section className="forecast-card">
-                <h4>{term("Forecast", "both")}</h4>
-                <p className="helper-text">
-                  Scenario-based forecast only
-                  <br />
-                  情景分析，並非保證預測
-                </p>
+                <h4>{term("Forecast", languageMode)}</h4>
+                <p className="helper-text">{term("Scenario-Based Forecast Only", languageMode)}</p>
                 {!forecastData ? (
-                  <p>Loading forecast...</p>
+                  <p>{term("Loading", languageMode)}...</p>
                 ) : (
                   <div className="forecast-grid">
                     <p>
-                      <strong>{term("Trend Regime", "both")}:</strong>{" "}
+                      <strong>{term("Trend Regime", languageMode)}:</strong>{" "}
                       {forecastData.trend_regime_en} / {forecastData.trend_regime_zh}
                     </p>
                     <p>
-                      <strong>{term("5-Day Outlook", "both")}:</strong> {forecastData.outlook_5d}
+                      <strong>{term("5-Day Outlook", languageMode)}:</strong> {forecastData.outlook_5d}
                     </p>
                     <p>
-                      <strong>{term("20-Day Outlook", "both")}:</strong> {forecastData.outlook_20d}
+                      <strong>{term("20-Day Outlook", languageMode)}:</strong> {forecastData.outlook_20d}
                     </p>
                     <p>
-                      <strong>{term("Expected Range", "both")}:</strong>{" "}
+                      <strong>{term("Expected Range", languageMode)}:</strong>{" "}
                       {forecastData.expected_range?.lower?.toFixed(2)} -{" "}
                       {forecastData.expected_range?.upper?.toFixed(2)}
                     </p>
                     <p>
-                      <strong>{term("Support", "both")}:</strong>{" "}
+                      <strong>{term("Support", languageMode)}:</strong>{" "}
                       {forecastData.levels?.support_level?.toFixed(2)}
                     </p>
                     <p>
-                      <strong>{term("Resistance", "both")}:</strong>{" "}
+                      <strong>{term("Resistance", languageMode)}:</strong>{" "}
                       {forecastData.levels?.resistance_level?.toFixed(2)}
                     </p>
                     <p>
-                      <strong>{term("Confidence Score", "both")}:</strong>{" "}
+                      <strong>{term("Confidence Score", languageMode)}:</strong>{" "}
                       {forecastData.confidence_score}/100
                     </p>
                   </div>
@@ -253,13 +253,13 @@ function DashboardPage() {
           horizontalLines: [
             {
               key: "support",
-              label: `${term("Support", "both")}`,
+              label: `${term("Support", languageMode)}`,
               value: toNumeric(forecastData?.levels?.support_level),
               color: "#0f766e",
             },
             {
               key: "resistance",
-              label: `${term("Resistance", "both")}`,
+              label: `${term("Resistance", languageMode)}`,
               value: toNumeric(forecastData?.levels?.resistance_level),
               color: "#b45309",
             },
@@ -268,7 +268,7 @@ function DashboardPage() {
             forecastData && forecastData.expected_range
               ? {
                   key: "expected-range",
-                  label: `${term("Expected Range", "both")}`,
+                  label: `${term("Expected Range", languageMode)}`,
                   lower: toNumeric(forecastData.expected_range.lower),
                   upper: toNumeric(forecastData.expected_range.upper),
                   color: "#2563eb",
@@ -276,7 +276,7 @@ function DashboardPage() {
               : null,
         }}
         lines={[
-          { key: "close", label: "Close", color: "#111827" },
+          { key: "close", label: term("Close", languageMode), color: "#111827" },
           { key: "sma_20", label: "SMA20", color: "#2563eb" },
           { key: "sma_50", label: "SMA50", color: "#16a34a" },
           { key: "sma_200", label: "SMA200", color: "#d97706" },
@@ -313,6 +313,7 @@ function DashboardPage() {
 
 export default function App() {
   const [routePath, setRoutePath] = useState(() => normalizePath(window.location.pathname));
+  const [languageMode, setLanguageMode] = useState(getInitialLanguageMode);
 
   useEffect(() => {
     const onPopState = () => setRoutePath(normalizePath(window.location.pathname));
@@ -320,26 +321,48 @@ export default function App() {
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
+  useEffect(() => {
+    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, languageMode);
+  }, [languageMode]);
+
   return (
     <main className="app-shell">
-      <nav className="top-nav panel">
-        <button
-          type="button"
-          className={routePath === DASHBOARD_PATH ? "nav-link active" : "nav-link"}
-          onClick={() => navigateTo(DASHBOARD_PATH, setRoutePath)}
-        >
-          Dashboard
-        </button>
-        <button
-          type="button"
-          className={routePath === GLOSSARY_PATH ? "nav-link active" : "nav-link"}
-          onClick={() => navigateTo(GLOSSARY_PATH, setRoutePath)}
-        >
-          Glossary
-        </button>
-      </nav>
+      <header className="panel global-header">
+        <nav className="top-nav">
+          <button
+            type="button"
+            className={routePath === DASHBOARD_PATH ? "nav-link active" : "nav-link"}
+            onClick={() => navigateTo(DASHBOARD_PATH, setRoutePath)}
+          >
+            {term("Dashboard", languageMode)}
+          </button>
+          <button
+            type="button"
+            className={routePath === GLOSSARY_PATH ? "nav-link active" : "nav-link"}
+            onClick={() => navigateTo(GLOSSARY_PATH, setRoutePath)}
+          >
+            {term("Glossary", languageMode)}
+          </button>
+        </nav>
+        <div className="header-controls">
+          <label htmlFor="global-lang-select">{term("Language", languageMode)}</label>
+          <select
+            id="global-lang-select"
+            value={languageMode}
+            onChange={(event) => setLanguageMode(event.target.value)}
+          >
+            <option value="en">English</option>
+            <option value="zh">中文</option>
+            <option value="both">English + 中文</option>
+          </select>
+        </div>
+      </header>
 
-      {routePath === GLOSSARY_PATH ? <GlossaryPage /> : <DashboardPage />}
+      {routePath === GLOSSARY_PATH ? (
+        <GlossaryPage languageMode={languageMode} />
+      ) : (
+        <DashboardPage languageMode={languageMode} />
+      )}
     </main>
   );
 }

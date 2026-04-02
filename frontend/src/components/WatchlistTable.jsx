@@ -16,7 +16,7 @@ export default function WatchlistTable({ rows, selectedTicker, onSelectTicker, l
               <th>{term("Score", languageMode)}</th>
               <th>{term("Label", languageMode)}</th>
               <th>{term("Action", languageMode)}</th>
-              <th>Close</th>
+              <th>{term("Close", languageMode)}</th>
             </tr>
           </thead>
           <tbody>

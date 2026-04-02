@@ -32,7 +32,13 @@ export type TermKey =
   | "20-Day Outlook"
   | "Expected Range"
   | "Confidence Score"
-  | "Scenario-Based Forecast Only";
+  | "Scenario-Based Forecast Only"
+  | "Language"
+  | "Dashboard"
+  | "Glossary"
+  | "Close"
+  | "Benchmark Strength"
+  | "Loading";
 
 type TermEntry = {
   en: string;
@@ -53,19 +59,19 @@ export const TERMS: Record<TermKey, TermEntry> = {
   Risk: { en: "Risk", zh: "風險" },
   Score: { en: "Score", zh: "評分" },
   "Action Summary": { en: "Action Summary", zh: "操作摘要" },
-  Watchlist: { en: "Watchlist", zh: "觀察清單" },
+  Watchlist: { en: "Watchlist", zh: "觀察名單" },
   "Ranked by Score": { en: "Ranked by Score", zh: "按評分排序" },
   Ticker: { en: "Ticker", zh: "代號" },
-  "Ticker Detail": { en: "Ticker Detail", zh: "個股詳情" },
+  "Ticker Detail": { en: "Ticker Detail", zh: "代號詳情" },
   "Latest Close": { en: "Latest Close", zh: "最新收市價" },
-  Label: { en: "Label", zh: "評級" },
-  Action: { en: "Action", zh: "建議" },
+  Label: { en: "Label", zh: "標籤" },
+  Action: { en: "Action", zh: "操作" },
   Explanation: { en: "Explanation", zh: "解釋" },
   Price: { en: "Price", zh: "價格" },
-  "Price with SMA": { en: "Price with SMA", zh: "價格及移動平均線" },
-  "Score Over Time": { en: "Score Over Time", zh: "評分走勢" },
-  Refresh: { en: "Refresh", zh: "更新" },
-  Forecast: { en: "Forecast", zh: "情景預測" },
+  "Price with SMA": { en: "Price with SMA", zh: "價格與 SMA" },
+  "Score Over Time": { en: "Score Over Time", zh: "評分時間走勢" },
+  Refresh: { en: "Refresh", zh: "重新整理" },
+  Forecast: { en: "Forecast", zh: "前景預測" },
   "Trend Regime": { en: "Trend Regime", zh: "趨勢狀態" },
   "5-Day Outlook": { en: "5-Day Outlook", zh: "5 日展望" },
   "20-Day Outlook": { en: "20-Day Outlook", zh: "20 日展望" },
@@ -75,6 +81,12 @@ export const TERMS: Record<TermKey, TermEntry> = {
     en: "Scenario-based forecast only",
     zh: "情景分析，並非保證預測",
   },
+  Language: { en: "Language", zh: "語言" },
+  Dashboard: { en: "Dashboard", zh: "儀表板" },
+  Glossary: { en: "Glossary", zh: "術語表" },
+  Close: { en: "Close", zh: "收市價" },
+  "Benchmark Strength": { en: "Benchmark Strength", zh: "相對基準強度" },
+  Loading: { en: "Loading", zh: "載入中" },
 };
 
 export function term(key: TermKey, mode: LanguageMode = "both"): string {
