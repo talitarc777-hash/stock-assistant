@@ -1,5 +1,9 @@
 import requests
-from config import BACKEND_BASE_URL
+
+try:
+    from .config import BACKEND_BASE_URL
+except ImportError:  # pragma: no cover - script execution fallback
+    from config import BACKEND_BASE_URL
 
 
 class ApiClientError(Exception):

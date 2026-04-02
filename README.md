@@ -75,6 +75,61 @@ Open the dashboard at:
 
 - http://127.0.0.1:5173
 
+## Discord Bot
+
+The project includes a simple Python Discord bot in `bot/`.
+
+Bot environment settings in `.env`:
+
+- `DISCORD_BOT_TOKEN`
+- `BACKEND_BASE_URL`
+- `COMMAND_PREFIX`
+- `ALLOWED_CHANNEL_IDS`
+- `WATCHLIST_TICKERS`
+- `REPLY_LANGUAGE`
+- `USER_SETTINGS_PATH`
+
+Run the bot:
+
+```powershell
+python bot/main.py
+```
+
+Per-user settings:
+
+- Settings are stored locally in JSON at `USER_SETTINGS_PATH`
+- Settings are saved per Discord user ID
+- If a user has no saved settings, the bot uses sensible defaults
+- Per-user language overrides the global `REPLY_LANGUAGE` default
+
+Available Discord commands:
+
+- `!help`
+- `!settings`
+- `!setlang en`
+- `!setlang zh`
+- `!setlang bilingual`
+- `!setcompact on`
+- `!setcompact off`
+- `!setwatchlist VOO,QQQ,AAPL`
+- `!resetsettings`
+- `!analyze VOO`
+- `!forecast NVDA`
+- `!watchlist`
+
+How settings affect replies:
+
+- `language`
+  controls which action summary and explanation bullets are used
+- `compact_mode`
+  shortens `!analyze`, `!forecast`, and `!watchlist` output
+- `default_watchlist`
+  is used automatically by `!watchlist`; if empty, the bot falls back to the system default watchlist
+
+Resetting settings:
+
+- Use `!resetsettings` to clear your saved preferences and return to defaults
+
 ## Daily Scan + OpenClaw Placeholder
 
 Watchlist config file:

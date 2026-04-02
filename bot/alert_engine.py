@@ -1,8 +1,4 @@
-"""Reusable alert detection + Discord message formatting helpers.
-
-This module is intentionally small and dependency-light so it can be reused by
-scripts now and bot commands later.
-"""
+"""Reusable alert detection + Discord message formatting helpers."""
 
 from __future__ import annotations
 
@@ -17,7 +13,8 @@ class AlertEvent:
     ticker: str
     rule: str
     severity: str
-    message: str
+    message_en: str
+    message_zh: str
 
 
 def _to_float(value: Any) -> float | None:
@@ -43,7 +40,8 @@ def detect_score_alerts(ticker: str, summary_row: dict[str, Any]) -> list[AlertE
                 ticker=ticker,
                 rule="score_above_80",
                 severity="high",
-                message=f"{ticker}: score is {int(score_float)} (>80), label: {label}.",
+                message_en=f"{ticker}: score is {int(score_float)} (>80), label: {label}.",
+                message_zh=f"{ticker}: 評分為 {int(score_float)}（高於 80），標籤：{label}。",
             )
         )
     if score_float < 45:
@@ -52,7 +50,8 @@ def detect_score_alerts(ticker: str, summary_row: dict[str, Any]) -> list[AlertE
                 ticker=ticker,
                 rule="score_below_45",
                 severity="high",
-                message=f"{ticker}: score is {int(score_float)} (<45), label: {label}.",
+                message_en=f"{ticker}: score is {int(score_float)} (<45), label: {label}.",
+                message_zh=f"{ticker}: 評分為 {int(score_float)}（低於 45），標籤：{label}。",
             )
         )
     return alerts
@@ -85,9 +84,13 @@ def detect_price_and_macd_alerts(ticker: str, series: list[dict[str, Any]]) -> l
                     ticker=ticker,
                     rule="close_cross_above_sma200",
                     severity="medium",
-                    message=(
+                    message_en=(
                         f"{ticker}: close crossed above SMA200 "
                         f"({latest_close:.2f} > {latest_sma200:.2f})."
+                    ),
+                    message_zh=(
+                        f"{ticker}: 收市價升穿 SMA200 "
+                        f"（{latest_close:.2f} > {latest_sma200:.2f}）。"
                     ),
                 )
             )
@@ -97,9 +100,13 @@ def detect_price_and_macd_alerts(ticker: str, series: list[dict[str, Any]]) -> l
                     ticker=ticker,
                     rule="close_cross_below_sma200",
                     severity="medium",
-                    message=(
+                    message_en=(
                         f"{ticker}: close crossed below SMA200 "
                         f"({latest_close:.2f} < {latest_sma200:.2f})."
+                    ),
+                    message_zh=(
+                        f"{ticker}: 收市價跌穿 SMA200 "
+                        f"（{latest_close:.2f} < {latest_sma200:.2f}）。"
                     ),
                 )
             )
@@ -111,7 +118,8 @@ def detect_price_and_macd_alerts(ticker: str, series: list[dict[str, Any]]) -> l
                     ticker=ticker,
                     rule="macd_bearish_to_bullish",
                     severity="medium",
-                    message=f"{ticker}: MACD changed from bearish to bullish.",
+                    message_en=f"{ticker}: MACD changed from bearish to bullish.",
+                    message_zh=f"{ticker}: MACD 由偏弱轉為偏強。",
                 )
             )
         elif prev_macd >= prev_signal and latest_macd < latest_signal:
@@ -120,7 +128,8 @@ def detect_price_and_macd_alerts(ticker: str, series: list[dict[str, Any]]) -> l
                     ticker=ticker,
                     rule="macd_bullish_to_bearish",
                     severity="medium",
-                    message=f"{ticker}: MACD changed from bullish to bearish.",
+                    message_en=f"{ticker}: MACD changed from bullish to bearish.",
+                    message_zh=f"{ticker}: MACD 由偏強轉為偏弱。",
                 )
             )
 
@@ -139,17 +148,30 @@ def build_ticker_alerts(
     return alerts
 
 
-def format_alert_for_discord(alert: AlertEvent) -> str:
+def format_alert_for_discord(alert: AlertEvent, language: str = "zh") -> str:
     """Render one alert as a compact Discord-friendly line."""
     icon = "🚨" if alert.severity == "high" else "⚠️"
-    return f"{icon} {alert.message}"
+    if language == "en":
+        message = alert.message_en
+    elif language == "bilingual":
+        message = f"{alert.message_en} / {alert.message_zh}"
+    else:
+        message = alert.message_zh
+    return f"{icon} {message}"
 
 
-def format_alert_batch_for_discord(alerts: list[AlertEvent], title: str) -> str:
+def format_alert_batch_for_discord(
+    alerts: list[AlertEvent],
+    title: str,
+    language: str = "zh",
+) -> str:
     """Render a full Discord message block for a group of alerts."""
     if not alerts:
-        return f"{title}\n✅ No new alerts."
+        no_alerts = "No new alerts." if language == "en" else "目前沒有新的提示。"
+        if language == "bilingual":
+            no_alerts = "No new alerts. / 目前沒有新的提示。"
+        return f"{title}\n{no_alerts}"
 
     lines = [title]
-    lines.extend(format_alert_for_discord(alert) for alert in alerts)
+    lines.extend(format_alert_for_discord(alert, language=language) for alert in alerts)
     return "\n".join(lines)

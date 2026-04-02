@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -18,6 +19,9 @@ WATCHLIST_TICKERS = _parse_csv_env(
     os.getenv("WATCHLIST_TICKERS", "VOO,SPY,QQQ,AAPL,MSFT,NVDA")
 )
 REPLY_LANGUAGE = os.getenv("REPLY_LANGUAGE", "zh").strip().lower()
+USER_SETTINGS_PATH = Path(
+    os.getenv("USER_SETTINGS_PATH", "data/discord_user_settings.json")
+)
 
 if REPLY_LANGUAGE not in {"en", "zh", "bilingual"}:
     REPLY_LANGUAGE = "zh"
