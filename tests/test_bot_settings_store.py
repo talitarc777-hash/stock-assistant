@@ -62,6 +62,11 @@ class SettingsStoreTests(unittest.TestCase):
 
         self.assertEqual(settings["default_watchlist"], ["VOO", "QQQ", "AAPL"])
 
+    def test_watchlist_normalizes_brk_dot_b(self) -> None:
+        settings_store.set_user_watchlist(123, ["BRK.B", "brkb"])
+        settings = settings_store.get_user_settings(123)
+        self.assertEqual(settings["default_watchlist"], ["BRK-B"])
+
     def test_reset_settings_restores_defaults(self) -> None:
         settings_store.set_user_language(123, "en")
         settings_store.set_user_compact_mode(123, True)

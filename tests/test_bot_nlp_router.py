@@ -41,6 +41,11 @@ class NaturalLanguageRouterTests(unittest.TestCase):
         self.assertEqual(parsed.intent, "add_watchlist")
         self.assertEqual(parsed.tickers, ["ACM"])
 
+    def test_add_brk_dot_b_normalizes_to_dash(self) -> None:
+        parsed = parse_natural_language_message("add BRK.B to my watchlist")
+        self.assertEqual(parsed.intent, "add_watchlist")
+        self.assertEqual(parsed.tickers, ["BRK-B"])
+
     def test_company_name_resolves_for_analyze(self) -> None:
         parsed = parse_natural_language_message("check Apple")
         self.assertEqual(parsed.intent, "analyze")
@@ -65,6 +70,11 @@ class NaturalLanguageRouterTests(unittest.TestCase):
         parsed = parse_natural_language_message("show me the forecast for Microsoft")
         self.assertEqual(parsed.intent, "forecast")
         self.assertEqual(parsed.tickers, ["MSFT"])
+
+    def test_forecast_berkshire_resolves_to_brk_b(self) -> None:
+        parsed = parse_natural_language_message("show me the forecast for Berkshire")
+        self.assertEqual(parsed.intent, "forecast")
+        self.assertEqual(parsed.tickers, ["BRK-B"])
 
     def test_bilingual_language_phrase(self) -> None:
         parsed = parse_natural_language_message("speak in English and Chinese")
@@ -111,6 +121,10 @@ class NaturalLanguageRouterTests(unittest.TestCase):
         match = extract_tickers_from_text("show analysis for Vanguard")
         self.assertTrue(match.ambiguous)
         self.assertIn("Please use the ticker symbol", match.message or "")
+
+    def test_extract_brk_dot_b_is_single_symbol(self) -> None:
+        match = extract_tickers_from_text("add BRK.B to my watchlist")
+        self.assertEqual(match.tickers, ["BRK-B"])
 
 
 if __name__ == "__main__":

@@ -9,8 +9,10 @@ from typing import Any
 
 try:
     from .config import REPLY_LANGUAGE, USER_SETTINGS_PATH, WATCHLIST_TICKERS
+    from .ticker_map import canonicalize_ticker_symbol
 except ImportError:  # pragma: no cover - script execution fallback
     from config import REPLY_LANGUAGE, USER_SETTINGS_PATH, WATCHLIST_TICKERS
+    from ticker_map import canonicalize_ticker_symbol
 
 
 SETTINGS_LOCK = RLock()
@@ -58,7 +60,7 @@ def _normalize_watchlist(tickers: list[str]) -> list[str]:
     seen: set[str] = set()
     normalized: list[str] = []
     for ticker in tickers:
-        clean = str(ticker).strip().upper()
+        clean = canonicalize_ticker_symbol(str(ticker))
         if not clean or clean in seen:
             continue
         seen.add(clean)
@@ -142,7 +144,7 @@ def add_user_ticker(user_id: int, ticker: str) -> dict[str, Any]:
 
 def remove_user_ticker(user_id: int, ticker: str) -> dict[str, Any]:
     """Remove one ticker from a user's default watchlist."""
-    target = str(ticker).strip().upper()
+    target = canonicalize_ticker_symbol(str(ticker))
     if not target:
         raise ValueError("Ticker cannot be empty.")
 
