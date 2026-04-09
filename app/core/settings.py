@@ -24,6 +24,7 @@ class Settings(BaseModel):
     app_host: str = "127.0.0.1"
     app_port: int = 8000
     profile_db_path: str = "data/user_profiles.db"
+    research_data_dir: str = "data/research"
     default_watchlist: list[str] = ["VOO", "SPY", "QQQ", "AAPL", "MSFT", "NVDA"]
 
 
@@ -36,6 +37,7 @@ def get_settings() -> Settings:
         app_host=os.getenv("APP_HOST", "127.0.0.1"),
         app_port=int(os.getenv("APP_PORT", "8000")),
         profile_db_path=os.getenv("PROFILE_DB_PATH", "data/user_profiles.db"),
+        research_data_dir=os.getenv("RESEARCH_DATA_DIR", "data/research"),
         default_watchlist=_parse_csv_env(
             os.getenv("WATCHLIST_TICKERS", "VOO,SPY,QQQ,AAPL,MSFT,NVDA")
         ),

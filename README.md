@@ -436,6 +436,57 @@ Indicator columns added by `add_technical_indicators(...)`:
 - `rolling_volatility_20_pct`
 - `drawdown_from_peak_pct`
 
+## Research Dataset Pipeline
+
+You can build a model-ready daily feature dataset with:
+
+```python
+from app.services.research_pipeline import build_and_save_feature_dataset
+
+artifact = build_and_save_feature_dataset(
+    ticker="AAPL",
+    period="5y",
+    benchmark="VOO",
+)
+
+print(artifact.dataset_path)
+print(artifact.metadata_path)
+```
+
+Saved folder structure:
+
+- `data/research/<TICKER>/<PERIOD>/features.csv`
+- `data/research/<TICKER>/<PERIOD>/metadata.json`
+
+Main dataset column groups:
+
+- Raw price data:
+  `date`, `ticker`, `benchmark`, `open`, `high`, `low`, `close`, `adj_close`, `volume`
+- Return features:
+  `return_1d_pct`, `return_5d_pct`, `return_20d_pct`, `return_1m_pct`, `return_3m_pct`, `return_6m_pct`, `return_12m_pct`
+- Technical indicators:
+  `sma_20`, `sma_50`, `sma_200`, `ema_12`, `ema_26`, `rsi_14`, `macd_line`, `macd_signal`, `macd_histogram`,
+  `avg_volume_20`, `rolling_volatility_20_pct`, `distance_from_52w_high_pct`, `drawdown_from_peak_pct`
+- Benchmark-relative features versus `VOO`:
+  `benchmark_return_*_pct`, `excess_return_*_pct`, `benchmark_strength_score`
+- News sentiment features:
+  `news_article_count`, `news_sentiment_score`, `news_sentiment_3d_avg`, `news_sentiment_7d_avg`
+- Prediction targets:
+  `target_5d_return`, `target_5d_updown`, `target_20d_regime`
+
+Target notes:
+
+- `target_5d_return` is the forward 5-trading-day return in percent
+- `target_5d_updown` is `1` if the forward 5-day return is positive, else `0`
+- `target_20d_regime` uses a simple rule:
+  `bullish` if future 20-day return >= 2%, `bearish` if <= -2%, otherwise `neutral`
+
+News-sentiment note:
+
+- The built-in sentiment layer uses recent Yahoo Finance news headlines and summaries through `yfinance`
+- News coverage can be sparse, so older rows may have zero sentiment values
+- This is meant as a lightweight research feature, not a production-grade sentiment feed
+
 ## What Exists Right Now
 
 - FastAPI backend scaffold
