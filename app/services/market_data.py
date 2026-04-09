@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Callable
 from pathlib import Path
 
@@ -27,6 +28,26 @@ class EmptyDataError(MarketDataError):
 # Dependency-injection friendly function signature for tests.
 DownloadFn = Callable[[str, str], pd.DataFrame]
 
+_PROXY_ENV_KEYS = (
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "ALL_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "all_proxy",
+    "GIT_HTTP_PROXY",
+    "GIT_HTTPS_PROXY",
+)
+
+
+def _clear_broken_local_proxy_env() -> None:
+    """Clear known-invalid local proxy values that break yfinance requests."""
+    broken_markers = ("127.0.0.1:9", "localhost:9")
+    for key in _PROXY_ENV_KEYS:
+        value = os.environ.get(key, "")
+        if value and any(marker in value for marker in broken_markers):
+            os.environ.pop(key, None)
+
 
 def _default_download_daily(ticker: str, period: str) -> pd.DataFrame:
     """
@@ -36,6 +57,16 @@ def _default_download_daily(ticker: str, period: str) -> pd.DataFrame:
         ticker: Instrument symbol like "VOO" or "AAPL".
         period: yfinance period string like "1y", "5y", or "max".
     """
+    _clear_broken_local_proxy_env()
+    cache_dir = Path("data") / "yfinance_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        yf.set_tz_cache_location(str(cache_dir))
+    except Exception:
+        # Best-effort only. If unavailable in this yfinance version,
+        # requests may still succeed with the default cache location.
+        pass
+
     try:
         primary = yf.download(
             tickers=ticker,
@@ -130,7 +161,10 @@ def _clean_ohlcv_dataframe(raw_df: pd.DataFrame, ticker: str) -> pd.DataFrame:
 
     # Normalize dtypes and sort by ascending date.
     clean_df["date"] = pd.to_datetime(clean_df["date"], errors="coerce")
-    clean_df = clean_df.dropna(subset=["date"]).sort_values(by="date").reset_index(drop=True)
+    numeric_columns = ["open", "high", "low", "close", "adj_close", "volume"]
+    for column in numeric_columns:
+        clean_df[column] = pd.to_numeric(clean_df[column], errors="coerce")
+    clean_df = clean_df.dropna(subset=["date", "close"]).sort_values(by="date").reset_index(drop=True)
 
     if clean_df.empty:
         raise EmptyDataError("No valid rows after cleaning price history.")
@@ -206,11 +240,3 @@ def get_price_history_for_tickers(
             logger.warning("Skipping ticker '%s': %s", ticker, exc)
 
     return results
-    cache_dir = Path("data") / "yfinance_cache"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    try:
-        yf.set_tz_cache_location(str(cache_dir))
-    except Exception:
-        # Best-effort only. If unavailable in the installed yfinance version,
-        # the fallback path may still work with default behavior.
-        pass

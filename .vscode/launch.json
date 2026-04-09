@@ -5,6 +5,7 @@
       "name": "Run API (Uvicorn)",
       "type": "python",
       "request": "launch",
+      "python": "${workspaceFolder}\\.venv312\\Scripts\\python.exe",
       "module": "uvicorn",
       "args": ["app.main:app", "--reload"],
       "cwd": "${workspaceFolder}",
@@ -14,6 +15,7 @@
       "name": "Run Daily Watchlist Scan",
       "type": "python",
       "request": "launch",
+      "python": "${workspaceFolder}\\.venv312\\Scripts\\python.exe",
       "program": "${workspaceFolder}/scripts/daily_scan.py",
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal"
@@ -22,6 +24,7 @@
       "name": "Run Backtest (VOO 10y)",
       "type": "python",
       "request": "launch",
+      "python": "${workspaceFolder}\\.venv312\\Scripts\\python.exe",
       "program": "${workspaceFolder}/scripts/cli.py",
       "args": ["backtest", "--ticker", "VOO", "--period", "10y"],
       "cwd": "${workspaceFolder}",

@@ -318,7 +318,7 @@ def watchlist_analyze(
         except Exception as exc:  # pragma: no cover - defensive guard
             logger.exception("Unexpected watchlist analysis failure for ticker=%s", ticker)
             failed_tickers.append(
-                FailedTickerResponse(ticker=ticker, error="Unexpected server error.")
+                FailedTickerResponse(ticker=ticker, error=f"{type(exc).__name__}: {exc}")
             )
 
     ranked_results.sort(

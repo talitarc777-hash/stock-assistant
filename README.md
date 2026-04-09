@@ -38,12 +38,12 @@ stock-assistant/
 Open this folder in VS Code, then run:
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+py -3.12 -m venv .venv312
+.\.venv312\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 Copy-Item .env.example .env
-uvicorn app.main:app --reload
+python -m uvicorn app.main:app --reload
 ```
 
 When the server starts, open:
@@ -58,8 +58,8 @@ Use two terminals in VS Code.
 Terminal 1 (backend):
 
 ```powershell
-.\.venv\Scripts\Activate.ps1
-uvicorn app.main:app --reload
+.\.venv312\Scripts\Activate.ps1
+python -m uvicorn app.main:app --reload
 ```
 
 Terminal 2 (frontend):
@@ -88,8 +88,8 @@ To run backend, dashboard, and Discord bot together, use three terminals:
 Terminal 1:
 
 ```powershell
-.\.venv\Scripts\Activate.ps1
-uvicorn app.main:app --reload
+.\.venv312\Scripts\Activate.ps1
+python -m uvicorn app.main:app --reload
 ```
 
 Terminal 2:
@@ -102,7 +102,7 @@ npm run dev
 Terminal 3:
 
 ```powershell
-.\.venv\Scripts\Activate.ps1
+.\.venv312\Scripts\Activate.ps1
 python bot/main.py
 ```
 
@@ -264,7 +264,7 @@ This module is for **simulation only**:
 - No real-money trading
 - No broker execution
 - No automated order placement
-- Only hypothetical “would buy / would sell” events
+- Only hypothetical ?�would buy / would sell??events
 
 API endpoint:
 
@@ -532,7 +532,7 @@ News-sentiment note:
 ## Troubleshooting
 
 - `ModuleNotFoundError` (for example `pandas`):
-  activate your virtual environment and run `pip install -r requirements.txt`.
+  activate your virtual environment and run `python -m pip install -r requirements.txt`.
 - API returns `422` for query parameters:
   check ticker format and period format.
   Examples: `ticker=VOO`, `period=5y`, `period=1mo`, `period=max`.
@@ -542,4 +542,5 @@ News-sentiment note:
 - `No price data returned`:
   verify ticker symbol exists in Yahoo Finance and retry with another period.
 - Running scripts from VS Code tasks:
-  ensure `.venv` exists and dependencies are installed in that environment.
+  ensure `.venv312` exists and dependencies are installed in that environment.
+
