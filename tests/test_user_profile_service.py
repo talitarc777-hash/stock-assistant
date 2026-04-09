@@ -55,6 +55,28 @@ class UserProfileStoreTests(unittest.TestCase):
 
         self.assertEqual(profile.default_watchlist, ["BRK-B", "TSLA"])
 
+    def test_watchlist_keeps_exchange_dot_suffix(self) -> None:
+        profile = self.store.update_profile_settings(
+            UserProfileSettingsUpdateRequest(
+                user_id="demo-user",
+                default_watchlist=["0700.HK", "9988.hk"],
+                last_active_source="dashboard",
+            )
+        )
+
+        self.assertEqual(profile.default_watchlist, ["0700.HK", "9988.HK"])
+
+    def test_watchlist_converts_legacy_dash_exchange_suffix(self) -> None:
+        profile = self.store.update_profile_settings(
+            UserProfileSettingsUpdateRequest(
+                user_id="demo-user",
+                default_watchlist=["0700-HK", "600519-SS"],
+                last_active_source="dashboard",
+            )
+        )
+
+        self.assertEqual(profile.default_watchlist, ["0700.HK", "600519.SS"])
+
     def test_alert_settings_update_persists(self) -> None:
         profile = self.store.update_alert_settings(
             UserAlertSettingsUpdateRequest(

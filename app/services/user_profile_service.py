@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -65,7 +66,17 @@ def _canonicalize_ticker(value: str) -> str:
     }
     if raw in special_map:
         return special_map[raw]
-    return raw.replace("/", "-").replace(".", "-").replace("_", "-")
+
+    # Backward compatibility for previously normalized exchange tickers.
+    # Example: old "0700-HK" should become "0700.HK" for Yahoo compatibility.
+    if re.fullmatch(r"\d{3,6}-[A-Z]{1,4}", raw):
+        symbol, suffix = raw.rsplit("-", 1)
+        if suffix in {"HK", "SS", "SZ", "TW", "KS", "T"}:
+            return f"{symbol}.{suffix}"
+
+    # Keep exchange separators like ".HK" untouched because Yahoo symbols
+    # rely on dot suffixes (e.g. 0700.HK). Only normalize obvious separators.
+    return raw.replace("/", "-").replace("_", "-")
 
 
 def _normalize_watchlist(values: list[str]) -> list[str]:

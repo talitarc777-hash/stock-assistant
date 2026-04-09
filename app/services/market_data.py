@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from pathlib import Path
 
 import pandas as pd
 import yfinance as yf
@@ -35,14 +36,28 @@ def _default_download_daily(ticker: str, period: str) -> pd.DataFrame:
         ticker: Instrument symbol like "VOO" or "AAPL".
         period: yfinance period string like "1y", "5y", or "max".
     """
-    return yf.download(
-        tickers=ticker,
+    try:
+        primary = yf.download(
+            tickers=ticker,
+            period=period,
+            interval="1d",
+            auto_adjust=False,
+            progress=False,
+            threads=False,
+        )
+        if primary is not None and not primary.empty:
+            return primary
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        logger.warning("yf.download failed for ticker=%s period=%s: %s", ticker, period, exc)
+
+    # Some yfinance/pandas combinations intermittently fail with yf.download.
+    # Fallback to Ticker.history to improve reliability in local environments.
+    fallback = yf.Ticker(ticker).history(
         period=period,
         interval="1d",
         auto_adjust=False,
-        progress=False,
-        threads=False,
     )
+    return fallback
 
 
 def _validate_ticker(ticker: str) -> str:
@@ -191,3 +206,11 @@ def get_price_history_for_tickers(
             logger.warning("Skipping ticker '%s': %s", ticker, exc)
 
     return results
+    cache_dir = Path("data") / "yfinance_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        yf.set_tz_cache_location(str(cache_dir))
+    except Exception:
+        # Best-effort only. If unavailable in the installed yfinance version,
+        # the fallback path may still work with default behavior.
+        pass

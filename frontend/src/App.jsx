@@ -177,10 +177,22 @@ function DashboardPage({ languageMode, profileId, currentWatchlist, onProfileUpd
     try {
       const response = await fetchWatchlistAnalyze(currentWatchlist, DEFAULT_PERIOD);
       const rankedRows = response.ranked_results || [];
+      const failedRows = response.failed_tickers || [];
       setWatchlistRows(rankedRows);
+      if (rankedRows.length === 0 && failedRows.length > 0) {
+        const firstFailure = failedRows[0];
+        setError(
+          `Watchlist analysis returned no valid rows. Example failure: ${firstFailure.ticker} - ${firstFailure.error}`
+        );
+      }
       if (rankedRows.length > 0) {
         const tickers = rankedRows.map((row) => row.ticker);
         setSelectedTicker((currentTicker) => (tickers.includes(currentTicker) ? currentTicker : tickers[0]));
+      } else {
+        // Keep detail selection anchored to shared watchlist even when ranking fails.
+        setSelectedTicker((currentTicker) =>
+          currentWatchlist.includes(currentTicker) ? currentTicker : (currentWatchlist[0] || "")
+        );
       }
     } catch (requestError) {
       setError(requestError.message || "Failed to load watchlist.");
