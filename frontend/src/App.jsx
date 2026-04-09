@@ -190,7 +190,13 @@ function DashboardPage({ languageMode, profileId, currentWatchlist, onProfileUpd
   }
 
   async function loadTickerDetail(ticker) {
-    if (!ticker) return;
+    if (!ticker) {
+      setAnalyzeData(null);
+      setChartData(null);
+      setForecastData(null);
+      setIsLoadingDetail(false);
+      return;
+    }
     setIsLoadingDetail(true);
     setError("");
     try {
@@ -208,6 +214,9 @@ function DashboardPage({ languageMode, profileId, currentWatchlist, onProfileUpd
       setChartData(chart);
       setForecastData(forecast);
     } catch (requestError) {
+      setAnalyzeData(null);
+      setChartData(null);
+      setForecastData(null);
       setError(requestError.message || "Failed to load ticker detail.");
     } finally {
       setIsLoadingDetail(false);
@@ -326,8 +335,18 @@ function DashboardPage({ languageMode, profileId, currentWatchlist, onProfileUpd
 
         <section className="panel">
           <h3>{formatBilingualLabel(languageMode, "Ticker Detail", ZH.tickerDetail)}</h3>
-          {isLoadingDetail || !analyzeData ? (
+          {!selectedTicker ? (
+            <p>
+              {formatBilingualLabel(
+                languageMode,
+                "No ticker selected. Add symbols to your watchlist.",
+                "尚未選擇股票，請先在觀察清單新增股票。"
+              )}
+            </p>
+          ) : isLoadingDetail ? (
             <p>{formatBilingualLabel(languageMode, "Loading...", ZH.loading)}</p>
+          ) : !analyzeData ? (
+            <p>{error || "Failed to load ticker detail."}</p>
           ) : (
             <>
               <div className="detail-grid">
