@@ -32,6 +32,15 @@ except Exception:  # pragma: no cover - optional dependency path
     train_baseline_models_for_ticker = None
     train_baseline_models_for_watchlist = None
 
+try:
+    from app.services.virtual_trader import (
+        VirtualTraderError,
+        run_virtual_trader_from_model,
+    )
+except Exception:  # pragma: no cover - optional dependency path
+    VirtualTraderError = ValueError  # type: ignore[assignment]
+    run_virtual_trader_from_model = None
+
 
 def _print_section(title: str) -> None:
     print(f"\n=== {title} ===")
@@ -319,6 +328,51 @@ def cmd_train_models(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_virtual_trader(args: argparse.Namespace) -> int:
+    """Handle virtual-trader command."""
+    if run_virtual_trader_from_model is None:
+        raise ValueError(
+            "Virtual trader dependencies are not available. Install requirements.txt to use virtual-trader."
+        )
+
+    result = run_virtual_trader_from_model(
+        ticker=args.ticker,
+        period=args.period,
+        benchmark=args.benchmark,
+        target_name=args.target_name,
+        task_type=args.task_type,
+        model_name=args.model_name,
+        monthly_contribution_usd=args.monthly_contribution_usd,
+        initial_cash=args.initial_cash,
+        confidence_threshold=args.confidence_threshold,
+        max_position_size_pct=args.max_position_size_pct,
+        stop_loss_pct=args.stop_loss_pct,
+        take_profit_pct=args.take_profit_pct,
+        min_predicted_return_pct=args.min_predicted_return_pct,
+        include_news_sentiment=not args.no_news_sentiment,
+        sentiment_model=args.sentiment_model,
+        output_dir=args.output_dir,
+    )
+
+    _print_section("VIRTUAL TRADER")
+    print(f"Ticker: {result.ticker}")
+    print(f"Model: {result.model_name}")
+    print(f"Final equity: {result.summary['final_equity']:.2f}")
+    print(f"Total contributions: {result.summary['total_contributions']:.2f}")
+    print(f"Return on contributions: {result.summary['return_on_contributions_pct']:.2f}%")
+    print(f"Benchmark ({result.benchmark_comparison['benchmark']}) equity: {result.benchmark_comparison['final_equity']:.2f}")
+    print(
+        "Outperformance vs benchmark: "
+        f"{result.summary['outperformance_vs_benchmark_pct_points']:.2f} pct points"
+    )
+    print(f"Trades: {result.summary['trade_count']}")
+    print(f"Trade log: {result.artifact.trade_log_path}")
+    print(f"Equity curve: {result.artifact.equity_curve_path}")
+    print(f"Contributions: {result.artifact.contribution_history_path}")
+    print(f"Summary: {result.artifact.summary_path}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build root argument parser and subcommands."""
     parser = argparse.ArgumentParser(description="Stock Assistant automation CLI")
@@ -401,6 +455,88 @@ def build_parser() -> argparse.ArgumentParser:
     )
     train_models.set_defaults(func=cmd_train_models)
 
+    virtual_trader = subparsers.add_parser(
+        "virtual-trader",
+        help="Run a simulation-only model-driven trader with monthly contributions.",
+    )
+    virtual_trader.add_argument("--ticker", required=True, help="Ticker symbol, e.g. VOO")
+    virtual_trader.add_argument("--period", default="5y", help="History period, default 5y")
+    virtual_trader.add_argument("--benchmark", default="VOO", help="Benchmark ticker, default VOO")
+    virtual_trader.add_argument(
+        "--target-name",
+        default="target_5d_updown",
+        help="Model target to use for signals, default target_5d_updown",
+    )
+    virtual_trader.add_argument(
+        "--task-type",
+        default="classification",
+        choices=["classification", "regression"],
+        help="Prediction task type used for signal generation.",
+    )
+    virtual_trader.add_argument(
+        "--model-name",
+        default="logistic_regression",
+        help="Baseline model name, default logistic_regression",
+    )
+    virtual_trader.add_argument(
+        "--monthly-contribution-usd",
+        type=float,
+        default=1000.0,
+        help="Monthly cash contribution added on the first trading day of each month.",
+    )
+    virtual_trader.add_argument(
+        "--initial-cash",
+        type=float,
+        default=0.0,
+        help="Optional starting cash before monthly contributions begin.",
+    )
+    virtual_trader.add_argument(
+        "--confidence-threshold",
+        type=float,
+        default=0.55,
+        help="Minimum model confidence needed to act on a signal, default 0.55",
+    )
+    virtual_trader.add_argument(
+        "--max-position-size-pct",
+        type=float,
+        default=0.25,
+        help="Maximum fraction of total equity allowed in one position, default 0.25",
+    )
+    virtual_trader.add_argument(
+        "--stop-loss-pct",
+        type=float,
+        default=0.10,
+        help="Stop loss percentage as a decimal, default 0.10",
+    )
+    virtual_trader.add_argument(
+        "--take-profit-pct",
+        type=float,
+        default=None,
+        help="Optional take profit percentage as a decimal.",
+    )
+    virtual_trader.add_argument(
+        "--min-predicted-return-pct",
+        type=float,
+        default=0.0,
+        help="For regression signals, require predicted return >= this threshold.",
+    )
+    virtual_trader.add_argument(
+        "--output-dir",
+        default=None,
+        help="Optional output directory for saved virtual trader artifacts.",
+    )
+    virtual_trader.add_argument(
+        "--sentiment-model",
+        default="finbert",
+        help="Sentiment model name for dataset generation, default finbert.",
+    )
+    virtual_trader.add_argument(
+        "--no-news-sentiment",
+        action="store_true",
+        help="Disable news sentiment features during dataset generation.",
+    )
+    virtual_trader.set_defaults(func=cmd_virtual_trader)
+
     return parser
 
 
@@ -427,6 +563,7 @@ def main() -> int:
         BenchmarkAnalysisError,
         BacktestInputError,
         ModelTrainingError,
+        VirtualTraderError,
     ) as exc:
         _print_section("ERROR")
         print(str(exc))
