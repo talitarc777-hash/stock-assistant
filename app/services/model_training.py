@@ -26,6 +26,8 @@ from sklearn.metrics import (
     f1_score,
     mean_absolute_error,
     mean_squared_error,
+    precision_score,
+    recall_score,
     r2_score,
 )
 from sklearn.pipeline import Pipeline
@@ -54,6 +56,7 @@ class TrainingArtifact:
     feature_list_path: Path
     metrics_path: Path
     predictions_path: Path
+    evaluation_table_path: Path
 
 
 @dataclass(frozen=True)
@@ -68,6 +71,7 @@ class TrainingRunResult:
     feature_names: list[str]
     metrics: dict[str, Any]
     predictions: pd.DataFrame
+    evaluation_table: pd.DataFrame
     artifact: TrainingArtifact
 
 
@@ -215,6 +219,8 @@ def _score_classifier_predictions(y_true: pd.Series, y_pred: np.ndarray) -> dict
 
     return {
         "accuracy": float(accuracy_score(y_true_int, y_pred_int)),
+        "precision": float(precision_score(y_true_int, y_pred_int, zero_division=0)),
+        "recall": float(recall_score(y_true_int, y_pred_int, zero_division=0)),
         "f1": float(f1_score(y_true_int, y_pred_int, zero_division=0)),
         "positive_rate_actual": float(y_true_int.mean()),
         "positive_rate_predicted": float(y_pred_int.mean()),
@@ -234,24 +240,85 @@ def _score_regression_predictions(y_true: pd.Series, y_pred: np.ndarray) -> dict
     }
 
 
-def _build_predictions_frame(
+def _get_prediction_confidence(
+    fitted_pipeline: Pipeline,
+    x_test: pd.DataFrame,
+    task_type: str,
+    predictions: np.ndarray,
+) -> list[float | None]:
+    """Return optional confidence values when the model exposes them."""
+    if task_type != "classification":
+        return [None] * len(predictions)
+
+    model = fitted_pipeline
+    if hasattr(model, "predict_proba"):
+        try:
+            probabilities = model.predict_proba(x_test)
+            if probabilities.ndim == 2 and probabilities.shape[1] >= 2:
+                return [float(max(row)) for row in probabilities]
+        except Exception:  # pragma: no cover - estimator-specific behavior
+            logger.debug("predict_proba unavailable for model during walk-forward evaluation")
+
+    return [None] * len(predictions)
+
+
+def _build_walk_forward_evaluation_frame(
     date_series: pd.Series,
+    ticker: str,
     y_true: pd.Series,
     y_pred: np.ndarray,
+    confidence_scores: list[float | None],
     model_name: str,
     target_name: str,
+    task_type: str,
+    fold_number: int,
 ) -> pd.DataFrame:
-    """Package date-aligned out-of-sample predictions for inspection."""
+    """Build a chart-friendly walk-forward evaluation table.
+
+    We keep the rows strictly time-ordered and out-of-sample only.
+    Random train/test shuffling is inappropriate for time series because it mixes
+    future observations into the training set and makes the evaluation unrealistically optimistic.
+    """
+    actual_series = pd.Series(y_true).reset_index(drop=True)
+    predicted_series = pd.Series(y_pred).reset_index(drop=True)
+
+    if task_type == "classification":
+        hit_miss = (actual_series.astype(int) == predicted_series.astype(int)).map(
+            lambda is_hit: "hit" if is_hit else "miss"
+        )
+    else:
+        hit_miss = ((actual_series > 0) == (predicted_series > 0)).map(
+            lambda is_hit: "hit" if is_hit else "miss"
+        )
+
     frame = pd.DataFrame(
         {
-            "date": pd.to_datetime(date_series).dt.strftime("%Y-%m-%d"),
-            "actual": y_true.to_numpy(),
-            "predicted": y_pred,
+            "prediction_date": pd.to_datetime(date_series).dt.strftime("%Y-%m-%d"),
+            "ticker": ticker,
+            "predicted_value": predicted_series,
+            "confidence_score": confidence_scores,
+            "actual_future_result": actual_series,
+            "hit_miss": hit_miss,
             "model_name": model_name,
             "target_name": target_name,
+            "task_type": task_type,
+            "evaluation_window": fold_number,
         }
     )
-    return frame.sort_values("date").reset_index(drop=True)
+    return frame.sort_values("prediction_date").reset_index(drop=True)
+
+
+def _build_predictions_frame(evaluation_df: pd.DataFrame) -> pd.DataFrame:
+    """Keep a compact predictions artifact for backwards-compatible inspection."""
+    return evaluation_df.rename(
+        columns={
+            "prediction_date": "date",
+            "predicted_value": "predicted",
+            "actual_future_result": "actual",
+        }
+    )[
+        ["date", "ticker", "actual", "predicted", "confidence_score", "hit_miss", "model_name", "target_name"]
+    ].copy()
 
 
 def _save_training_artifacts(
@@ -263,6 +330,7 @@ def _save_training_artifacts(
     feature_names: list[str],
     metrics: dict[str, Any],
     predictions_df: pd.DataFrame,
+    evaluation_df: pd.DataFrame,
     output_dir: str | Path | None = None,
 ) -> TrainingArtifact:
     """Persist one model, its metadata, and predictions to disk."""
@@ -274,6 +342,7 @@ def _save_training_artifacts(
     feature_list_path = artifact_dir / "feature_list.json"
     metrics_path = artifact_dir / "metrics_summary.json"
     predictions_path = artifact_dir / "predictions.csv"
+    evaluation_table_path = artifact_dir / "evaluation_table.csv"
 
     with model_path.open("wb") as file_handle:
         pickle.dump(fitted_pipeline, file_handle)
@@ -281,6 +350,7 @@ def _save_training_artifacts(
     feature_list_path.write_text(json.dumps(feature_names, indent=2), encoding="utf-8")
     metrics_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
     predictions_df.to_csv(predictions_path, index=False)
+    evaluation_df.to_csv(evaluation_table_path, index=False)
 
     return TrainingArtifact(
         ticker=ticker,
@@ -291,6 +361,7 @@ def _save_training_artifacts(
         feature_list_path=feature_list_path,
         metrics_path=metrics_path,
         predictions_path=predictions_path,
+        evaluation_table_path=evaluation_table_path,
     )
 
 
@@ -311,7 +382,7 @@ def train_baseline_model(
     builder = _build_classifier_pipeline if task_type == "classification" else _build_regressor_pipeline
     base_pipeline = builder(model_name)
 
-    prediction_rows: list[pd.DataFrame] = []
+    evaluation_rows: list[pd.DataFrame] = []
     fold_sizes: list[dict[str, int]] = []
 
     for fold_number, (train_index, test_index) in enumerate(splitter.split(x_frame), start=1):
@@ -325,14 +396,24 @@ def train_baseline_model(
 
         fold_pipeline.fit(x_train, y_train)
         predictions = fold_pipeline.predict(x_test)
+        confidence_scores = _get_prediction_confidence(
+            fitted_pipeline=fold_pipeline,
+            x_test=x_test,
+            task_type=task_type,
+            predictions=predictions,
+        )
 
-        prediction_rows.append(
-            _build_predictions_frame(
+        evaluation_rows.append(
+            _build_walk_forward_evaluation_frame(
                 date_series=fold_dates,
+                ticker=ticker,
                 y_true=y_test,
                 y_pred=predictions,
+                confidence_scores=confidence_scores,
                 model_name=model_name,
                 target_name=target_name,
+                task_type=task_type,
+                fold_number=fold_number,
             )
         )
         fold_sizes.append(
@@ -343,12 +424,13 @@ def train_baseline_model(
             }
         )
 
-    if not prediction_rows:
+    if not evaluation_rows:
         raise ModelTrainingError("Time-series validation produced no prediction rows.")
 
-    predictions_df = pd.concat(prediction_rows, ignore_index=True)
-    actual_series = pd.Series(predictions_df["actual"])
-    predicted_array = predictions_df["predicted"].to_numpy()
+    evaluation_df = pd.concat(evaluation_rows, ignore_index=True)
+    predictions_df = _build_predictions_frame(evaluation_df)
+    actual_series = pd.Series(evaluation_df["actual_future_result"])
+    predicted_array = evaluation_df["predicted_value"].to_numpy()
 
     if task_type == "classification":
         metric_values = _score_classifier_predictions(actual_series, predicted_array)
@@ -368,6 +450,11 @@ def train_baseline_model(
         "row_count": int(len(x_frame)),
         "feature_count": int(len(feature_names)),
         "time_series_splits": split_count,
+        "validation_method": "walk_forward_expanding_window",
+        "validation_note": (
+            "Random train/test shuffling is avoided because time-series evaluation must preserve time order "
+            "and keep future data out of the training window."
+        ),
         "fold_sizes": fold_sizes,
         "metrics": metric_values,
     }
@@ -381,6 +468,7 @@ def train_baseline_model(
         feature_names=feature_names,
         metrics=metrics,
         predictions_df=predictions_df,
+        evaluation_df=evaluation_df,
         output_dir=output_dir,
     )
 
@@ -401,6 +489,7 @@ def train_baseline_model(
         feature_names=feature_names,
         metrics=metrics,
         predictions=predictions_df,
+        evaluation_table=evaluation_df,
         artifact=artifact,
     )
 

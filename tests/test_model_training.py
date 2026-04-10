@@ -91,11 +91,17 @@ class ModelTrainingTests(unittest.TestCase):
             self.assertEqual(result.task_type, "classification")
             self.assertGreater(result.metrics["row_count"], 0)
             self.assertIn("accuracy", result.metrics["metrics"])
+            self.assertIn("precision", result.metrics["metrics"])
+            self.assertIn("recall", result.metrics["metrics"])
             self.assertFalse(result.predictions.empty)
+            self.assertFalse(result.evaluation_table.empty)
+            self.assertIn("confidence_score", result.evaluation_table.columns)
+            self.assertIn("hit_miss", result.evaluation_table.columns)
             self.assertTrue(Path(result.artifact.model_path).exists())
             self.assertTrue(Path(result.artifact.feature_list_path).exists())
             self.assertTrue(Path(result.artifact.metrics_path).exists())
             self.assertTrue(Path(result.artifact.predictions_path).exists())
+            self.assertTrue(Path(result.artifact.evaluation_table_path).exists())
 
     def test_train_baseline_model_saves_regression_artifacts(self) -> None:
         dataset_df = _build_synthetic_dataset()
@@ -114,6 +120,9 @@ class ModelTrainingTests(unittest.TestCase):
             self.assertEqual(result.task_type, "regression")
             self.assertIn("rmse", result.metrics["metrics"])
             self.assertFalse(result.predictions.empty)
+            self.assertFalse(result.evaluation_table.empty)
+            self.assertIn("actual_future_result", result.evaluation_table.columns)
+            self.assertIn("hit_miss", result.evaluation_table.columns)
 
 
 if __name__ == "__main__":

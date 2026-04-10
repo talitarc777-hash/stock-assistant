@@ -314,6 +314,7 @@ def cmd_train_models(args: argparse.Namespace) -> int:
             )
             print(f"  model: {result.artifact.model_path}")
             print(f"  predictions: {result.artifact.predictions_path}")
+            print(f"  walk-forward evaluation: {result.artifact.evaluation_table_path}")
 
     return 0
 
