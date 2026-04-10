@@ -39,5 +39,9 @@
   "excess_return_3m_pct",
   "excess_return_6m_pct",
   "excess_return_12m_pct",
-  "benchmark_strength_score"
+  "benchmark_strength_score",
+  "article_count",
+  "average_sentiment",
+  "positive_article_ratio",
+  "negative_article_ratio"
 ]
