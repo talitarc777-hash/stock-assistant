@@ -32,3 +32,70 @@ export async function fetchChartData(ticker, period = "5y") {
 export async function fetchForecast(ticker, period = "2y") {
   return fetchJson(`/forecast?ticker=${encodeURIComponent(ticker)}&period=${period}`);
 }
+
+export async function fetchModelLatest(
+  ticker,
+  period = "5y",
+  targetName = "target_5d_updown",
+  modelName = "logistic_regression"
+) {
+  return fetchJson(
+    `/model-latest?ticker=${encodeURIComponent(ticker)}&period=${period}&target_name=${encodeURIComponent(
+      targetName
+    )}&model_name=${encodeURIComponent(modelName)}`
+  );
+}
+
+export async function fetchModelHistory(
+  ticker,
+  period = "5y",
+  targetName = "target_5d_updown",
+  modelName = "logistic_regression",
+  limit = 200
+) {
+  return fetchJson(
+    `/model-history?ticker=${encodeURIComponent(ticker)}&period=${period}&target_name=${encodeURIComponent(
+      targetName
+    )}&model_name=${encodeURIComponent(modelName)}&limit=${limit}`
+  );
+}
+
+export async function fetchModelAccuracy(
+  ticker,
+  period = "5y",
+  targetName = "target_5d_updown",
+  modelName = "logistic_regression",
+  window = 20
+) {
+  return fetchJson(
+    `/model-accuracy?ticker=${encodeURIComponent(ticker)}&period=${period}&target_name=${encodeURIComponent(
+      targetName
+    )}&model_name=${encodeURIComponent(modelName)}&window=${window}`
+  );
+}
+
+export async function fetchVirtualTraderSummary(
+  ticker,
+  period = "5y",
+  modelName = "logistic_regression",
+  equityLimit = 500
+) {
+  return fetchJson(
+    `/virtual-trader-summary?ticker=${encodeURIComponent(ticker)}&period=${period}&model_name=${encodeURIComponent(
+      modelName
+    )}&equity_limit=${equityLimit}`
+  );
+}
+
+export async function fetchVirtualTraderTrades(
+  ticker,
+  period = "5y",
+  modelName = "logistic_regression",
+  limit = 200
+) {
+  return fetchJson(
+    `/virtual-trader-trades?ticker=${encodeURIComponent(ticker)}&period=${period}&model_name=${encodeURIComponent(
+      modelName
+    )}&limit=${limit}`
+  );
+}

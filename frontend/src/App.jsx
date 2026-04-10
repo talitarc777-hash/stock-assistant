@@ -5,7 +5,9 @@ import LineChart from "./components/LineChart";
 import WatchlistManager from "./components/WatchlistManager";
 import WatchlistTable from "./components/WatchlistTable";
 import GlossaryPage from "./pages/GlossaryPage";
+import ModelEvaluationPage from "./pages/ModelEvaluationPage";
 import SettingsPage from "./pages/SettingsPage";
+import VirtualTraderPage from "./pages/VirtualTraderPage";
 import {
   fetchUserAlertScan,
   fetchUserProfile,
@@ -17,7 +19,9 @@ import "./styles.css";
 const DEFAULT_PERIOD = "5y";
 const DASHBOARD_PATH = "/";
 const GLOSSARY_PATH = "/glossary";
+const MODEL_EVALUATION_PATH = "/model-evaluation";
 const SETTINGS_PATH = "/settings";
+const VIRTUAL_TRADER_PATH = "/virtual-trader";
 const LANGUAGE_STORAGE_KEY = "stock-assistant-language-mode";
 const PROFILE_ID_STORAGE_KEY = "stock-assistant-profile-id";
 
@@ -53,13 +57,17 @@ const ZH = {
   totalScore: "\u7e3d\u8a55\u5206",
   settings: "\u8a2d\u5b9a",
   glossary: "\u8a5e\u5f59\u8868",
+  modelEvaluation: "\u6a21\u578b\u8a55\u4f30",
+  virtualTrader: "\u865b\u64ec\u4ea4\u6613\u54e1",
   language: "\u8a9e\u8a00",
   chinese: "\u4e2d\u6587",
 };
 
 function normalizePath(pathname) {
   if (pathname === GLOSSARY_PATH) return GLOSSARY_PATH;
+  if (pathname === MODEL_EVALUATION_PATH) return MODEL_EVALUATION_PATH;
   if (pathname === SETTINGS_PATH) return SETTINGS_PATH;
+  if (pathname === VIRTUAL_TRADER_PATH) return VIRTUAL_TRADER_PATH;
   return DASHBOARD_PATH;
 }
 
@@ -591,6 +599,20 @@ export default function App() {
           </button>
           <button
             type="button"
+            className={routePath === MODEL_EVALUATION_PATH ? "nav-link active" : "nav-link"}
+            onClick={() => navigateTo(MODEL_EVALUATION_PATH, setRoutePath)}
+          >
+            {formatBilingualLabel(languageMode, "Model Evaluation", ZH.modelEvaluation)}
+          </button>
+          <button
+            type="button"
+            className={routePath === VIRTUAL_TRADER_PATH ? "nav-link active" : "nav-link"}
+            onClick={() => navigateTo(VIRTUAL_TRADER_PATH, setRoutePath)}
+          >
+            {formatBilingualLabel(languageMode, "Virtual Trader", ZH.virtualTrader)}
+          </button>
+          <button
+            type="button"
             className={routePath === GLOSSARY_PATH ? "nav-link active" : "nav-link"}
             onClick={() => navigateTo(GLOSSARY_PATH, setRoutePath)}
           >
@@ -615,6 +637,11 @@ export default function App() {
 
       {routePath === GLOSSARY_PATH ? (
         <GlossaryPage languageMode={languageMode} />
+      ) : routePath === MODEL_EVALUATION_PATH ? (
+        <ModelEvaluationPage
+          languageMode={languageMode}
+          currentWatchlist={currentWatchlist}
+        />
       ) : routePath === SETTINGS_PATH ? (
         <SettingsPage
           profileId={profileId}
@@ -622,6 +649,11 @@ export default function App() {
           profile={profile}
           languageMode={languageMode}
           onProfileUpdated={loadSharedProfile}
+          currentWatchlist={currentWatchlist}
+        />
+      ) : routePath === VIRTUAL_TRADER_PATH ? (
+        <VirtualTraderPage
+          languageMode={languageMode}
           currentWatchlist={currentWatchlist}
         />
       ) : (

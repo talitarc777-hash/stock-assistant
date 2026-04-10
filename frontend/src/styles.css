@@ -105,6 +105,10 @@ body {
   margin-bottom: 6px;
 }
 
+.panel p {
+  line-height: 1.5;
+}
+
 .glossary-panel h2 {
   margin: 0 0 8px 0;
 }
@@ -271,6 +275,30 @@ tbody tr:hover {
   border-radius: 8px;
   padding: 10px;
   margin-bottom: 12px;
+}
+
+.explanation-panel {
+  min-height: 180px;
+}
+
+.explanation-panel p {
+  margin-top: 0;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 1fr));
+  gap: 8px 14px;
+}
+
+.metric-grid p {
+  margin: 0;
+}
+
+.compact-note {
+  margin-top: 8px;
+  color: #6b7280;
+  font-size: 13px;
 }
 
 .chart-wrap {
