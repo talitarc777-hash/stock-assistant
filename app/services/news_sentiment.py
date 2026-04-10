@@ -1,18 +1,30 @@
-"""Lightweight Yahoo news sentiment features for research datasets."""
+"""News preprocessing + sentiment scoring + daily aggregation features."""
 
 from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Callable
+from typing import Protocol
 
 import pandas as pd
-import yfinance as yf
 
+from app.services.news_service import (
+    NewsProvider,
+    YahooFinanceNewsProvider,
+    articles_to_frame,
+)
 logger = logging.getLogger(__name__)
 
 
-NewsFetcher = Callable[[str], list[dict]]
+class NewsSentimentError(Exception):
+    """Base exception for news sentiment processing."""
+
+
+class SentimentScorer(Protocol):
+    """Simple scorer interface so models can be swapped later."""
+
+    def score_texts(self, texts: list[str]) -> list[float]:
+        """Return a sentiment score per text in [-1, 1]."""
 
 _POSITIVE_WORDS: set[str] = {
     "beat",
@@ -77,50 +89,7 @@ _NEGATIVE_WORDS: set[str] = {
 }
 
 
-def _default_fetch_news(ticker: str) -> list[dict]:
-    """Fetch recent Yahoo Finance news items for a ticker."""
-    return list(yf.Ticker(ticker).news or [])
-
-
-def _extract_publish_datetime(item: dict) -> pd.Timestamp | None:
-    """Extract a publish timestamp from multiple possible Yahoo news shapes."""
-    timestamp = item.get("providerPublishTime")
-    if timestamp:
-        return pd.to_datetime(timestamp, unit="s", utc=True, errors="coerce")
-
-    content = item.get("content")
-    if isinstance(content, dict):
-        for key in ("pubDate", "published", "publishTime"):
-            if content.get(key):
-                return pd.to_datetime(content[key], utc=True, errors="coerce")
-
-    for key in ("pubDate", "published"):
-        if item.get(key):
-            return pd.to_datetime(item[key], utc=True, errors="coerce")
-
-    return None
-
-
-def _extract_text(item: dict) -> str:
-    """Combine headline-like fields into one text block for simple scoring."""
-    pieces: list[str] = []
-
-    for key in ("title", "summary"):
-        value = item.get(key)
-        if isinstance(value, str):
-            pieces.append(value)
-
-    content = item.get("content")
-    if isinstance(content, dict):
-        for key in ("title", "summary", "description"):
-            value = content.get(key)
-            if isinstance(value, str):
-                pieces.append(value)
-
-    return " ".join(piece.strip() for piece in pieces if piece and piece.strip())
-
-
-def _score_text_sentiment(text: str) -> float:
+def _score_text_sentiment_lexicon(text: str) -> float:
     """Score text with a very small keyword lexicon."""
     tokens = re.findall(r"[A-Za-z']+", text.lower())
     if not tokens:
@@ -131,79 +100,184 @@ def _score_text_sentiment(text: str) -> float:
     return (positive_hits - negative_hits) / max(len(tokens), 1)
 
 
-def build_news_sentiment_features(
-    ticker: str,
-    date_index: pd.Series,
-    news_fetcher: NewsFetcher | None = None,
-) -> pd.DataFrame:
+class LexiconSentimentScorer:
+    """Beginner-friendly fallback scorer when FinBERT is unavailable."""
+
+    def score_texts(self, texts: list[str]) -> list[float]:
+        return [_score_text_sentiment_lexicon(text) for text in texts]
+
+
+class FinBertSentimentScorer:
     """
-    Build daily news sentiment features aligned to a dataset date column.
+    Finance-domain sentiment scorer backed by ProsusAI/finbert.
 
     Notes:
-    - Yahoo Finance news availability can be sparse and is usually recent-only.
-    - Missing days are filled with zeros so the downstream dataset stays easy to use.
+    - This class lazy-loads `transformers` so the project still runs without it.
+    - If model loading fails, callers can fallback to `LexiconSentimentScorer`.
     """
-    features = pd.DataFrame({"date": pd.to_datetime(date_index, utc=False)}).copy()
 
-    features["news_article_count"] = 0
-    features["news_sentiment_score"] = 0.0
-    features["news_sentiment_3d_avg"] = 0.0
-    features["news_sentiment_7d_avg"] = 0.0
+    def __init__(self, model_name: str = "ProsusAI/finbert") -> None:
+        try:
+            from transformers import pipeline  # type: ignore
+        except Exception as exc:  # pragma: no cover - dependency availability varies
+            raise NewsSentimentError(
+                "FinBERT dependencies are unavailable. Install `transformers` (and a backend like `torch`)."
+            ) from exc
 
-    fetcher = news_fetcher or _default_fetch_news
+        try:
+            self._pipeline = pipeline(
+                task="text-classification",
+                model=model_name,
+                tokenizer=model_name,
+            )
+        except Exception as exc:  # pragma: no cover - model download/runtime varies
+            raise NewsSentimentError(f"Failed to load FinBERT model '{model_name}'.") from exc
+
+    def score_texts(self, texts: list[str]) -> list[float]:
+        if not texts:
+            return []
+
+        results = self._pipeline(texts, truncation=True, max_length=256)
+        scores: list[float] = []
+        for item in results:
+            label = str(item.get("label", "")).lower()
+            confidence = float(item.get("score", 0.0))
+            if "positive" in label:
+                scores.append(confidence)
+            elif "negative" in label:
+                scores.append(-confidence)
+            else:
+                scores.append(0.0)
+        return scores
+
+
+def _build_scorer(
+    sentiment_model: str = "finbert",
+    fallback_to_lexicon: bool = True,
+) -> SentimentScorer:
+    """Build the requested scorer with optional safe fallback."""
+    if sentiment_model.strip().lower() != "finbert":
+        return LexiconSentimentScorer()
 
     try:
-        raw_items = fetcher(ticker)
-    except Exception as exc:  # pragma: no cover - provider failures are environment-dependent
-        logger.warning("Failed to fetch news for ticker=%s: %s", ticker, exc)
-        return features
+        return FinBertSentimentScorer()
+    except NewsSentimentError as exc:
+        if not fallback_to_lexicon:
+            raise
+        logger.warning("FinBERT unavailable, fallback to lexicon scorer: %s", exc)
+        return LexiconSentimentScorer()
 
-    records: list[dict[str, object]] = []
-    for item in raw_items:
-        published_at = _extract_publish_datetime(item)
-        article_text = _extract_text(item)
-        if published_at is None or not article_text:
-            continue
 
-        published_date = published_at.tz_convert(None).normalize()
-        records.append(
-            {
-                "date": published_date,
-                "news_sentiment_score": _score_text_sentiment(article_text),
-                "news_article_count": 1,
-            }
-        )
+def _score_articles(
+    article_df: pd.DataFrame,
+    scorer: SentimentScorer,
+) -> pd.DataFrame:
+    """Attach sentiment score and polarity label to article metadata rows."""
+    result = article_df.copy()
+    scores = scorer.score_texts(result["title"].fillna("").astype(str).tolist())
+    result["sentiment_score"] = scores
+    result["sentiment_label"] = "neutral"
+    result.loc[result["sentiment_score"] > 0.05, "sentiment_label"] = "positive"
+    result.loc[result["sentiment_score"] < -0.05, "sentiment_label"] = "negative"
+    return result
 
-    if not records:
-        return features
 
-    news_df = pd.DataFrame(records)
+def _aggregate_daily_features(
+    scored_article_df: pd.DataFrame,
+    date_index: pd.Series,
+    mapped_ticker: str,
+) -> pd.DataFrame:
+    """Aggregate article-level sentiment into daily ticker-level features."""
+    base = pd.DataFrame({"date": pd.to_datetime(date_index, utc=False)}).copy()
+    base["ticker"] = mapped_ticker
+    base["article_count"] = 0
+    base["average_sentiment"] = 0.0
+    base["positive_article_ratio"] = 0.0
+    base["negative_article_ratio"] = 0.0
+
+    if scored_article_df.empty:
+        return base
+
+    daily = scored_article_df.copy()
+    daily["date"] = pd.to_datetime(daily["article_date"], errors="coerce")
+    daily = daily.dropna(subset=["date"]).sort_values("date")
+
     grouped = (
-        news_df.groupby("date", as_index=False)
+        daily.groupby("date", as_index=False)
         .agg(
-            news_article_count=("news_article_count", "sum"),
-            news_sentiment_score=("news_sentiment_score", "mean"),
+            article_count=("title", "count"),
+            average_sentiment=("sentiment_score", "mean"),
+            positive_count=("sentiment_label", lambda values: int((values == "positive").sum())),
+            negative_count=("sentiment_label", lambda values: int((values == "negative").sum())),
         )
-        .sort_values("date")
     )
+    grouped["positive_article_ratio"] = grouped["positive_count"] / grouped["article_count"]
+    grouped["negative_article_ratio"] = grouped["negative_count"] / grouped["article_count"]
+    grouped = grouped.drop(columns=["positive_count", "negative_count"])
 
-    merged = features.merge(grouped, on="date", how="left", suffixes=("", "_fetched"))
-    if "news_article_count_fetched" in merged.columns:
-        merged["news_article_count"] = (
-            merged["news_article_count_fetched"].fillna(merged["news_article_count"]).astype(int)
-        )
-        merged = merged.drop(columns=["news_article_count_fetched"])
-    if "news_sentiment_score_fetched" in merged.columns:
-        merged["news_sentiment_score"] = merged["news_sentiment_score_fetched"].fillna(
-            merged["news_sentiment_score"]
-        )
-        merged = merged.drop(columns=["news_sentiment_score_fetched"])
+    merged = base.merge(grouped, on="date", how="left", suffixes=("", "_agg"))
+    for column in ("article_count", "average_sentiment", "positive_article_ratio", "negative_article_ratio"):
+        agg_column = f"{column}_agg"
+        if agg_column in merged.columns:
+            merged[column] = merged[agg_column].fillna(merged[column])
+            merged = merged.drop(columns=[agg_column])
 
-    merged["news_sentiment_3d_avg"] = (
-        merged["news_sentiment_score"].rolling(window=3, min_periods=1).mean()
-    )
-    merged["news_sentiment_7d_avg"] = (
-        merged["news_sentiment_score"].rolling(window=7, min_periods=1).mean()
-    )
-
+    merged["article_count"] = merged["article_count"].astype(int)
     return merged
+
+
+def build_daily_news_features(
+    ticker: str,
+    date_index: pd.Series,
+    company_name: str | None = None,
+    provider: NewsProvider | None = None,
+    sentiment_model: str = "finbert",
+    fallback_to_lexicon: bool = True,
+) -> pd.DataFrame:
+    """
+    Build daily ticker-level news sentiment features for model datasets.
+
+    Notes:
+    - Article metadata ingestion is source-agnostic via the provider interface.
+    - Sentiment supports FinBERT and falls back to lexicon scoring by default.
+    - Missing days are filled with zeros for beginner-friendly downstream usage.
+    """
+    ticker_symbol = ticker.strip().upper()
+    news_provider = provider or YahooFinanceNewsProvider()
+    scorer = _build_scorer(
+        sentiment_model=sentiment_model,
+        fallback_to_lexicon=fallback_to_lexicon,
+    )
+
+    try:
+        articles = news_provider.fetch_article_metadata(
+            ticker=ticker_symbol,
+            company_name=company_name,
+        )
+    except Exception as exc:  # pragma: no cover - provider failures vary by environment
+        logger.warning(
+            "News metadata fetch failed for ticker=%s company=%s: %s",
+            ticker_symbol,
+            company_name,
+            exc,
+        )
+        return _aggregate_daily_features(
+            scored_article_df=pd.DataFrame(),
+            date_index=date_index,
+            mapped_ticker=ticker_symbol,
+        )
+
+    article_df = articles_to_frame(articles)
+    if article_df.empty:
+        return _aggregate_daily_features(
+            scored_article_df=pd.DataFrame(),
+            date_index=date_index,
+            mapped_ticker=ticker_symbol,
+        )
+
+    scored_df = _score_articles(article_df=article_df, scorer=scorer)
+    return _aggregate_daily_features(
+        scored_article_df=scored_df,
+        date_index=date_index,
+        mapped_ticker=ticker_symbol,
+    )

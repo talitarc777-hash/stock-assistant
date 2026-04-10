@@ -13,7 +13,7 @@ import pandas as pd
 from app.core.settings import get_settings
 from app.services.indicators import add_technical_indicators
 from app.services.market_data import get_price_history
-from app.services.news_sentiment import build_news_sentiment_features
+from app.services.news_sentiment import build_daily_news_features
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +114,7 @@ def build_feature_dataset(
     period: str = "5y",
     benchmark: str = "VOO",
     include_news_sentiment: bool = True,
+    sentiment_model: str = "finbert",
 ) -> pd.DataFrame:
     """
     Build one daily feature dataset for a single ticker.
@@ -147,7 +148,12 @@ def build_feature_dataset(
     dataset_df = _add_benchmark_relative_features(dataset_df, benchmark_df)
 
     if include_news_sentiment:
-        news_df = build_news_sentiment_features(ticker=ticker_symbol, date_index=dataset_df["date"])
+        news_df = build_daily_news_features(
+            ticker=ticker_symbol,
+            date_index=dataset_df["date"],
+            sentiment_model=sentiment_model,
+            fallback_to_lexicon=True,
+        )
         dataset_df = dataset_df.merge(news_df, on="date", how="left", suffixes=("", "_news"))
 
     dataset_df = _add_target_columns(dataset_df)
@@ -224,6 +230,7 @@ def build_and_save_feature_dataset(
     benchmark: str = "VOO",
     output_dir: str | Path | None = None,
     include_news_sentiment: bool = True,
+    sentiment_model: str = "finbert",
 ) -> ResearchDatasetArtifact:
     """Convenience wrapper to build a dataset and save it locally."""
     dataset_df = build_feature_dataset(
@@ -231,6 +238,7 @@ def build_and_save_feature_dataset(
         period=period,
         benchmark=benchmark,
         include_news_sentiment=include_news_sentiment,
+        sentiment_model=sentiment_model,
     )
     return save_feature_dataset(
         dataset_df=dataset_df,
@@ -247,6 +255,7 @@ def build_feature_datasets_for_tickers(
     benchmark: str = "VOO",
     output_dir: str | Path | None = None,
     include_news_sentiment: bool = True,
+    sentiment_model: str = "finbert",
 ) -> list[ResearchDatasetArtifact]:
     """Build and save research datasets for multiple tickers."""
     artifacts: list[ResearchDatasetArtifact] = []
@@ -259,6 +268,7 @@ def build_feature_datasets_for_tickers(
                 benchmark=benchmark,
                 output_dir=output_dir,
                 include_news_sentiment=include_news_sentiment,
+                sentiment_model=sentiment_model,
             )
         )
 
