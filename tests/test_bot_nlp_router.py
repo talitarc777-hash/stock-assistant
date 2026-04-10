@@ -71,6 +71,36 @@ class NaturalLanguageRouterTests(unittest.TestCase):
         self.assertEqual(parsed.intent, "forecast")
         self.assertEqual(parsed.tickers, ["MSFT"])
 
+    def test_model_status_voo(self) -> None:
+        parsed = parse_natural_language_message("model status VOO")
+        self.assertEqual(parsed.intent, "model_status")
+        self.assertEqual(parsed.tickers, ["VOO"])
+
+    def test_show_prediction_accuracy_for_voo(self) -> None:
+        parsed = parse_natural_language_message("show prediction accuracy for VOO")
+        self.assertEqual(parsed.intent, "model_accuracy")
+        self.assertEqual(parsed.tickers, ["VOO"])
+
+    def test_show_virtual_trader_summary_without_ticker(self) -> None:
+        parsed = parse_natural_language_message("show virtual trader summary")
+        self.assertEqual(parsed.intent, "virtual_trader_summary")
+        self.assertEqual(parsed.tickers, [])
+
+    def test_show_last_five_trades_without_ticker(self) -> None:
+        parsed = parse_natural_language_message("show last 5 trades")
+        self.assertEqual(parsed.intent, "virtual_trader_trades")
+        self.assertEqual(parsed.tickers, [])
+
+    def test_why_did_the_model_buy_or_sell(self) -> None:
+        parsed = parse_natural_language_message("why did the model buy or sell")
+        self.assertEqual(parsed.intent, "why_trade")
+        self.assertEqual(parsed.tickers, [])
+
+    def test_compare_virtual_trader_vs_voo(self) -> None:
+        parsed = parse_natural_language_message("compare virtual trader vs VOO")
+        self.assertEqual(parsed.intent, "virtual_trader_compare")
+        self.assertEqual(parsed.tickers, ["VOO"])
+
     def test_forecast_berkshire_resolves_to_brk_b(self) -> None:
         parsed = parse_natural_language_message("show me the forecast for Berkshire")
         self.assertEqual(parsed.intent, "forecast")

@@ -12,7 +12,13 @@ try:
         format_alerts_message,
         format_forecast_message,
         format_help_message,
+        format_model_accuracy_message,
+        format_model_status_message,
         format_settings_message,
+        format_trade_reason_message,
+        format_virtual_trader_compare_message,
+        format_virtual_trader_summary_message,
+        format_virtual_trader_trades_message,
         format_watchlist_message,
     )
     from .alert_engine import build_ticker_alerts, format_alert_for_discord
@@ -44,6 +50,10 @@ try:
         analyze,
         chart_data,
         forecast,
+        model_accuracy,
+        model_latest,
+        virtual_trader_summary,
+        virtual_trader_trades,
         watchlist,
     )
 except ImportError:  # pragma: no cover - script execution fallback
@@ -57,7 +67,13 @@ except ImportError:  # pragma: no cover - script execution fallback
         format_alerts_message,
         format_forecast_message,
         format_help_message,
+        format_model_accuracy_message,
+        format_model_status_message,
         format_settings_message,
+        format_trade_reason_message,
+        format_virtual_trader_compare_message,
+        format_virtual_trader_summary_message,
+        format_virtual_trader_trades_message,
         format_watchlist_message,
     )
     from alert_engine import build_ticker_alerts, format_alert_for_discord
@@ -89,6 +105,10 @@ except ImportError:  # pragma: no cover - script execution fallback
         analyze,
         chart_data,
         forecast,
+        model_accuracy,
+        model_latest,
+        virtual_trader_summary,
+        virtual_trader_trades,
         watchlist,
     )
 
@@ -126,6 +146,12 @@ def _friendly_error_message(exc: Exception) -> str:
             return "The API reply was missing some expected fields. Please try again later."
         return message
     if isinstance(exc, ApiClientError):
+        detail = str(exc)
+        detail_lower = detail.lower()
+        if "saved model artifacts were not found" in detail_lower or "run the training command first" in detail_lower:
+            return "I couldn't find saved model results for that ticker yet. Run the training step first, then try again."
+        if "saved virtual trader artifacts were not found" in detail_lower or "run the virtual trader command first" in detail_lower:
+            return "I couldn't find saved virtual trader results for that ticker yet. Run the virtual trader step first, then try again."
         return f"API error: {str(exc)}"
     return "Something went wrong while talking to the backend. Please try again."
 
@@ -172,6 +198,16 @@ def _language_label(language: str) -> str:
 def _discord_display_name(ctx) -> str:
     """Return the best display name available from Discord context."""
     return getattr(ctx.author, "display_name", None) or getattr(ctx.author, "name", "")
+
+
+def _language_label(language: str) -> str:
+    """Render a short human-friendly language label."""
+    labels = {
+        "en": "English",
+        "zh": "中文",
+        "bilingual": "English + 中文",
+    }
+    return labels.get(str(language).lower(), str(language))
 
 
 def _normalize_profile_settings(profile: dict) -> dict:
@@ -301,6 +337,22 @@ def _get_shared_effective_watchlist(ctx) -> list[str]:
         return fallback_get_effective_watchlist(ctx.author.id)
 
 
+def _resolve_reporting_ticker(ctx, requested_ticker: str | None = None) -> str:
+    """Choose a ticker for model/trader reporting.
+
+    These report commands are useful even without an explicit ticker.
+    In that case, we fall back to the user's first watchlist symbol,
+    then to VOO as a safe system default.
+    """
+    if requested_ticker:
+        return requested_ticker.strip().upper()
+
+    watchlist = _get_shared_effective_watchlist(ctx)
+    if watchlist:
+        return str(watchlist[0]).upper()
+    return "VOO"
+
+
 def _reset_shared_settings(ctx) -> dict:
     """Reset Discord-visible settings via the shared backend profile."""
     payload = {
@@ -400,6 +452,78 @@ async def _send_watchlist(ctx) -> None:
     ranked = _require_list(data.get("ranked_results", []), "ranked_results")
     failed = _require_list(data.get("failed_tickers", []), "failed_tickers")
     await ctx.send(format_watchlist_message(ranked, failed, effective_watchlist, user_settings))
+
+
+async def _send_model_status(ctx, requested_ticker: str | None = None) -> None:
+    """Fetch and send the latest saved model status for one ticker."""
+    user_settings = _get_shared_user_settings(ctx)
+    symbol = _resolve_reporting_ticker(ctx, requested_ticker)
+    data = model_latest(symbol, period="5y")
+    print("MODEL STATUS RAW RESPONSE:", data)
+    data = _require_dict(data, "model status response")
+    _require_dict(data.get("latest_prediction", {}), "latest_prediction")
+    await ctx.send(format_model_status_message(symbol, data, user_settings))
+
+
+async def _send_model_accuracy(ctx, requested_ticker: str | None = None) -> None:
+    """Fetch and send saved model accuracy metrics for one ticker."""
+    user_settings = _get_shared_user_settings(ctx)
+    symbol = _resolve_reporting_ticker(ctx, requested_ticker)
+    data = model_accuracy(symbol, period="5y")
+    print("MODEL ACCURACY RAW RESPONSE:", data)
+    data = _require_dict(data, "model accuracy response")
+    _require_dict(data.get("metrics_summary", {}), "metrics_summary")
+    _require_list(data.get("rolling_accuracy", []), "rolling_accuracy")
+    await ctx.send(format_model_accuracy_message(symbol, data, user_settings))
+
+
+async def _send_virtual_trader_summary(ctx, requested_ticker: str | None = None) -> None:
+    """Fetch and send the virtual trader summary for one ticker."""
+    user_settings = _get_shared_user_settings(ctx)
+    symbol = _resolve_reporting_ticker(ctx, requested_ticker)
+    data = virtual_trader_summary(symbol, period="5y")
+    print("VIRTUAL TRADER SUMMARY RAW RESPONSE:", data)
+    data = _require_dict(data, "virtual trader summary response")
+    _require_dict(data.get("summary", {}), "summary")
+    _require_dict(data.get("benchmark_comparison", {}), "benchmark_comparison")
+    await ctx.send(format_virtual_trader_summary_message(symbol, data, user_settings))
+
+
+async def _send_virtual_trader_trades(ctx, requested_ticker: str | None = None, limit: int = 5) -> None:
+    """Fetch and send recent virtual trader trades for one ticker."""
+    user_settings = _get_shared_user_settings(ctx)
+    symbol = _resolve_reporting_ticker(ctx, requested_ticker)
+    data = virtual_trader_trades(symbol, period="5y", limit=max(limit, 5))
+    print("VIRTUAL TRADER TRADES RAW RESPONSE:", data)
+    data = _require_dict(data, "virtual trader trades response")
+    _require_list(data.get("trade_log", []), "trade_log")
+    await ctx.send(format_virtual_trader_trades_message(symbol, data, user_settings, limit=limit))
+
+
+async def _send_why_trade(ctx, requested_ticker: str | None = None) -> None:
+    """Fetch and explain the latest virtual trader action for one ticker."""
+    user_settings = _get_shared_user_settings(ctx)
+    symbol = _resolve_reporting_ticker(ctx, requested_ticker)
+    data = virtual_trader_trades(symbol, period="5y", limit=5)
+    print("WHY TRADE RAW RESPONSE:", data)
+    data = _require_dict(data, "virtual trader trades response")
+    trade_log = _require_list(data.get("trade_log", []), "trade_log")
+    if not trade_log:
+        await ctx.send(f"No saved virtual trades yet for `{symbol}`.")
+        return
+    await ctx.send(format_trade_reason_message(symbol, trade_log[-1], user_settings))
+
+
+async def _send_virtual_trader_compare(ctx, requested_ticker: str | None = None) -> None:
+    """Fetch and compare the virtual trader against VOO for one ticker."""
+    user_settings = _get_shared_user_settings(ctx)
+    symbol = _resolve_reporting_ticker(ctx, requested_ticker)
+    data = virtual_trader_summary(symbol, period="5y")
+    print("VIRTUAL TRADER COMPARE RAW RESPONSE:", data)
+    data = _require_dict(data, "virtual trader summary response")
+    _require_dict(data.get("summary", {}), "summary")
+    _require_dict(data.get("benchmark_comparison", {}), "benchmark_comparison")
+    await ctx.send(format_virtual_trader_compare_message(symbol, data, user_settings))
 
 
 async def _send_alerts(ctx) -> None:
@@ -509,11 +633,23 @@ async def on_message(message):
             await _send_analyze(ctx, parsed.tickers[0].upper())
         elif parsed.intent == "forecast" and parsed.tickers:
             await _send_forecast(ctx, parsed.tickers[0].upper())
+        elif parsed.intent == "model_status":
+            await _send_model_status(ctx, parsed.tickers[0].upper() if parsed.tickers else None)
+        elif parsed.intent == "model_accuracy":
+            await _send_model_accuracy(ctx, parsed.tickers[0].upper() if parsed.tickers else None)
+        elif parsed.intent == "virtual_trader_summary":
+            await _send_virtual_trader_summary(ctx, parsed.tickers[0].upper() if parsed.tickers else None)
+        elif parsed.intent == "virtual_trader_trades":
+            await _send_virtual_trader_trades(ctx, parsed.tickers[0].upper() if parsed.tickers else None)
+        elif parsed.intent == "why_trade":
+            await _send_why_trade(ctx, parsed.tickers[0].upper() if parsed.tickers else None)
+        elif parsed.intent == "virtual_trader_compare":
+            await _send_virtual_trader_compare(ctx, parsed.tickers[0].upper() if parsed.tickers else None)
         elif parsed.needs_help_hint and parsed.message:
             await message.channel.send(parsed.message)
         else:
             await message.channel.send(
-                "I'm not sure what you want to do. Try `show my settings`, `analyze VOO`, or `add Tesla to my watchlist`."
+                "I'm not sure what you want to do. Try `show my settings`, `analyze VOO`, `model status VOO`, or `add Tesla to my watchlist`."
             )
     except Exception as exc:
         print("NLP ROUTER ERROR:", repr(exc))
@@ -692,6 +828,78 @@ async def alerts_cmd(ctx):
         await _send_alerts(ctx)
     except Exception as exc:
         print("ALERTS ERROR:", repr(exc))
+        await ctx.send(_friendly_error_message(exc))
+
+
+@bot.command(name="modelstatus")
+async def modelstatus_cmd(ctx, ticker: str | None = None):
+    if not is_allowed(ctx):
+        return
+
+    try:
+        await _send_model_status(ctx, ticker.upper() if ticker else None)
+    except Exception as exc:
+        print("MODELSTATUS ERROR:", repr(exc))
+        await ctx.send(_friendly_error_message(exc))
+
+
+@bot.command(name="modelaccuracy")
+async def modelaccuracy_cmd(ctx, ticker: str | None = None):
+    if not is_allowed(ctx):
+        return
+
+    try:
+        await _send_model_accuracy(ctx, ticker.upper() if ticker else None)
+    except Exception as exc:
+        print("MODELACCURACY ERROR:", repr(exc))
+        await ctx.send(_friendly_error_message(exc))
+
+
+@bot.command(name="virtualtrader")
+async def virtualtrader_cmd(ctx, ticker: str | None = None):
+    if not is_allowed(ctx):
+        return
+
+    try:
+        await _send_virtual_trader_summary(ctx, ticker.upper() if ticker else None)
+    except Exception as exc:
+        print("VIRTUALTRADER ERROR:", repr(exc))
+        await ctx.send(_friendly_error_message(exc))
+
+
+@bot.command(name="lasttrades")
+async def lasttrades_cmd(ctx, ticker: str | None = None):
+    if not is_allowed(ctx):
+        return
+
+    try:
+        await _send_virtual_trader_trades(ctx, ticker.upper() if ticker else None, limit=5)
+    except Exception as exc:
+        print("LASTTRADES ERROR:", repr(exc))
+        await ctx.send(_friendly_error_message(exc))
+
+
+@bot.command(name="whytrade")
+async def whytrade_cmd(ctx, ticker: str | None = None):
+    if not is_allowed(ctx):
+        return
+
+    try:
+        await _send_why_trade(ctx, ticker.upper() if ticker else None)
+    except Exception as exc:
+        print("WHYTRADE ERROR:", repr(exc))
+        await ctx.send(_friendly_error_message(exc))
+
+
+@bot.command(name="comparetrader")
+async def comparetrader_cmd(ctx, ticker: str | None = None):
+    if not is_allowed(ctx):
+        return
+
+    try:
+        await _send_virtual_trader_compare(ctx, ticker.upper() if ticker else None)
+    except Exception as exc:
+        print("COMPARETRADER ERROR:", repr(exc))
         await ctx.send(_friendly_error_message(exc))
 
 

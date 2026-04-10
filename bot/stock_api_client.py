@@ -73,3 +73,60 @@ def chart_data(ticker: str, period: str = "6mo"):
     """Fetch chart + indicator history for one ticker from backend."""
     url = f"{BACKEND_BASE_URL}/chart-data?ticker={ticker}&period={period}"
     return _get_json(url)
+
+
+def model_latest(
+    ticker: str,
+    period: str = "5y",
+    target_name: str = "target_5d_updown",
+    model_name: str = "logistic_regression",
+):
+    """Fetch the latest saved model prediction for one ticker."""
+    url = (
+        f"{BACKEND_BASE_URL}/model-latest?ticker={ticker}"
+        f"&period={period}&target_name={target_name}&model_name={model_name}"
+    )
+    return _get_json(url)
+
+
+def model_accuracy(
+    ticker: str,
+    period: str = "5y",
+    target_name: str = "target_5d_updown",
+    model_name: str = "logistic_regression",
+    window: int = 20,
+):
+    """Fetch saved model accuracy metrics and rolling hit rate."""
+    url = (
+        f"{BACKEND_BASE_URL}/model-accuracy?ticker={ticker}"
+        f"&period={period}&target_name={target_name}&model_name={model_name}&window={window}"
+    )
+    return _get_json(url)
+
+
+def virtual_trader_summary(
+    ticker: str,
+    period: str = "5y",
+    model_name: str = "logistic_regression",
+    equity_limit: int = 200,
+):
+    """Fetch the saved virtual trader summary and recent equity curve."""
+    url = (
+        f"{BACKEND_BASE_URL}/virtual-trader-summary?ticker={ticker}"
+        f"&period={period}&model_name={model_name}&equity_limit={equity_limit}"
+    )
+    return _get_json(url)
+
+
+def virtual_trader_trades(
+    ticker: str,
+    period: str = "5y",
+    model_name: str = "logistic_regression",
+    limit: int = 50,
+):
+    """Fetch the saved virtual trader trade log and contribution history."""
+    url = (
+        f"{BACKEND_BASE_URL}/virtual-trader-trades?ticker={ticker}"
+        f"&period={period}&model_name={model_name}&limit={limit}"
+    )
+    return _get_json(url)

@@ -40,7 +40,7 @@ _LANGUAGE_PATTERNS: list[tuple[str, list[str]]] = [
 
 _GENERAL_HELP_HINT = (
     "I'm not sure what you want to do yet. Try `show my settings`, `analyze VOO`, "
-    "`forecast QQQ`, or `add Tesla to my watchlist`."
+    "`forecast QQQ`, `model status VOO`, or `add Tesla to my watchlist`."
 )
 
 
@@ -78,6 +78,11 @@ def _contains_stock_keywords(text: str) -> bool:
         "predict",
         "compact",
         "short replies",
+        "model",
+        "accuracy",
+        "virtual trader",
+        "trades",
+        "buy or sell",
     ]
     return _contains_any(text, keywords)
 
@@ -101,6 +106,10 @@ def _ticker_help(action: str) -> str:
         return "I couldn't tell which ticker you want to remove. Try `remove TSLA from my watchlist`."
     if action == "forecast":
         return "I need a ticker for the forecast, for example `forecast VOO` or `show me the forecast for Microsoft`."
+    if action == "model_status":
+        return "I need a ticker for model status, for example `model status VOO`."
+    if action == "model_accuracy":
+        return "I need a ticker for model accuracy, for example `show prediction accuracy for VOO`."
     return "I need a ticker to analyze, for example `analyze VOO` or `analyze Apple`."
 
 
@@ -190,6 +199,97 @@ def parse_natural_language_message(message_text: str) -> ParsedIntent:
         if ticker_match.tickers:
             return ParsedIntent(intent="forecast", tickers=ticker_match.tickers[:1])
         return ParsedIntent(intent=None, needs_help_hint=True, message=_ticker_help("forecast"))
+
+    if _contains_any(
+        text,
+        [
+            "model status",
+            "latest model signal",
+            "latest prediction for",
+            "show model status for",
+        ],
+    ):
+        ticker_match = extract_tickers_from_text(text)
+        if ticker_match.ambiguous:
+            return ParsedIntent(intent=None, needs_help_hint=True, message=ticker_match.message)
+        if ticker_match.tickers:
+            return ParsedIntent(intent="model_status", tickers=ticker_match.tickers[:1])
+        return ParsedIntent(intent=None, needs_help_hint=True, message=_ticker_help("model_status"))
+
+    if _contains_any(
+        text,
+        [
+            "prediction accuracy",
+            "model accuracy",
+            "how accurate is the model",
+            "show accuracy for",
+        ],
+    ):
+        ticker_match = extract_tickers_from_text(text)
+        if ticker_match.ambiguous:
+            return ParsedIntent(intent=None, needs_help_hint=True, message=ticker_match.message)
+        if ticker_match.tickers:
+            return ParsedIntent(intent="model_accuracy", tickers=ticker_match.tickers[:1])
+        return ParsedIntent(intent=None, needs_help_hint=True, message=_ticker_help("model_accuracy"))
+
+    if _contains_any(
+        text,
+        [
+            "show virtual trader summary",
+            "virtual trader summary",
+            "virtual trader status",
+            "show trader summary",
+        ],
+    ):
+        ticker_match = extract_tickers_from_text(text)
+        if ticker_match.ambiguous:
+            return ParsedIntent(intent=None, needs_help_hint=True, message=ticker_match.message)
+        return ParsedIntent(intent="virtual_trader_summary", tickers=ticker_match.tickers[:1])
+
+    if _contains_any(
+        text,
+        [
+            "show last 5 trades",
+            "last 5 trades",
+            "recent trades",
+            "recent virtual trader trades",
+        ],
+    ):
+        ticker_match = extract_tickers_from_text(text)
+        if ticker_match.ambiguous:
+            return ParsedIntent(intent=None, needs_help_hint=True, message=ticker_match.message)
+        return ParsedIntent(intent="virtual_trader_trades", tickers=ticker_match.tickers[:1])
+
+    if _contains_any(
+        text,
+        [
+            "why did the model buy or sell",
+            "why did the model buy",
+            "why did the model sell",
+            "why did it buy",
+            "why did it sell",
+            "why trade",
+        ],
+    ):
+        ticker_match = extract_tickers_from_text(text)
+        if ticker_match.ambiguous:
+            return ParsedIntent(intent=None, needs_help_hint=True, message=ticker_match.message)
+        return ParsedIntent(intent="why_trade", tickers=ticker_match.tickers[:1])
+
+    if _contains_any(
+        text,
+        [
+            "compare virtual trader vs",
+            "compare trader vs",
+            "virtual trader versus",
+            "how is the virtual trader doing versus",
+            "compare strategy against",
+        ],
+    ):
+        ticker_match = extract_tickers_from_text(text)
+        if ticker_match.ambiguous:
+            return ParsedIntent(intent=None, needs_help_hint=True, message=ticker_match.message)
+        return ParsedIntent(intent="virtual_trader_compare", tickers=ticker_match.tickers[:1])
 
     if _contains_any(text, ["analyze ", "analysis for", "check ", "what do you think about", "show analysis for"]):
         ticker_match = extract_tickers_from_text(text)
