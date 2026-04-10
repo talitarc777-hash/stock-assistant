@@ -35,6 +35,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import TimeSeriesSplit
 
 from app.core.settings import get_settings
+from app.services.prediction_explanations import build_prediction_explanation
 from app.services.research_pipeline import build_feature_dataset
 
 logger = logging.getLogger(__name__)
@@ -265,6 +266,7 @@ def _get_prediction_confidence(
 def _build_walk_forward_evaluation_frame(
     date_series: pd.Series,
     ticker: str,
+    feature_frame: pd.DataFrame,
     y_true: pd.Series,
     y_pred: np.ndarray,
     confidence_scores: list[float | None],
@@ -281,6 +283,7 @@ def _build_walk_forward_evaluation_frame(
     """
     actual_series = pd.Series(y_true).reset_index(drop=True)
     predicted_series = pd.Series(y_pred).reset_index(drop=True)
+    feature_work_df = feature_frame.reset_index(drop=True)
 
     if task_type == "classification":
         hit_miss = (actual_series.astype(int) == predicted_series.astype(int)).map(
@@ -291,20 +294,35 @@ def _build_walk_forward_evaluation_frame(
             lambda is_hit: "hit" if is_hit else "miss"
         )
 
-    frame = pd.DataFrame(
-        {
-            "prediction_date": pd.to_datetime(date_series).dt.strftime("%Y-%m-%d"),
-            "ticker": ticker,
-            "predicted_value": predicted_series,
-            "confidence_score": confidence_scores,
-            "actual_future_result": actual_series,
-            "hit_miss": hit_miss,
-            "model_name": model_name,
-            "target_name": target_name,
-            "task_type": task_type,
-            "evaluation_window": fold_number,
-        }
-    )
+    rows: list[dict[str, Any]] = []
+    for index in range(len(actual_series)):
+        confidence_score = confidence_scores[index]
+        explanation_payload = build_prediction_explanation(
+            feature_row=feature_work_df.iloc[index],
+            task_type=task_type,
+            predicted_value=predicted_series.iloc[index],
+            confidence_score=confidence_score,
+        )
+        rows.append(
+            {
+                "prediction_date": pd.to_datetime(date_series).dt.strftime("%Y-%m-%d").iloc[index],
+                "ticker": ticker,
+                "predicted_value": predicted_series.iloc[index],
+                "confidence_score": confidence_score,
+                "actual_future_result": actual_series.iloc[index],
+                "hit_miss": hit_miss.iloc[index],
+                "model_name": model_name,
+                "target_name": target_name,
+                "task_type": task_type,
+                "evaluation_window": fold_number,
+                "technical_state_summary": explanation_payload["technical_state_summary"],
+                "news_sentiment_summary": explanation_payload["news_sentiment_summary"],
+                "benchmark_strength_summary": explanation_payload["benchmark_strength_summary"],
+                "explanation": explanation_payload["explanation"],
+            }
+        )
+
+    frame = pd.DataFrame(rows)
     return frame.sort_values("prediction_date").reset_index(drop=True)
 
 
@@ -317,7 +335,20 @@ def _build_predictions_frame(evaluation_df: pd.DataFrame) -> pd.DataFrame:
             "actual_future_result": "actual",
         }
     )[
-        ["date", "ticker", "actual", "predicted", "confidence_score", "hit_miss", "model_name", "target_name"]
+        [
+            "date",
+            "ticker",
+            "actual",
+            "predicted",
+            "confidence_score",
+            "hit_miss",
+            "model_name",
+            "target_name",
+            "technical_state_summary",
+            "news_sentiment_summary",
+            "benchmark_strength_summary",
+            "explanation",
+        ]
     ].copy()
 
 
@@ -407,6 +438,7 @@ def train_baseline_model(
             _build_walk_forward_evaluation_frame(
                 date_series=fold_dates,
                 ticker=ticker,
+                feature_frame=x_test,
                 y_true=y_test,
                 y_pred=predictions,
                 confidence_scores=confidence_scores,

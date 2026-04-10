@@ -23,6 +23,14 @@ import pandas as pd
 
 from app.core.settings import get_settings
 from app.services.market_data import get_price_history
+from app.services.prediction_explanations import (
+    build_benchmark_strength_summary,
+    build_news_sentiment_summary,
+    build_prediction_explanation,
+    build_technical_state_summary,
+    build_trade_action_summary,
+    build_trade_explanation,
+)
 from app.services.research_pipeline import build_feature_dataset
 
 logger = logging.getLogger(__name__)
@@ -48,7 +56,15 @@ class VirtualTradeLogEntry:
     position_size_value: float
     realized_pnl: float
     unrealized_pnl: float
+    model_confidence: float | None
     trade_reason: str
+    threshold_summary: str
+    action_summary: str
+    technical_state_summary: str
+    news_sentiment_summary: str
+    benchmark_strength_summary: str
+    prediction_explanation: str
+    explanation: str
 
 
 @dataclass(frozen=True)
@@ -189,6 +205,45 @@ def _passes_confidence_threshold(row: pd.Series, confidence_threshold: float) ->
 def _json_write(path: Path, payload: Any) -> None:
     """Write JSON with a consistent beginner-friendly format."""
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def _build_trade_threshold_summary(
+    action: str,
+    confidence_threshold: float,
+    confidence_score: float | None,
+    max_position_size_pct: float,
+    stop_loss_pct: float,
+    take_profit_pct: float | None,
+    min_predicted_return_pct: float,
+    task_type: str,
+    current_price: float,
+    entry_price: float | None,
+) -> str:
+    """Summarize the rule thresholds behind one trade action."""
+    parts: list[str] = []
+
+    if confidence_score is None:
+        parts.append(f"confidence threshold was {confidence_threshold:.0%} and confidence was unavailable")
+    else:
+        comparator = ">=" if confidence_score >= confidence_threshold else "<"
+        parts.append(
+            f"confidence {confidence_score:.0%} {comparator} required threshold {confidence_threshold:.0%}"
+        )
+
+    if action == "buy":
+        parts.append(f"max position size was capped at {max_position_size_pct:.0%} of equity")
+        if task_type == "regression":
+            parts.append(f"predicted return threshold was {min_predicted_return_pct:.2f}%")
+    else:
+        if entry_price is not None:
+            stop_level = entry_price * (1 - stop_loss_pct)
+            parts.append(f"stop loss level was {stop_level:.2f} ({stop_loss_pct:.0%} below entry)")
+            if take_profit_pct is not None:
+                take_profit_level = entry_price * (1 + take_profit_pct)
+                parts.append(f"take profit level was {take_profit_level:.2f}")
+        parts.append(f"exit price was {current_price:.2f}")
+
+    return "Thresholds: " + "; ".join(parts) + "."
 
 
 def _save_virtual_trader_artifacts(
@@ -335,6 +390,41 @@ def simulate_virtual_trader(
         signal_row = signal_by_date.get(date_str)
         should_exit = False
         exit_reason = ""
+        signal_confidence = None if signal_row is None or pd.isna(signal_row.get("confidence_score")) else float(
+            signal_row.get("confidence_score")
+        )
+        technical_summary = (
+            str(signal_row.get("technical_state_summary"))
+            if signal_row is not None and pd.notna(signal_row.get("technical_state_summary"))
+            else build_technical_state_summary(row)
+        )
+        news_summary = (
+            str(signal_row.get("news_sentiment_summary"))
+            if signal_row is not None and pd.notna(signal_row.get("news_sentiment_summary"))
+            else build_news_sentiment_summary(row)
+        )
+        benchmark_summary = (
+            str(signal_row.get("benchmark_strength_summary"))
+            if signal_row is not None and pd.notna(signal_row.get("benchmark_strength_summary"))
+            else build_benchmark_strength_summary(row)
+        )
+        signal_explanation = (
+            str(signal_row.get("explanation"))
+            if signal_row is not None and pd.notna(signal_row.get("explanation"))
+            else None
+        )
+
+        if signal_explanation is None and signal_row is not None:
+            generated_explanation = build_prediction_explanation(
+                feature_row=row,
+                task_type=task_type,
+                predicted_value=signal_row.get("predicted_value", 0),
+                confidence_score=signal_confidence,
+            )
+            signal_explanation = generated_explanation["explanation"]
+            technical_summary = generated_explanation["technical_state_summary"]
+            news_summary = generated_explanation["news_sentiment_summary"]
+            benchmark_summary = generated_explanation["benchmark_strength_summary"]
 
         if shares > 0 and avg_entry_price is not None:
             if stop_loss_pct > 0 and close_price <= avg_entry_price * (1 - stop_loss_pct):
@@ -353,6 +443,19 @@ def simulate_virtual_trader(
             trade_realized_pnl = (close_price - float(avg_entry_price)) * shares if avg_entry_price else 0.0
             cash += sale_value
             realized_pnl += trade_realized_pnl
+            threshold_summary = _build_trade_threshold_summary(
+                action="sell",
+                confidence_threshold=confidence_threshold,
+                confidence_score=float(signal_confidence) if signal_confidence is not None else None,
+                max_position_size_pct=max_position_size_pct,
+                stop_loss_pct=stop_loss_pct,
+                take_profit_pct=take_profit_pct,
+                min_predicted_return_pct=min_predicted_return_pct,
+                task_type=task_type,
+                current_price=close_price,
+                entry_price=float(avg_entry_price) if avg_entry_price is not None else None,
+            )
+            action_summary = build_trade_action_summary(action="sell", trade_reason=exit_reason)
 
             trade_log.append(
                 VirtualTradeLogEntry(
@@ -368,7 +471,20 @@ def simulate_virtual_trader(
                     position_size_value=0.0,
                     realized_pnl=float(realized_pnl),
                     unrealized_pnl=0.0,
+                    model_confidence=signal_confidence,
                     trade_reason=exit_reason,
+                    threshold_summary=threshold_summary,
+                    action_summary=action_summary,
+                    technical_state_summary=technical_summary,
+                    news_sentiment_summary=news_summary,
+                    benchmark_strength_summary=benchmark_summary,
+                    prediction_explanation=signal_explanation or "",
+                    explanation=build_trade_explanation(
+                        action="sell",
+                        trade_reason=exit_reason,
+                        threshold_summary=threshold_summary,
+                        signal_explanation=signal_explanation,
+                    ),
                 )
             )
             shares = 0.0
@@ -394,6 +510,19 @@ def simulate_virtual_trader(
                 cash -= buy_value
                 avg_entry_price = float(close_price)
                 unrealized_pnl = 0.0
+                threshold_summary = _build_trade_threshold_summary(
+                    action="buy",
+                    confidence_threshold=confidence_threshold,
+                    confidence_score=signal_confidence,
+                    max_position_size_pct=max_position_size_pct,
+                    stop_loss_pct=stop_loss_pct,
+                    take_profit_pct=take_profit_pct,
+                    min_predicted_return_pct=min_predicted_return_pct,
+                    task_type=task_type,
+                    current_price=close_price,
+                    entry_price=float(avg_entry_price),
+                )
+                action_summary = build_trade_action_summary(action="buy", trade_reason="model_bullish_signal")
 
                 trade_log.append(
                     VirtualTradeLogEntry(
@@ -409,7 +538,20 @@ def simulate_virtual_trader(
                         position_size_value=float(shares * close_price),
                         realized_pnl=float(realized_pnl),
                         unrealized_pnl=float(unrealized_pnl),
+                        model_confidence=signal_confidence,
                         trade_reason="model_bullish_signal",
+                        threshold_summary=threshold_summary,
+                        action_summary=action_summary,
+                        technical_state_summary=technical_summary,
+                        news_sentiment_summary=news_summary,
+                        benchmark_strength_summary=benchmark_summary,
+                        prediction_explanation=signal_explanation or "",
+                        explanation=build_trade_explanation(
+                            action="buy",
+                            trade_reason="model_bullish_signal",
+                            threshold_summary=threshold_summary,
+                            signal_explanation=signal_explanation,
+                        ),
                     )
                 )
 
@@ -547,7 +689,7 @@ def run_virtual_trader_from_model(
         model_name=model_name,
         output_dir=output_dir,
     )
-    price_df = dataset_df[["date", "close"]].copy()
+    price_df = dataset_df.copy()
     benchmark_df = get_price_history(benchmark_symbol, period=period)
 
     return simulate_virtual_trader(

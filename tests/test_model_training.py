@@ -97,6 +97,10 @@ class ModelTrainingTests(unittest.TestCase):
             self.assertFalse(result.evaluation_table.empty)
             self.assertIn("confidence_score", result.evaluation_table.columns)
             self.assertIn("hit_miss", result.evaluation_table.columns)
+            self.assertIn("technical_state_summary", result.evaluation_table.columns)
+            self.assertIn("news_sentiment_summary", result.evaluation_table.columns)
+            self.assertIn("benchmark_strength_summary", result.evaluation_table.columns)
+            self.assertIn("explanation", result.evaluation_table.columns)
             self.assertTrue(Path(result.artifact.model_path).exists())
             self.assertTrue(Path(result.artifact.feature_list_path).exists())
             self.assertTrue(Path(result.artifact.metrics_path).exists())
@@ -123,6 +127,7 @@ class ModelTrainingTests(unittest.TestCase):
             self.assertFalse(result.evaluation_table.empty)
             self.assertIn("actual_future_result", result.evaluation_table.columns)
             self.assertIn("hit_miss", result.evaluation_table.columns)
+            self.assertIn("explanation", result.evaluation_table.columns)
 
 
 if __name__ == "__main__":
