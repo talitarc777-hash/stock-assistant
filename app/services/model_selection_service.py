@@ -25,11 +25,19 @@ DISPLAY_NAME_MAP = {
 
 
 def _scan_saved_model_names() -> list[str]:
-    """Discover saved trained models from the artifact directory."""
+    """Discover saved trained models from the artifact directory.
+
+    The model artifacts are stored under:
+    ``data/models/<ticker>/<period>/<target_name>/<model_name>/...``
+
+    We intentionally scan every discovered ``target_name`` folder so the web
+    selector reflects both classification and regression models that already
+    exist on disk, instead of assuming only one target type.
+    """
     base_dir = Path(get_settings().research_models_dir)
     discovered: set[str] = set()
     if base_dir.exists():
-        for evaluation_file in base_dir.glob("*/*/target_5d_updown/*/evaluation_table.csv"):
+        for evaluation_file in base_dir.glob("*/*/*/*/evaluation_table.csv"):
             model_name = evaluation_file.parent.name.strip().lower()
             if model_name:
                 discovered.add(model_name)
@@ -38,6 +46,7 @@ def _scan_saved_model_names() -> list[str]:
         "logistic_regression",
         "random_forest",
         "gradient_boosting",
+        "linear_regression",
     }
     return sorted(discovered | defaults)
 

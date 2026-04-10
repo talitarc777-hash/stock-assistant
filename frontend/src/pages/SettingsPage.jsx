@@ -45,7 +45,13 @@ const ZH = {
   alertWatchlist: "\u63d0\u793a\u89c0\u5bdf\u540d\u55ae",
   save: "\u5132\u5b58",
   modelEvaluation: "\u6a21\u578b\u8a55\u4f30",
-  selectedModel: "\u5df2\u9078\u6a21\u578b",
+  modelEvaluationLabel: "Model Evaluation (\u6a21\u578b\u8a55\u4f30)",
+  modelEvaluationHint:
+    "\u9019\u500b\u5df2\u9078\u6a21\u578b\u6703\u7528\u65bc\u300c\u6a21\u578b\u8a55\u4f30\u300d\u53ca\u300c\u865b\u64ec\u4ea4\u6613\u54e1\u300d\u9801\u9762\u3002",
+  profileIdHint:
+    "\u5982\u679c\u60a8\u60f3\u5728\u4e0d\u540c\u88dd\u7f6e\u4e0a\u540c\u6b65\u8a2d\u5b9a\u8207\u89c0\u5bdf\u540d\u55ae\uff0c\u8acb\u4f7f\u7528\u76f8\u540c\u7684 Profile ID\u3002",
+  alertWatchlistHint:
+    "\u5982\u679c\u60a8\u60f3\u76f4\u63a5\u4f7f\u7528\u4e3b\u89c0\u5bdf\u540d\u55ae\u4f5c\u70ba\u63d0\u793a\u540d\u55ae\uff0c\u53ef\u4ee5\u4fdd\u6301\u7a7a\u767d\u3002",
 };
 
 export default function SettingsPage({
@@ -176,7 +182,7 @@ export default function SettingsPage({
             {labelByMode(
               languageMode,
               "Use the same Profile ID on each device if you want the same settings and watchlist everywhere.",
-              "\u5982\u679c\u60a8\u60f3\u5728\u4e0d\u540c\u88dd\u7f6e\u4e0a\u540c\u6b65\u8a2d\u5b9a\u8207\u89c0\u5bdf\u540d\u55ae\uff0c\u8acb\u4f7f\u7528\u76f8\u540c\u7684 Profile ID\u3002"
+              ZH.profileIdHint
             )}
           </p>
 
@@ -199,11 +205,7 @@ export default function SettingsPage({
           </label>
 
           <label>
-            {labelByMode(
-              languageMode,
-              "Model Evaluation (模型評估)",
-              "模型評估"
-            )}
+            {labelByMode(languageMode, ZH.modelEvaluationLabel, ZH.modelEvaluation)}
             <select
               value={selectedModelName}
               onChange={(event) => setSelectedModelName(event.target.value)}
@@ -219,7 +221,7 @@ export default function SettingsPage({
             {labelByMode(
               languageMode,
               "This selected model is used by Model Evaluation and the Virtual Trader pages.",
-              "這個已選模型會用於「模型評估」及「虛擬交易」頁面。"
+              ZH.modelEvaluationHint
             )}
           </p>
 
@@ -267,7 +269,7 @@ export default function SettingsPage({
             {labelByMode(
               languageMode,
               "Leave this blank if you want alerts to use your main watchlist.",
-              "\u5982\u679c\u60a8\u60f3\u76f4\u63a5\u4f7f\u7528\u4e3b\u89c0\u5bdf\u540d\u55ae\u4f5c\u70ba\u63d0\u793a\u540d\u55ae\uff0c\u53ef\u4ee5\u4fdd\u6301\u7a7a\u767d\u3002"
+              ZH.alertWatchlistHint
             )}
           </p>
 
@@ -286,10 +288,7 @@ export default function SettingsPage({
         onUpdated={() => onProfileUpdated(profileId)}
       />
 
-      <MonthlyContributionTable
-        userId={profileId}
-        languageMode={languageMode}
-      />
+      <MonthlyContributionTable userId={profileId} languageMode={languageMode} />
     </div>
   );
 }

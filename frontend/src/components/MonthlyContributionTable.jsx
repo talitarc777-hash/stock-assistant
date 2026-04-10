@@ -12,6 +12,18 @@ function labelByMode(mode, en, zh) {
   return `${en} / ${zh}`;
 }
 
+const ZH = {
+  title: "\u6bcf\u6708\u6ce8\u8cc7\u7d00\u9304",
+  helper:
+    "\u7d00\u9304\u6703\u7531 2026 \u5e74 4 \u6708\u958b\u59cb\u3002\u60a8\u53ef\u4ee5\u8f38\u5165\u6bcf\u6708\u53ef\u7528\u8cc7\u91d1\uff08\u7f8e\u5143\uff09\u3002\u5982\u67d0\u6708\u8f38\u5165 0\uff0c\u4ee3\u8868\u8a72\u6708\u4e0d\u6ce8\u8cc7\u3002",
+  loading: "\u8f09\u5165\u4e2d...",
+  month: "\u6708\u4efd",
+  amount: "\u672c\u6708\u53ef\u7528\u8cc7\u91d1\uff08\u7f8e\u5143\uff09",
+  saved: "\u6bcf\u6708\u6ce8\u8cc7\u7d00\u9304\u5df2\u5132\u5b58\u3002",
+  saving: "\u5132\u5b58\u4e2d...",
+  save: "\u5132\u5b58\u6ce8\u8cc7\u7d00\u9304",
+};
+
 export default function MonthlyContributionTable({ userId, languageMode }) {
   const [records, setRecords] = useState([]);
   const [draftAmounts, setDraftAmounts] = useState({});
@@ -68,9 +80,7 @@ export default function MonthlyContributionTable({ userId, languageMode }) {
       setDraftAmounts(
         Object.fromEntries((response.records || []).map((item) => [item.month, String(item.amount)]))
       );
-      setMessage(
-        labelByMode(languageMode, "Monthly contribution records saved.", "每月注資紀錄已儲存。")
-      );
+      setMessage(labelByMode(languageMode, "Monthly contribution records saved.", ZH.saved));
     } catch (requestError) {
       setError(requestError.message || "Failed to save monthly contribution records.");
     } finally {
@@ -80,16 +90,16 @@ export default function MonthlyContributionTable({ userId, languageMode }) {
 
   return (
     <section className="panel">
-      <h3>{labelByMode(languageMode, "Monthly Contribution Records", "每月注資紀錄")}</h3>
+      <h3>{labelByMode(languageMode, "Monthly Contribution Records", ZH.title)}</h3>
       <p className="helper-text">
         {labelByMode(
           languageMode,
           "Records start from April 2026. Set the available money for each month in USD. Zero means no contribution for that month.",
-          "紀錄會由 2026 年 4 月開始。您可以輸入每月可用資金（美元）。如某月輸入 0，代表該月不注資。"
+          ZH.helper
         )}
       </p>
 
-      {isLoading ? <p>{labelByMode(languageMode, "Loading...", "載入中...")}</p> : null}
+      {isLoading ? <p>{labelByMode(languageMode, "Loading...", ZH.loading)}</p> : null}
       {error ? <p className="error-box">{error}</p> : null}
 
       {!isLoading && records.length ? (
@@ -98,8 +108,8 @@ export default function MonthlyContributionTable({ userId, languageMode }) {
             <table>
               <thead>
                 <tr>
-                  <th>{labelByMode(languageMode, "Month", "月份")}</th>
-                  <th>{labelByMode(languageMode, "Available Money (USD)", "本月可用資金（美元）")}</th>
+                  <th>{labelByMode(languageMode, "Month", ZH.month)}</th>
+                  <th>{labelByMode(languageMode, "Available Money (USD)", ZH.amount)}</th>
                 </tr>
               </thead>
               <tbody>
@@ -128,8 +138,8 @@ export default function MonthlyContributionTable({ userId, languageMode }) {
           <div className="settings-actions">
             <button type="button" onClick={handleSave} disabled={isSaving}>
               {isSaving
-                ? labelByMode(languageMode, "Saving...", "儲存中...")
-                : labelByMode(languageMode, "Save Contribution Records", "儲存注資紀錄")}
+                ? labelByMode(languageMode, "Saving...", ZH.saving)
+                : labelByMode(languageMode, "Save Contribution Records", ZH.save)}
             </button>
           </div>
         </>

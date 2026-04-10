@@ -14,27 +14,26 @@ const DEFAULT_TARGET = "target_5d_updown";
 const DEFAULT_MODEL = "logistic_regression";
 
 const ZH = {
-  title: "模型評估",
-  intro: "查看模型訊號、命中率，以及最新預測與實際結果。",
-  ticker: "股票代號",
-  latestPrediction: "最新預測",
-  predictedSignal: "預測訊號",
-  confidence: "信心",
-  actualOutcome: "實際結果",
-  hitMiss: "命中 / 失誤",
-  rollingAccuracy: "滾動命中率",
-  modelMetrics: "模型指標",
-  latestVsActual: "最新預測對比實際結果",
-  predictionChart: "預測 / 信心 / 實際結果",
-  technicalState: "技術狀態",
-  newsSentiment: "新聞情緒",
-  benchmarkStrength: "相對基準強度",
-  explanation: "解釋",
-  loading: "載入中...",
-  noData: "未有已儲存的模型結果。請先執行訓練。",
-  predictedValue: "預測值",
-  actualValue: "實際值",
-  confidenceLine: "信心線",
+  title: "\u6a21\u578b\u8a55\u4f30",
+  intro: "\u67e5\u770b\u6a21\u578b\u8a0a\u865f\u3001\u547d\u4e2d\u7387\uff0c\u4ee5\u53ca\u6700\u65b0\u9810\u6e2c\u8207\u5be6\u969b\u7d50\u679c\u3002",
+  ticker: "\u80a1\u7968\u4ee3\u865f",
+  latestPrediction: "\u6700\u65b0\u9810\u6e2c",
+  predictedSignal: "\u9810\u6e2c\u8a0a\u865f",
+  confidence: "\u4fe1\u5fc3",
+  actualOutcome: "\u5be6\u969b\u7d50\u679c",
+  hitMiss: "\u547d\u4e2d / \u672a\u4e2d",
+  rollingAccuracy: "\u6efe\u52d5\u547d\u4e2d\u7387",
+  modelMetrics: "\u6a21\u578b\u6307\u6a19",
+  latestVsActual: "\u6700\u65b0\u9810\u6e2c\u8207\u5be6\u969b\u6bd4\u8f03",
+  technicalState: "\u6280\u8853\u72c0\u614b",
+  newsSentiment: "\u65b0\u805e\u60c5\u7dd2",
+  benchmarkStrength: "\u76f8\u5c0d\u57fa\u6e96\u5f37\u5f31",
+  loading: "\u8f09\u5165\u4e2d...",
+  noData: "\u66ab\u6642\u672a\u6709\u5df2\u5132\u5b58\u7684\u6a21\u578b\u7d50\u679c\uff0c\u8acb\u5148\u57f7\u884c\u8a13\u7df4\u3002",
+  recentHistory: "\u6700\u8fd1\u9810\u6e2c\u7d00\u9304",
+  predictionConfidence: "\u9810\u6e2c\u4fe1\u5fc3",
+  model: "\u6a21\u578b",
+  noChartData: "\u6c92\u6709\u53ef\u7528\u8cc7\u6599",
 };
 
 function labelByMode(mode, en, zh) {
@@ -152,7 +151,13 @@ export default function ModelEvaluationPage({ languageMode, currentWatchlist, pr
       <header className="app-header">
         <div>
           <h1>{labelByMode(languageMode, "Model Evaluation", ZH.title)}</h1>
-          <p>{labelByMode(languageMode, "Review model signals, hit rate, and latest predicted vs actual outcomes.", ZH.intro)}</p>
+          <p>
+            {labelByMode(
+              languageMode,
+              "Review model signals, hit rate, and latest predicted vs actual outcomes.",
+              ZH.intro
+            )}
+          </p>
         </div>
         <div className="header-controls">
           <label htmlFor="model-ticker-select">{labelByMode(languageMode, "Ticker", ZH.ticker)}</label>
@@ -168,7 +173,7 @@ export default function ModelEvaluationPage({ languageMode, currentWatchlist, pr
             ))}
           </select>
           <span className="helper-chip">
-            {labelByMode(languageMode, "Model", "模型")}: {selectedModelName}
+            {labelByMode(languageMode, "Model", ZH.model)}: {selectedModelName}
           </span>
         </div>
       </header>
@@ -217,9 +222,7 @@ export default function ModelEvaluationPage({ languageMode, currentWatchlist, pr
                 <p><strong>MAE:</strong> {formatMetricValue(metricValues.mae)}</p>
                 <p><strong>RMSE:</strong> {formatMetricValue(metricValues.rmse)}</p>
               </div>
-              <p className="helper-text">
-                {accuracyData?.metrics_summary?.validation_note}
-              </p>
+              <p className="helper-text">{accuracyData?.metrics_summary?.validation_note}</p>
             </section>
           </div>
 
@@ -245,12 +248,12 @@ export default function ModelEvaluationPage({ languageMode, currentWatchlist, pr
                 valueKind: "score",
               },
             ]}
-            noDataMessage={labelByMode(languageMode, "No data available", "沒有可用資料")}
+            noDataMessage={labelByMode(languageMode, "No data available", ZH.noChartData)}
             height={180}
           />
 
           <LineChart
-            title={labelByMode(languageMode, "Prediction Confidence", "預測信心")}
+            title={labelByMode(languageMode, "Prediction Confidence", ZH.predictionConfidence)}
             subtitle={`Ticker: ${selectedTicker} | Last 6 Months`}
             points={predictionSeries}
             xAxisLabel="Date"
@@ -265,7 +268,7 @@ export default function ModelEvaluationPage({ languageMode, currentWatchlist, pr
                 valueKind: "percent",
               },
             ]}
-            noDataMessage={labelByMode(languageMode, "No data available", "沒有可用資料")}
+            noDataMessage={labelByMode(languageMode, "No data available", ZH.noChartData)}
             height={180}
           />
 
@@ -286,7 +289,7 @@ export default function ModelEvaluationPage({ languageMode, currentWatchlist, pr
           </section>
 
           <section className="panel">
-            <h3>{labelByMode(languageMode, "Recent Prediction History", "最近預測紀錄")}</h3>
+            <h3>{labelByMode(languageMode, "Recent Prediction History", ZH.recentHistory)}</h3>
             <div className="table-wrap">
               <table>
                 <thead>
