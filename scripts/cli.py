@@ -21,6 +21,17 @@ from app.services.scoring import ScoringInputError, score_from_indicators
 
 logger = logging.getLogger(__name__)
 
+try:
+    from app.services.model_training import (
+        ModelTrainingError,
+        train_baseline_models_for_ticker,
+        train_baseline_models_for_watchlist,
+    )
+except Exception:  # pragma: no cover - optional dependency path
+    ModelTrainingError = ValueError  # type: ignore[assignment]
+    train_baseline_models_for_ticker = None
+    train_baseline_models_for_watchlist = None
+
 
 def _print_section(title: str) -> None:
     print(f"\n=== {title} ===")
@@ -230,6 +241,83 @@ def cmd_export_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_train_models(args: argparse.Namespace) -> int:
+    """Handle train-models command for one ticker or a watchlist."""
+    if train_baseline_models_for_ticker is None or train_baseline_models_for_watchlist is None:
+        raise ValueError(
+            "Model training dependencies are not available. Install requirements.txt to use train-models."
+        )
+
+    if bool(args.ticker) == bool(args.watchlist_config):
+        raise ValueError("Provide exactly one of --ticker or --watchlist-config.")
+
+    if args.ticker:
+        tickers = [args.ticker.strip().upper()]
+        period = args.period
+        benchmark = args.benchmark
+    else:
+        tickers, default_period, default_benchmark = _load_watchlist_from_config(args.watchlist_config)
+        period = args.period or default_period
+        benchmark = args.benchmark or default_benchmark
+
+    if not tickers:
+        raise ValueError("No tickers available for training.")
+
+    _print_section("MODEL TRAINING")
+    print(f"Tickers: {', '.join(tickers)}")
+    print(f"Period: {period}")
+    print(f"Benchmark: {benchmark}")
+    print(f"News sentiment: {'on' if not args.no_news_sentiment else 'off'}")
+    print(f"Gradient boosting: {'on' if not args.no_gradient_boosting else 'off'}")
+
+    if len(tickers) == 1:
+        training_map = {
+            tickers[0]: train_baseline_models_for_ticker(
+                ticker=tickers[0],
+                period=period,
+                benchmark=benchmark,
+                include_news_sentiment=not args.no_news_sentiment,
+                sentiment_model=args.sentiment_model,
+                output_dir=args.output_dir,
+                include_gradient_boosting=not args.no_gradient_boosting,
+            )
+        }
+    else:
+        training_map = train_baseline_models_for_watchlist(
+            tickers=tickers,
+            period=period,
+            benchmark=benchmark,
+            include_news_sentiment=not args.no_news_sentiment,
+            sentiment_model=args.sentiment_model,
+            output_dir=args.output_dir,
+            include_gradient_boosting=not args.no_gradient_boosting,
+        )
+
+    for ticker, results in training_map.items():
+        _print_section(f"TRAINED: {ticker}")
+        for result in results:
+            summary_metrics = result.metrics.get("metrics", {})
+            if result.task_type == "classification":
+                metric_text = (
+                    f"accuracy={summary_metrics.get('accuracy', 0.0):.3f}, "
+                    f"f1={summary_metrics.get('f1', 0.0):.3f}"
+                )
+            else:
+                metric_text = (
+                    f"mae={summary_metrics.get('mae', 0.0):.3f}, "
+                    f"rmse={summary_metrics.get('rmse', 0.0):.3f}"
+                )
+
+            print(
+                f"- {result.target_name} | {result.model_name} | "
+                f"rows={result.metrics.get('row_count', 0)} | {metric_text}"
+            )
+            print(f"  model: {result.artifact.model_path}")
+            print(f"  predictions: {result.artifact.predictions_path}")
+
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build root argument parser and subcommands."""
     parser = argparse.ArgumentParser(description="Stock Assistant automation CLI")
@@ -278,6 +366,40 @@ def build_parser() -> argparse.ArgumentParser:
     )
     export_report.set_defaults(func=cmd_export_report)
 
+    train_models = subparsers.add_parser(
+        "train-models",
+        help="Train baseline prediction models for one ticker or a watchlist.",
+    )
+    train_models.add_argument("--ticker", default=None, help="Train one ticker, e.g. VOO")
+    train_models.add_argument(
+        "--watchlist-config",
+        default=None,
+        help="Train all tickers from a watchlist config JSON file.",
+    )
+    train_models.add_argument("--period", default="5y", help="History period, default 5y")
+    train_models.add_argument("--benchmark", default="VOO", help="Benchmark ticker, default VOO")
+    train_models.add_argument(
+        "--output-dir",
+        default=None,
+        help="Optional output directory for saved model artifacts.",
+    )
+    train_models.add_argument(
+        "--sentiment-model",
+        default="finbert",
+        help="Sentiment model name for dataset generation, default finbert.",
+    )
+    train_models.add_argument(
+        "--no-news-sentiment",
+        action="store_true",
+        help="Disable news sentiment features during dataset generation.",
+    )
+    train_models.add_argument(
+        "--no-gradient-boosting",
+        action="store_true",
+        help="Skip gradient boosting baselines and train only the simpler models.",
+    )
+    train_models.set_defaults(func=cmd_train_models)
+
     return parser
 
 
@@ -303,6 +425,7 @@ def main() -> int:
         ScoringInputError,
         BenchmarkAnalysisError,
         BacktestInputError,
+        ModelTrainingError,
     ) as exc:
         _print_section("ERROR")
         print(str(exc))
