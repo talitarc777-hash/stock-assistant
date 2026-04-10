@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 
 import { fetchAnalyze, fetchChartData, fetchForecast, fetchWatchlistAnalyze } from "./api";
 import LineChart from "./components/LineChart";
+import PriceChart from "./components/PriceChart";
 import WatchlistManager from "./components/WatchlistManager";
 import WatchlistTable from "./components/WatchlistTable";
 import GlossaryPage from "./pages/GlossaryPage";
@@ -448,71 +449,68 @@ function DashboardPage({ languageMode, profileId, currentWatchlist, onProfileUpd
         </section>
       </div>
 
-      <LineChart
-        title={formatBilingualLabel(languageMode, "Price and SMA", ZH.priceAndSma)}
+      <PriceChart
+        ticker={selectedTicker || "N/A"}
+        periodLabel="Last 6 Months"
         points={chartSeries}
-        overlays={{
-          horizontalLines: [
-            {
-              key: "support",
-              label: formatBilingualLabel(languageMode, "Support", ZH.support),
-              value: toNumeric(forecastData?.levels?.support_level),
-              color: "#0f766e",
-            },
-            {
-              key: "resistance",
-              label: formatBilingualLabel(languageMode, "Resistance", ZH.resistance),
-              value: toNumeric(forecastData?.levels?.resistance_level),
-              color: "#b45309",
-            },
-          ],
-          rangeBand:
-            forecastData && forecastData.expected_range
-              ? {
-                  key: "expected-range",
-                  label: formatBilingualLabel(languageMode, "Expected Range", ZH.expectedRange),
-                  lower: toNumeric(forecastData.expected_range.lower),
-                  upper: toNumeric(forecastData.expected_range.upper),
-                  color: "#2563eb",
-                }
-              : null,
-        }}
-        lines={[
-          { key: "close", label: formatBilingualLabel(languageMode, "Close", ZH.close), color: "#111827" },
-          { key: "sma_20", label: "SMA20", color: "#2563eb" },
-          { key: "sma_50", label: "SMA50", color: "#16a34a" },
-          { key: "sma_200", label: "SMA200", color: "#d97706" },
-        ]}
+        supportLevel={toNumeric(forecastData?.levels?.support_level)}
+        resistanceLevel={toNumeric(forecastData?.levels?.resistance_level)}
+        expectedRange={
+          forecastData?.expected_range
+            ? {
+                lower: toNumeric(forecastData.expected_range.lower),
+                upper: toNumeric(forecastData.expected_range.upper),
+              }
+            : null
+        }
+        languageMode={languageMode}
       />
 
       <div className="chart-grid">
         <LineChart
-          title="RSI (14)"
+          title={formatBilingualLabel(languageMode, "Technical Indicators - RSI (14)", "技術指標 - RSI (14)")}
+          subtitle={`Ticker: ${selectedTicker || "N/A"} | Last 6 Months`}
           points={chartSeries}
-          lines={[{ key: "rsi_14", label: "RSI14", color: "#7c3aed" }]}
+          xAxisLabel="Date"
+          yAxisLabel="Score"
+          yValueKind="score"
+          lines={[{ key: "rsi_14", label: "RSI14", color: "#7c3aed", strokeWidth: 2.2, valueKind: "score" }]}
+          noDataMessage="No data available"
           height={180}
         />
         <LineChart
-          title="MACD"
+          title={formatBilingualLabel(languageMode, "Technical Indicators - MACD", "技術指標 - MACD")}
+          subtitle={`Ticker: ${selectedTicker || "N/A"} | Last 6 Months`}
           points={chartSeries}
+          xAxisLabel="Date"
+          yAxisLabel="Score"
+          yValueKind="score"
           lines={[
-            { key: "macd_line", label: "MACD", color: "#0f766e" },
-            { key: "macd_signal", label: "Signal", color: "#dc2626" },
+            { key: "macd_line", label: "MACD", color: "#0f766e", strokeWidth: 2.1, valueKind: "score" },
+            { key: "macd_signal", label: "Signal", color: "#dc2626", strokeWidth: 1.9, valueKind: "score" },
           ]}
+          noDataMessage="No data available"
           height={180}
         />
       </div>
 
       <LineChart
         title={formatBilingualLabel(languageMode, "Score Over Time", ZH.scoreOverTime)}
+        subtitle={`Ticker: ${selectedTicker || "N/A"} | Last 6 Months`}
         points={scoreSeries}
+        xAxisLabel="Date"
+        yAxisLabel="Score"
+        yValueKind="score"
         lines={[
           {
             key: "total_score",
             label: formatBilingualLabel(languageMode, "Total Score", ZH.totalScore),
             color: "#374151",
+            strokeWidth: 2.4,
+            valueKind: "score",
           },
         ]}
+        noDataMessage="No data available"
         height={180}
       />
     </>

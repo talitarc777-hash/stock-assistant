@@ -5,6 +5,7 @@ import {
   fetchVirtualTraderTrades,
 } from "../api";
 import LineChart from "../components/LineChart";
+import EquityChart from "../components/EquityChart";
 
 const DEFAULT_PERIOD = "5y";
 const DEFAULT_MODEL = "logistic_regression";
@@ -100,6 +101,8 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist }) {
     return summaryData.equity_curve.map((item) => ({
       date: item.date,
       total_equity: toNumeric(item.total_equity),
+      cash: toNumeric(item.cash),
+      holdings_value: toNumeric(item.holdings_value),
       benchmark_equity: toNumeric(item.benchmark_equity),
     }));
   }, [summaryData]);
@@ -172,33 +175,36 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist }) {
             </section>
           </div>
 
-          <LineChart
-            title={labelByMode(languageMode, "Equity Curve", ZH.equityCurve)}
+          <EquityChart
+            ticker={selectedTicker}
             points={equityPoints}
-            lines={[
-              {
-                key: "total_equity",
-                label: labelByMode(languageMode, "Strategy Equity", ZH.strategyEquity),
-                color: "#111827",
-              },
-              {
-                key: "benchmark_equity",
-                label: labelByMode(languageMode, "VOO Equity", ZH.benchmarkEquity),
-                color: "#2563eb",
-              },
-            ]}
+            languageMode={languageMode}
           />
 
           <LineChart
             title={labelByMode(languageMode, "Monthly Contribution History", ZH.contributionHistory)}
+            subtitle={`Ticker: ${selectedTicker} | Last 6 Months`}
             points={contributionPoints}
+            xAxisLabel="Date"
+            yAxisLabel="Price (USD)"
+            yValueKind="price"
             lines={[
               {
                 key: "cumulative_contributions",
                 label: labelByMode(languageMode, "Total Contributions", ZH.totalContributions),
                 color: "#047857",
+                strokeWidth: 2.4,
+                valueKind: "price",
+              },
+              {
+                key: "amount",
+                label: labelByMode(languageMode, "Monthly Contribution", "每月投入"),
+                color: "#2563eb",
+                strokeWidth: 1.8,
+                valueKind: "price",
               },
             ]}
+            noDataMessage={labelByMode(languageMode, "No data available", "沒有可用資料")}
             height={180}
           />
 

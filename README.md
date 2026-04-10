@@ -544,3 +544,33 @@ News-sentiment note:
 - Running scripts from VS Code tasks:
   ensure `.venv312` exists and dependencies are installed in that environment.
 
+
+## Chart Guide (Dashboard)
+
+The dashboard charts are optimized for beginner readability:
+
+- clear chart titles and ticker subtitles
+- axis titles on every chart
+- top legend with matching line colors
+- hover tooltip with date + formatted values
+- light gridlines for easier value reading
+- built-in range selector (1M, 3M, 6M, 1Y, MAX)
+- friendly fallback when data is missing: No data available
+
+Axis meaning:
+
+- Date: x-axis timeline
+- Price (USD): price-level charts
+- Return (%): model prediction vs actual outcome charts
+- Volume: trading volume charts
+- Score: scoring and oscillator charts
+- Confidence (%): model confidence trend charts
+- Portfolio Value (USD): virtual trader equity charts
+
+How to read prediction vs actual:
+
+- Prediction line = model output from walk-forward evaluation
+- Actual line = realized future outcome for the same horizon
+- Prediction Confidence chart = model confidence trend over time
+- If prediction and actual frequently move together and rolling hit rate is stable, model behavior is more consistent
+- Treat all outputs as decision-support signals, not guaranteed results

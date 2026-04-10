@@ -302,8 +302,10 @@ tbody tr:hover {
 }
 
 .chart-wrap {
+  position: relative;
   width: 100%;
-  height: 220px;
+  min-height: 220px;
+  height: 260px;
 }
 
 .chart-wrap svg {
@@ -311,6 +313,110 @@ tbody tr:hover {
   height: 100%;
   border: 1px solid #e5e7eb;
   border-radius: 6px;
+}
+
+.chart-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.chart-header h3 {
+  margin-bottom: 4px;
+}
+
+.chart-subtitle {
+  margin: 0;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.range-selector {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.range-chip {
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 12px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.range-chip.active {
+  background: #111827;
+  color: #ffffff;
+  border-color: #111827;
+}
+
+.axis-label {
+  fill: #334155;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.axis-tick {
+  fill: #64748b;
+  font-size: 11px;
+}
+
+.chart-tooltip {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  min-width: 180px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+  font-size: 12px;
+  color: #0f172a;
+}
+
+.chart-tooltip p {
+  margin: 2px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tooltip-date {
+  font-weight: 600;
+  margin-bottom: 6px !important;
+}
+
+.tooltip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.crosshair-line {
+  stroke: #94a3b8;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  pointer-events: none;
+}
+
+.hover-point-glow {
+  fill: rgba(15, 23, 42, 0.08);
+  stroke: rgba(15, 23, 42, 0.2);
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+.hover-point-core {
+  stroke: #ffffff;
+  stroke-width: 1.8;
+  pointer-events: none;
 }
 
 .legend {
@@ -362,5 +468,14 @@ tbody tr:hover {
   .app-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .chart-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .chart-wrap {
+    height: 240px;
   }
 }

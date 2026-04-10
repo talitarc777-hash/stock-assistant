@@ -6,6 +6,7 @@ import {
   fetchModelLatest,
 } from "../api";
 import LineChart from "../components/LineChart";
+import PredictionChart from "../components/PredictionChart";
 
 const DEFAULT_PERIOD = "5y";
 const DEFAULT_TARGET = "target_5d_updown";
@@ -107,9 +108,9 @@ export default function ModelEvaluationPage({ languageMode, currentWatchlist }) 
     if (!historyData?.history) return [];
     return historyData.history.map((item) => ({
       date: item.prediction_date,
-      predicted_value: toNumeric(item.predicted_value),
-      actual_future_result: toNumeric(item.actual_future_result),
-      confidence_score: toNumeric(item.confidence_score),
+      predicted_value: toNumeric(item.predicted_value) * 100,
+      actual_future_result: toNumeric(item.actual_future_result) * 100,
+      confidence_score: toNumeric(item.confidence_score) * 100,
     }));
   }, [historyData]);
 
@@ -197,38 +198,49 @@ export default function ModelEvaluationPage({ languageMode, currentWatchlist }) 
             </section>
           </div>
 
-          <LineChart
-            title={labelByMode(languageMode, "Prediction / Confidence / Actual Result", ZH.predictionChart)}
+          <PredictionChart
+            ticker={selectedTicker}
             points={predictionSeries}
-            lines={[
-              {
-                key: "predicted_value",
-                label: labelByMode(languageMode, "Predicted Value", ZH.predictedValue),
-                color: "#1d4ed8",
-              },
-              {
-                key: "actual_future_result",
-                label: labelByMode(languageMode, "Actual Value", ZH.actualValue),
-                color: "#047857",
-              },
-              {
-                key: "confidence_score",
-                label: labelByMode(languageMode, "Confidence", ZH.confidenceLine),
-                color: "#b45309",
-              },
-            ]}
+            languageMode={languageMode}
           />
 
           <LineChart
             title={labelByMode(languageMode, "Rolling Hit Rate", ZH.rollingAccuracy)}
+            subtitle={`Ticker: ${selectedTicker} | Last 6 Months`}
             points={rollingAccuracySeries}
+            xAxisLabel="Date"
+            yAxisLabel="Score"
+            yValueKind="score"
             lines={[
               {
                 key: "rolling_accuracy",
                 label: labelByMode(languageMode, "Rolling Hit Rate", ZH.rollingAccuracy),
                 color: "#374151",
+                strokeWidth: 2.4,
+                valueKind: "score",
               },
             ]}
+            noDataMessage={labelByMode(languageMode, "No data available", "沒有可用資料")}
+            height={180}
+          />
+
+          <LineChart
+            title={labelByMode(languageMode, "Prediction Confidence", "預測信心")}
+            subtitle={`Ticker: ${selectedTicker} | Last 6 Months`}
+            points={predictionSeries}
+            xAxisLabel="Date"
+            yAxisLabel="Confidence (%)"
+            yValueKind="percent"
+            lines={[
+              {
+                key: "confidence_score",
+                label: labelByMode(languageMode, "Confidence", ZH.confidence),
+                color: "#1d4ed8",
+                strokeWidth: 2.6,
+                valueKind: "percent",
+              },
+            ]}
+            noDataMessage={labelByMode(languageMode, "No data available", "沒有可用資料")}
             height={180}
           />
 
