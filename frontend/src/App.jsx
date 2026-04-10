@@ -639,6 +639,7 @@ export default function App() {
         <ModelEvaluationPage
           languageMode={languageMode}
           currentWatchlist={currentWatchlist}
+          profileId={profileId}
         />
       ) : routePath === SETTINGS_PATH ? (
         <SettingsPage
@@ -653,6 +654,7 @@ export default function App() {
         <VirtualTraderPage
           languageMode={languageMode}
           currentWatchlist={currentWatchlist}
+          profileId={profileId}
         />
       ) : (
         <DashboardPage

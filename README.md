@@ -574,3 +574,47 @@ How to read prediction vs actual:
 - Prediction Confidence chart = model confidence trend over time
 - If prediction and actual frequently move together and rolling hit rate is stable, model behavior is more consistent
 - Treat all outputs as decision-support signals, not guaranteed results
+
+## Web Model Evaluation And Monthly Contributions
+
+The web settings page now lets you configure two shared simulation inputs:
+
+- `Model Evaluation（模型評估）`
+  choose the active trained model for the web model-evaluation pages and virtual-trader pages
+- `Monthly Contribution Records（每月注資紀錄）`
+  edit the available money for each month in USD
+
+How model selection works:
+
+- Open the dashboard settings page
+- In `Model Evaluation（模型評估）`, choose a saved model such as:
+  - `Logistic Regression`
+  - `Random Forest`
+  - `Gradient Boosting`
+- The selected model is stored in backend SQLite and reused after reloads
+- The current selected model is shown in both the Model Evaluation page and the Virtual Trader page
+
+How monthly contribution records work:
+
+- Records always start from `2026-04` (April 2026)
+- If no records exist yet, the backend initializes them automatically from April 2026 through the current month
+- You can edit each month independently, for example:
+  - `2026-04: 1000`
+  - `2026-05: 1500`
+  - `2026-06: 800`
+- Amounts are user-editable and are not fixed at 1000 USD
+- A value of `0` means no contribution is added for that month
+
+How the virtual trader uses these records:
+
+- When the web UI requests virtual-trader results with a `user_id`, the backend uses the saved monthly contribution records for that user
+- This replaces the old fixed monthly injection assumption for the web simulation flow
+- Equity curve, monthly contribution history, and benchmark comparison now reflect those saved monthly amounts
+
+New backend endpoints:
+
+- `GET /model-evaluation/settings?user_id=...`
+- `POST /model-evaluation/settings`
+- `GET /monthly-contributions?user_id=...`
+- `POST /monthly-contributions/initialize`
+- `POST /monthly-contributions/update`

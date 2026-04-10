@@ -107,6 +107,29 @@ class VirtualTraderTests(unittest.TestCase):
             if temp_dir.exists():
                 shutil.rmtree(temp_dir)
 
+    def test_simulate_virtual_trader_uses_monthly_schedule_when_provided(self) -> None:
+        result = simulate_virtual_trader(
+            ticker="TEST",
+            period="6mo",
+            model_name="logistic_regression",
+            price_df=_build_price_frame(),
+            evaluation_df=_build_evaluation_frame(),
+            benchmark_df=_build_benchmark_frame(),
+            contribution_schedule={"2024-01": 1200.0, "2024-02": 800.0},
+            monthly_contribution_usd=1000.0,
+            initial_cash=0.0,
+            confidence_threshold=0.55,
+            max_position_size_pct=0.50,
+            stop_loss_pct=0.10,
+            take_profit_pct=None,
+            task_type="classification",
+            output_dir=None,
+        )
+
+        self.assertEqual([item.amount for item in result.contribution_history], [1200.0, 800.0])
+        self.assertIsNone(result.summary["monthly_contribution_usd"])
+        self.assertEqual(result.summary["contribution_mode"], "custom_monthly_schedule")
+
 
 if __name__ == "__main__":
     unittest.main()

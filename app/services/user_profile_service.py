@@ -132,6 +132,7 @@ class UserProfileStore:
                     display_name TEXT,
                     preferred_language TEXT NOT NULL,
                     compact_mode INTEGER NOT NULL,
+                    selected_evaluation_model TEXT NOT NULL DEFAULT 'logistic_regression',
                     default_watchlist TEXT NOT NULL,
                     alert_enabled INTEGER NOT NULL,
                     alert_threshold_high INTEGER NOT NULL,
@@ -156,6 +157,17 @@ class UserProfileStore:
                 )
                 """
             )
+            columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(user_profiles)").fetchall()
+            }
+            if "selected_evaluation_model" not in columns:
+                connection.execute(
+                    """
+                    ALTER TABLE user_profiles
+                    ADD COLUMN selected_evaluation_model TEXT NOT NULL DEFAULT 'logistic_regression'
+                    """
+                )
             connection.commit()
 
     def _default_profile(self, user_id: str, display_name: str | None = None) -> dict:
@@ -165,6 +177,7 @@ class UserProfileStore:
             "display_name": display_name,
             "preferred_language": "bilingual",
             "compact_mode": 0,
+            "selected_evaluation_model": "logistic_regression",
             "default_watchlist": _json_dump([]),
             "alert_enabled": 1,
             "alert_threshold_high": 80,
@@ -182,6 +195,7 @@ class UserProfileStore:
             display_name=row["display_name"],
             preferred_language=row["preferred_language"],
             compact_mode=bool(row["compact_mode"]),
+            selected_evaluation_model=row["selected_evaluation_model"] or "logistic_regression",
             default_watchlist=_json_load(row["default_watchlist"]),
             alert_enabled=bool(row["alert_enabled"]),
             alert_threshold_high=int(row["alert_threshold_high"]),
@@ -217,16 +231,17 @@ class UserProfileStore:
                     """
                     INSERT INTO user_profiles (
                         user_id, display_name, preferred_language, compact_mode,
-                        default_watchlist, alert_enabled, alert_threshold_high,
+                        selected_evaluation_model, default_watchlist, alert_enabled, alert_threshold_high,
                         alert_threshold_low, alert_watchlist, preferred_delivery_source,
                         last_active_source, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         payload["user_id"],
                         payload["display_name"],
                         payload["preferred_language"],
                         payload["compact_mode"],
+                        payload["selected_evaluation_model"],
                         payload["default_watchlist"],
                         payload["alert_enabled"],
                         payload["alert_threshold_high"],
@@ -312,6 +327,10 @@ class UserProfileStore:
             updates.append("compact_mode = ?")
             params.append(1 if request.compact_mode else 0)
 
+        if request.selected_evaluation_model is not None:
+            updates.append("selected_evaluation_model = ?")
+            params.append(request.selected_evaluation_model.strip().lower())
+
         if request.default_watchlist is not None:
             updates.append("default_watchlist = ?")
             params.append(_json_dump(_normalize_watchlist(request.default_watchlist)))
@@ -354,6 +373,7 @@ class UserProfileStore:
                 SET display_name = ?,
                     preferred_language = ?,
                     compact_mode = ?,
+                    selected_evaluation_model = ?,
                     default_watchlist = ?,
                     alert_enabled = ?,
                     alert_threshold_high = ?,
@@ -368,6 +388,7 @@ class UserProfileStore:
                     request.display_name.strip() if request.display_name else profile.display_name,
                     "bilingual",
                     0,
+                    "logistic_regression",
                     _json_dump([]),
                     1,
                     80,

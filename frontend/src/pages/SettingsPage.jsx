@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from "react";
 
+import MonthlyContributionTable from "../components/MonthlyContributionTable";
 import WatchlistManager from "../components/WatchlistManager";
+import {
+  fetchModelEvaluationSettings,
+  updateModelEvaluationSettings,
+} from "../services/modelSettingsApi";
 import {
   fetchUserAlertSettings,
   updateUserAlertSettings,
@@ -39,6 +44,8 @@ const ZH = {
   alertLow: "\u4f4e\u4f4d\u63d0\u793a\u9580\u6abb",
   alertWatchlist: "\u63d0\u793a\u89c0\u5bdf\u540d\u55ae",
   save: "\u5132\u5b58",
+  modelEvaluation: "\u6a21\u578b\u8a55\u4f30",
+  selectedModel: "\u5df2\u9078\u6a21\u578b",
 };
 
 export default function SettingsPage({
@@ -56,6 +63,8 @@ export default function SettingsPage({
   const [alertHigh, setAlertHigh] = useState(80);
   const [alertLow, setAlertLow] = useState(45);
   const [alertWatchlist, setAlertWatchlist] = useState("");
+  const [selectedModelName, setSelectedModelName] = useState("logistic_regression");
+  const [availableModels, setAvailableModels] = useState([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -78,12 +87,17 @@ export default function SettingsPage({
     let isActive = true;
     async function loadAlertSettings() {
       try {
-        const alertSettings = await fetchUserAlertSettings(profileId);
+        const [alertSettings, modelSettings] = await Promise.all([
+          fetchUserAlertSettings(profileId),
+          fetchModelEvaluationSettings(profileId),
+        ]);
         if (!isActive) return;
         setAlertEnabled(Boolean(alertSettings.alert_enabled));
         setAlertHigh(alertSettings.alert_threshold_high ?? 80);
         setAlertLow(alertSettings.alert_threshold_low ?? 45);
         setAlertWatchlist(watchlistToText(alertSettings.alert_watchlist || []));
+        setSelectedModelName(modelSettings.selected_model_name || "logistic_regression");
+        setAvailableModels(modelSettings.available_models || []);
       } catch {
         // Keep profile defaults if alert endpoint is unavailable.
       }
@@ -112,6 +126,11 @@ export default function SettingsPage({
         preferred_language: language,
         compact_mode: compactMode,
         last_active_source: "dashboard",
+      });
+
+      await updateModelEvaluationSettings({
+        user_id: nextProfileId,
+        selected_model_name: selectedModelName,
       });
 
       await updateUserAlertSettings({
@@ -179,6 +198,31 @@ export default function SettingsPage({
             {labelByMode(languageMode, "Compact mode", ZH.compact)}
           </label>
 
+          <label>
+            {labelByMode(
+              languageMode,
+              "Model Evaluation (模型評估)",
+              "模型評估"
+            )}
+            <select
+              value={selectedModelName}
+              onChange={(event) => setSelectedModelName(event.target.value)}
+            >
+              {availableModels.map((item) => (
+                <option key={item.model_name} value={item.model_name}>
+                  {item.display_name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="helper-text">
+            {labelByMode(
+              languageMode,
+              "This selected model is used by Model Evaluation and the Virtual Trader pages.",
+              "這個已選模型會用於「模型評估」及「虛擬交易」頁面。"
+            )}
+          </p>
+
           <label className="checkbox-row">
             <input
               type="checkbox"
@@ -240,6 +284,11 @@ export default function SettingsPage({
         watchlist={currentWatchlist}
         languageMode={languageMode}
         onUpdated={() => onProfileUpdated(profileId)}
+      />
+
+      <MonthlyContributionTable
+        userId={profileId}
+        languageMode={languageMode}
       />
     </div>
   );

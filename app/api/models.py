@@ -16,6 +16,9 @@ from app.services.model_results import (
     load_virtual_trader_summary,
     load_virtual_trader_trades,
 )
+from app.services.model_selection_service import resolve_selected_model_name
+from app.services.monthly_contribution_service import get_monthly_contribution_store
+from app.services.virtual_trader import run_virtual_trader_from_saved_evaluation
 
 logger = logging.getLogger(__name__)
 
@@ -144,7 +147,8 @@ class VirtualTraderSummaryDataResponse(BaseModel):
     model_name: str
     mode: str
     task_type: str
-    monthly_contribution_usd: float
+    monthly_contribution_usd: float | None
+    contribution_mode: str | None = None
     initial_cash: float
     confidence_threshold: float
     max_position_size_pct: float
@@ -240,22 +244,24 @@ def model_latest(
     ticker: str = Query(..., min_length=1, max_length=15, pattern=TICKER_PATTERN),
     period: str = Query("5y", pattern=PERIOD_PATTERN),
     target_name: str = Query("target_5d_updown", min_length=1, max_length=50),
-    model_name: str = Query("logistic_regression", min_length=1, max_length=50),
+    model_name: str | None = Query(default=None, min_length=1, max_length=50),
+    user_id: str | None = Query(default=None, min_length=1, max_length=120),
 ) -> ModelLatestResponse:
     """Return the latest saved model prediction row for one ticker."""
+    resolved_model_name = resolve_selected_model_name(user_id=user_id, requested_model_name=model_name)
     logger.info(
         "Request /model-latest ticker=%s period=%s target=%s model=%s",
         ticker,
         period,
         target_name,
-        model_name,
+        resolved_model_name,
     )
     try:
         payload = load_model_latest_prediction(
             ticker=ticker,
             period=period,
             target_name=target_name,
-            model_name=model_name,
+            model_name=resolved_model_name,
         )
     except ModelResultsError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -278,16 +284,18 @@ def model_history(
     ticker: str = Query(..., min_length=1, max_length=15, pattern=TICKER_PATTERN),
     period: str = Query("5y", pattern=PERIOD_PATTERN),
     target_name: str = Query("target_5d_updown", min_length=1, max_length=50),
-    model_name: str = Query("logistic_regression", min_length=1, max_length=50),
+    model_name: str | None = Query(default=None, min_length=1, max_length=50),
+    user_id: str | None = Query(default=None, min_length=1, max_length=120),
     limit: int = Query(200, ge=1, le=5000),
 ) -> ModelHistoryResponse:
     """Return saved model prediction history and rolling accuracy for one ticker."""
+    resolved_model_name = resolve_selected_model_name(user_id=user_id, requested_model_name=model_name)
     logger.info(
         "Request /model-history ticker=%s period=%s target=%s model=%s limit=%s",
         ticker,
         period,
         target_name,
-        model_name,
+        resolved_model_name,
         limit,
     )
     try:
@@ -295,7 +303,7 @@ def model_history(
             ticker=ticker,
             period=period,
             target_name=target_name,
-            model_name=model_name,
+            model_name=resolved_model_name,
             limit=limit,
         )
     except ModelResultsError as exc:
@@ -322,16 +330,18 @@ def model_accuracy(
     ticker: str = Query(..., min_length=1, max_length=15, pattern=TICKER_PATTERN),
     period: str = Query("5y", pattern=PERIOD_PATTERN),
     target_name: str = Query("target_5d_updown", min_length=1, max_length=50),
-    model_name: str = Query("logistic_regression", min_length=1, max_length=50),
+    model_name: str | None = Query(default=None, min_length=1, max_length=50),
+    user_id: str | None = Query(default=None, min_length=1, max_length=120),
     window: int = Query(20, ge=1, le=252),
 ) -> ModelAccuracyResponse:
     """Return saved walk-forward metrics and rolling accuracy."""
+    resolved_model_name = resolve_selected_model_name(user_id=user_id, requested_model_name=model_name)
     logger.info(
         "Request /model-accuracy ticker=%s period=%s target=%s model=%s window=%s",
         ticker,
         period,
         target_name,
-        model_name,
+        resolved_model_name,
         window,
     )
     try:
@@ -339,7 +349,7 @@ def model_accuracy(
             ticker=ticker,
             period=period,
             target_name=target_name,
-            model_name=model_name,
+            model_name=resolved_model_name,
             window=window,
         )
     except ModelResultsError as exc:
@@ -382,26 +392,47 @@ def model_accuracy(
 def virtual_trader_summary(
     ticker: str = Query(..., min_length=1, max_length=15, pattern=TICKER_PATTERN),
     period: str = Query("5y", pattern=PERIOD_PATTERN),
-    model_name: str = Query("logistic_regression", min_length=1, max_length=50),
+    model_name: str | None = Query(default=None, min_length=1, max_length=50),
+    user_id: str | None = Query(default=None, min_length=1, max_length=120),
     equity_limit: int = Query(500, ge=1, le=5000),
 ) -> VirtualTraderSummaryResponse:
     """Return saved virtual trader summary and equity curve."""
+    resolved_model_name = resolve_selected_model_name(user_id=user_id, requested_model_name=model_name)
     logger.info(
         "Request /virtual-trader-summary ticker=%s period=%s model=%s equity_limit=%s",
         ticker,
         period,
-        model_name,
+        resolved_model_name,
         equity_limit,
     )
     try:
-        payload = load_virtual_trader_summary(
-            ticker=ticker,
-            period=period,
-            model_name=model_name,
-            equity_limit=equity_limit,
-        )
+        if user_id:
+            contribution_schedule = get_monthly_contribution_store().get_amount_map(user_id)
+            simulation = run_virtual_trader_from_saved_evaluation(
+                ticker=ticker,
+                period=period,
+                model_name=resolved_model_name,
+                contribution_schedule=contribution_schedule,
+            )
+            payload = {
+                "ticker": simulation.ticker,
+                "period": simulation.period,
+                "model_name": simulation.model_name,
+                "summary": simulation.summary,
+                "benchmark_comparison": simulation.benchmark_comparison,
+                "equity_curve": [item.__dict__ for item in simulation.equity_curve[-equity_limit:]],
+            }
+        else:
+            payload = load_virtual_trader_summary(
+                ticker=ticker,
+                period=period,
+                model_name=resolved_model_name,
+                equity_limit=equity_limit,
+            )
     except ModelResultsError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # pragma: no cover - defensive guard
         logger.exception("Unexpected error in /virtual-trader-summary")
         raise HTTPException(status_code=500, detail="Unexpected server error.") from exc
@@ -424,26 +455,47 @@ def virtual_trader_summary(
 def virtual_trader_trades(
     ticker: str = Query(..., min_length=1, max_length=15, pattern=TICKER_PATTERN),
     period: str = Query("5y", pattern=PERIOD_PATTERN),
-    model_name: str = Query("logistic_regression", min_length=1, max_length=50),
+    model_name: str | None = Query(default=None, min_length=1, max_length=50),
+    user_id: str | None = Query(default=None, min_length=1, max_length=120),
     limit: int = Query(200, ge=1, le=5000),
 ) -> VirtualTraderTradesResponse:
     """Return saved virtual trader trade log and monthly contributions."""
+    resolved_model_name = resolve_selected_model_name(user_id=user_id, requested_model_name=model_name)
     logger.info(
         "Request /virtual-trader-trades ticker=%s period=%s model=%s limit=%s",
         ticker,
         period,
-        model_name,
+        resolved_model_name,
         limit,
     )
     try:
-        payload = load_virtual_trader_trades(
-            ticker=ticker,
-            period=period,
-            model_name=model_name,
-            limit=limit,
-        )
+        if user_id:
+            contribution_schedule = get_monthly_contribution_store().get_amount_map(user_id)
+            simulation = run_virtual_trader_from_saved_evaluation(
+                ticker=ticker,
+                period=period,
+                model_name=resolved_model_name,
+                contribution_schedule=contribution_schedule,
+            )
+            payload = {
+                "ticker": simulation.ticker,
+                "period": simulation.period,
+                "model_name": simulation.model_name,
+                "trade_count": len(simulation.trade_log),
+                "trade_log": [item.__dict__ for item in simulation.trade_log[-limit:]],
+                "monthly_contributions": [item.__dict__ for item in simulation.contribution_history],
+            }
+        else:
+            payload = load_virtual_trader_trades(
+                ticker=ticker,
+                period=period,
+                model_name=resolved_model_name,
+                limit=limit,
+            )
     except ModelResultsError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # pragma: no cover - defensive guard
         logger.exception("Unexpected error in /virtual-trader-trades")
         raise HTTPException(status_code=500, detail="Unexpected server error.") from exc

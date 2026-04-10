@@ -201,6 +201,27 @@ def load_model_accuracy_summary(
     }
 
 
+def load_model_evaluation_table(
+    ticker: str,
+    period: str = "5y",
+    target_name: str = "target_5d_updown",
+    model_name: str = "logistic_regression",
+    base_dir: str | Path | None = None,
+) -> pd.DataFrame:
+    """Load the full saved walk-forward evaluation table for one model."""
+    artifact_dir = _resolve_model_artifact_dir(
+        ticker=ticker,
+        period=period,
+        target_name=target_name,
+        model_name=model_name,
+        base_dir=base_dir,
+    )
+    evaluation_df = _read_csv_file(artifact_dir / "evaluation_table.csv")
+    if evaluation_df.empty:
+        raise ModelResultsError("Evaluation table is empty.")
+    return evaluation_df.sort_values("prediction_date").reset_index(drop=True)
+
+
 def load_virtual_trader_summary(
     ticker: str,
     period: str = "5y",

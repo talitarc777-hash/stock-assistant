@@ -7,6 +7,7 @@ import {
 } from "../api";
 import LineChart from "../components/LineChart";
 import PredictionChart from "../components/PredictionChart";
+import { fetchModelEvaluationSettings } from "../services/modelSettingsApi";
 
 const DEFAULT_PERIOD = "5y";
 const DEFAULT_TARGET = "target_5d_updown";
@@ -53,8 +54,9 @@ function formatMetricValue(value) {
   return Number(value).toFixed(3);
 }
 
-export default function ModelEvaluationPage({ languageMode, currentWatchlist }) {
+export default function ModelEvaluationPage({ languageMode, currentWatchlist, profileId }) {
   const [selectedTicker, setSelectedTicker] = useState(currentWatchlist[0] || "VOO");
+  const [selectedModelName, setSelectedModelName] = useState(DEFAULT_MODEL);
   const [latestData, setLatestData] = useState(null);
   const [historyData, setHistoryData] = useState(null);
   const [accuracyData, setAccuracyData] = useState(null);
@@ -69,6 +71,26 @@ export default function ModelEvaluationPage({ languageMode, currentWatchlist }) 
   }, [currentWatchlist.join(","), selectedTicker]);
 
   useEffect(() => {
+    let isActive = true;
+    async function loadModelSettings() {
+      try {
+        const settings = await fetchModelEvaluationSettings(profileId);
+        if (!isActive) return;
+        setSelectedModelName(settings.selected_model_name || DEFAULT_MODEL);
+      } catch {
+        if (!isActive) return;
+        setSelectedModelName(DEFAULT_MODEL);
+      }
+    }
+    if (profileId) {
+      loadModelSettings();
+    }
+    return () => {
+      isActive = false;
+    };
+  }, [profileId]);
+
+  useEffect(() => {
     if (!selectedTicker) return;
 
     let isActive = true;
@@ -77,9 +99,9 @@ export default function ModelEvaluationPage({ languageMode, currentWatchlist }) 
       setError("");
       try {
         const [latest, history, accuracy] = await Promise.all([
-          fetchModelLatest(selectedTicker, DEFAULT_PERIOD, DEFAULT_TARGET, DEFAULT_MODEL),
-          fetchModelHistory(selectedTicker, DEFAULT_PERIOD, DEFAULT_TARGET, DEFAULT_MODEL, 180),
-          fetchModelAccuracy(selectedTicker, DEFAULT_PERIOD, DEFAULT_TARGET, DEFAULT_MODEL, 20),
+          fetchModelLatest(selectedTicker, DEFAULT_PERIOD, DEFAULT_TARGET, selectedModelName, profileId),
+          fetchModelHistory(selectedTicker, DEFAULT_PERIOD, DEFAULT_TARGET, selectedModelName, 180, profileId),
+          fetchModelAccuracy(selectedTicker, DEFAULT_PERIOD, DEFAULT_TARGET, selectedModelName, 20, profileId),
         ]);
         if (!isActive) return;
         setLatestData(latest);
@@ -102,7 +124,7 @@ export default function ModelEvaluationPage({ languageMode, currentWatchlist }) 
     return () => {
       isActive = false;
     };
-  }, [selectedTicker]);
+  }, [selectedTicker, selectedModelName, profileId]);
 
   const predictionSeries = useMemo(() => {
     if (!historyData?.history) return [];
@@ -145,6 +167,9 @@ export default function ModelEvaluationPage({ languageMode, currentWatchlist }) 
               </option>
             ))}
           </select>
+          <span className="helper-chip">
+            {labelByMode(languageMode, "Model", "模型")}: {selectedModelName}
+          </span>
         </div>
       </header>
 

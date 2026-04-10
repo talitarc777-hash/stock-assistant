@@ -11,7 +11,9 @@ from app.api.backtest import router as backtest_router
 from app.api.dashboard import router as dashboard_router
 from app.api.forecast import router as forecast_router
 from app.api.market_data import router as market_data_router
+from app.api.model_settings import router as model_settings_router
 from app.api.models import router as models_router
+from app.api.monthly_contributions import router as monthly_contributions_router
 from app.api.paper import router as paper_router
 from app.api.user_profile import router as user_profile_router
 from app.core.settings import get_settings
@@ -61,6 +63,8 @@ app.include_router(dashboard_router)
 app.include_router(forecast_router)
 app.include_router(paper_router)
 app.include_router(models_router)
+app.include_router(model_settings_router)
+app.include_router(monthly_contributions_router)
 app.include_router(user_profile_router)
 
 

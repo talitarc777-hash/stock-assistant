@@ -35,6 +35,7 @@ class UserProfileStoreTests(unittest.TestCase):
 
         self.assertEqual(profile.user_id, "demo-user")
         self.assertEqual(profile.preferred_language, "bilingual")
+        self.assertEqual(profile.selected_evaluation_model, "logistic_regression")
         self.assertEqual(profile.default_watchlist, [])
         self.assertTrue(profile.alert_enabled)
 
@@ -48,11 +49,13 @@ class UserProfileStoreTests(unittest.TestCase):
         profile = self.store.update_profile_settings(
             UserProfileSettingsUpdateRequest(
                 user_id="demo-user",
+                selected_evaluation_model="random_forest",
                 default_watchlist=["BRK.B", "tsla"],
                 last_active_source="dashboard",
             )
         )
 
+        self.assertEqual(profile.selected_evaluation_model, "random_forest")
         self.assertEqual(profile.default_watchlist, ["BRK-B", "TSLA"])
 
     def test_watchlist_keeps_exchange_dot_suffix(self) -> None:

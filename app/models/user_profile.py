@@ -47,6 +47,7 @@ class UserProfileResponse(BaseModel):
     display_name: str | None = None
     preferred_language: LanguageMode = "bilingual"
     compact_mode: bool = False
+    selected_evaluation_model: str = "logistic_regression"
     default_watchlist: list[str] = Field(default_factory=list)
     alert_enabled: bool = True
     alert_threshold_high: int = Field(default=80, ge=0, le=100)
@@ -70,6 +71,7 @@ class UserProfileSettingsUpdateRequest(BaseModel):
     display_name: str | None = Field(default=None, max_length=120)
     preferred_language: LanguageMode | None = None
     compact_mode: bool | None = None
+    selected_evaluation_model: str | None = Field(default=None, min_length=1, max_length=80)
     default_watchlist: list[str] | None = None
     last_active_source: ActivitySource | None = None
 

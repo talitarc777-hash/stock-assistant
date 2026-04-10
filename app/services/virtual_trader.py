@@ -23,6 +23,7 @@ import pandas as pd
 
 from app.core.settings import get_settings
 from app.services.market_data import get_price_history
+from app.services.model_results import load_model_evaluation_table
 from app.services.prediction_explanations import (
     build_benchmark_strength_summary,
     build_news_sentiment_summary,
@@ -180,6 +181,26 @@ def _is_first_trading_day_of_month(current_date: pd.Timestamp, previous_date: pd
     return (current_date.year, current_date.month) != (previous_date.year, previous_date.month)
 
 
+def _get_month_key(current_date: pd.Timestamp) -> str:
+    """Convert a trading date into its YYYY-MM month key."""
+    return current_date.strftime("%Y-%m")
+
+
+def _resolve_monthly_contribution_amount(
+    current_date: pd.Timestamp,
+    contribution_schedule: dict[str, float] | None,
+    fallback_amount: float,
+) -> float:
+    """Choose the contribution amount for the current month.
+
+    When a user-specific monthly schedule is provided, it takes priority.
+    Otherwise we fall back to the original fixed monthly contribution behavior.
+    """
+    if not contribution_schedule:
+        return float(fallback_amount)
+    return float(contribution_schedule.get(_get_month_key(current_date), 0.0))
+
+
 def _is_bullish_signal(row: pd.Series, task_type: str, min_predicted_return_pct: float) -> bool:
     """Interpret model output into a simple buy-or-not signal."""
     if task_type == "classification":
@@ -298,6 +319,7 @@ def simulate_virtual_trader(
     benchmark_df: pd.DataFrame,
     benchmark_symbol: str = "VOO",
     monthly_contribution_usd: float = 1_000.0,
+    contribution_schedule: dict[str, float] | None = None,
     initial_cash: float = 0.0,
     confidence_threshold: float = 0.55,
     max_position_size_pct: float = 0.25,
@@ -369,13 +391,18 @@ def simulate_virtual_trader(
         benchmark_close = float(row["benchmark_close"])
 
         if _is_first_trading_day_of_month(current_date, previous_date):
-            cash += monthly_contribution_usd
-            benchmark_cash += monthly_contribution_usd
-            total_contributions += monthly_contribution_usd
+            contribution_amount = _resolve_monthly_contribution_amount(
+                current_date=current_date,
+                contribution_schedule=contribution_schedule,
+                fallback_amount=monthly_contribution_usd,
+            )
+            cash += contribution_amount
+            benchmark_cash += contribution_amount
+            total_contributions += contribution_amount
             contribution_history.append(
                 MonthlyContributionRecord(
                     date=date_str,
-                    amount=float(monthly_contribution_usd),
+                    amount=float(contribution_amount),
                     cumulative_contributions=float(total_contributions),
                 )
             )
@@ -597,7 +624,10 @@ def simulate_virtual_trader(
         "model_name": model_name,
         "mode": "simulation_only_no_real_money_no_leverage",
         "task_type": task_type,
-        "monthly_contribution_usd": float(monthly_contribution_usd),
+        "monthly_contribution_usd": (
+            float(monthly_contribution_usd) if not contribution_schedule else None
+        ),
+        "contribution_mode": "custom_monthly_schedule" if contribution_schedule else "fixed_monthly_amount",
         "initial_cash": float(initial_cash),
         "confidence_threshold": float(confidence_threshold),
         "max_position_size_pct": float(max_position_size_pct),
@@ -657,6 +687,7 @@ def run_virtual_trader_from_model(
     task_type: str = "classification",
     model_name: str = "logistic_regression",
     monthly_contribution_usd: float = 1_000.0,
+    contribution_schedule: dict[str, float] | None = None,
     initial_cash: float = 0.0,
     confidence_threshold: float = 0.55,
     max_position_size_pct: float = 0.25,
@@ -701,6 +732,67 @@ def run_virtual_trader_from_model(
         benchmark_df=benchmark_df,
         benchmark_symbol=benchmark_symbol,
         monthly_contribution_usd=monthly_contribution_usd,
+        contribution_schedule=contribution_schedule,
+        initial_cash=initial_cash,
+        confidence_threshold=confidence_threshold,
+        max_position_size_pct=max_position_size_pct,
+        stop_loss_pct=stop_loss_pct,
+        take_profit_pct=take_profit_pct,
+        task_type=task_type,
+        min_predicted_return_pct=min_predicted_return_pct,
+        output_dir=output_dir,
+    )
+
+
+def run_virtual_trader_from_saved_evaluation(
+    ticker: str,
+    period: str = "5y",
+    benchmark: str = "VOO",
+    target_name: str = "target_5d_updown",
+    task_type: str = "classification",
+    model_name: str = "logistic_regression",
+    contribution_schedule: dict[str, float] | None = None,
+    monthly_contribution_usd: float = 1_000.0,
+    initial_cash: float = 0.0,
+    confidence_threshold: float = 0.55,
+    max_position_size_pct: float = 0.25,
+    stop_loss_pct: float = 0.10,
+    take_profit_pct: float | None = None,
+    min_predicted_return_pct: float = 0.0,
+    output_dir: str | Path | None = None,
+) -> VirtualTraderResult:
+    """Run a simulation from an already-saved evaluation table.
+
+    This keeps the web UI responsive to user-specific monthly contribution records
+    and model selection without retraining the model on every request.
+    """
+    ticker_symbol = ticker.strip().upper()
+    benchmark_symbol = benchmark.strip().upper()
+    price_df = build_feature_dataset(
+        ticker=ticker_symbol,
+        period=period,
+        benchmark=benchmark_symbol,
+        include_news_sentiment=True,
+        sentiment_model="finbert",
+    )
+    benchmark_df = get_price_history(benchmark_symbol, period=period)
+    evaluation_df = load_model_evaluation_table(
+        ticker=ticker_symbol,
+        period=period,
+        target_name=target_name,
+        model_name=model_name,
+    )
+
+    return simulate_virtual_trader(
+        ticker=ticker_symbol,
+        period=period,
+        model_name=model_name,
+        price_df=price_df,
+        evaluation_df=evaluation_df,
+        benchmark_df=benchmark_df,
+        benchmark_symbol=benchmark_symbol,
+        monthly_contribution_usd=monthly_contribution_usd,
+        contribution_schedule=contribution_schedule,
         initial_cash=initial_cash,
         confidence_threshold=confidence_threshold,
         max_position_size_pct=max_position_size_pct,

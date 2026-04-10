@@ -6,6 +6,7 @@ import {
 } from "../api";
 import LineChart from "../components/LineChart";
 import EquityChart from "../components/EquityChart";
+import { fetchModelEvaluationSettings } from "../services/modelSettingsApi";
 
 const DEFAULT_PERIOD = "5y";
 const DEFAULT_MODEL = "logistic_regression";
@@ -46,8 +47,9 @@ function toNumeric(value) {
   return Number.isFinite(num) ? num : Number.NaN;
 }
 
-export default function VirtualTraderPage({ languageMode, currentWatchlist }) {
+export default function VirtualTraderPage({ languageMode, currentWatchlist, profileId }) {
   const [selectedTicker, setSelectedTicker] = useState(currentWatchlist[0] || "VOO");
+  const [selectedModelName, setSelectedModelName] = useState(DEFAULT_MODEL);
   const [summaryData, setSummaryData] = useState(null);
   const [tradesData, setTradesData] = useState(null);
   const [selectedTrade, setSelectedTrade] = useState(null);
@@ -62,6 +64,26 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist }) {
   }, [currentWatchlist.join(","), selectedTicker]);
 
   useEffect(() => {
+    let isActive = true;
+    async function loadModelSettings() {
+      try {
+        const settings = await fetchModelEvaluationSettings(profileId);
+        if (!isActive) return;
+        setSelectedModelName(settings.selected_model_name || DEFAULT_MODEL);
+      } catch {
+        if (!isActive) return;
+        setSelectedModelName(DEFAULT_MODEL);
+      }
+    }
+    if (profileId) {
+      loadModelSettings();
+    }
+    return () => {
+      isActive = false;
+    };
+  }, [profileId]);
+
+  useEffect(() => {
     if (!selectedTicker) return;
 
     let isActive = true;
@@ -70,8 +92,8 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist }) {
       setError("");
       try {
         const [summary, trades] = await Promise.all([
-          fetchVirtualTraderSummary(selectedTicker, DEFAULT_PERIOD, DEFAULT_MODEL, 500),
-          fetchVirtualTraderTrades(selectedTicker, DEFAULT_PERIOD, DEFAULT_MODEL, 200),
+          fetchVirtualTraderSummary(selectedTicker, DEFAULT_PERIOD, selectedModelName, 500, profileId),
+          fetchVirtualTraderTrades(selectedTicker, DEFAULT_PERIOD, selectedModelName, 200, profileId),
         ]);
         if (!isActive) return;
         setSummaryData(summary);
@@ -94,7 +116,7 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist }) {
     return () => {
       isActive = false;
     };
-  }, [selectedTicker]);
+  }, [selectedTicker, selectedModelName, profileId]);
 
   const equityPoints = useMemo(() => {
     if (!summaryData?.equity_curve) return [];
@@ -139,6 +161,9 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist }) {
               </option>
             ))}
           </select>
+          <span className="helper-chip">
+            {labelByMode(languageMode, "Model", "模型")}: {selectedModelName}
+          </span>
         </div>
       </header>
 
