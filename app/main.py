@@ -14,8 +14,10 @@ from app.api.market_data import router as market_data_router
 from app.api.model_settings import router as model_settings_router
 from app.api.models import router as models_router
 from app.api.monthly_contributions import router as monthly_contributions_router
+from app.api.news_sentiment import router as news_sentiment_router
 from app.api.paper import router as paper_router
 from app.api.user_profile import router as user_profile_router
+from app.api.virtual_trader import router as virtual_trader_router
 from app.core.settings import get_settings
 
 logging.basicConfig(
@@ -66,6 +68,8 @@ app.include_router(models_router)
 app.include_router(model_settings_router)
 app.include_router(monthly_contributions_router)
 app.include_router(user_profile_router)
+app.include_router(virtual_trader_router)
+app.include_router(news_sentiment_router)
 
 
 @app.get("/health", response_model=HealthResponse, tags=["system"])

@@ -14,6 +14,8 @@ try:
         format_help_message,
         format_model_accuracy_message,
         format_model_status_message,
+        format_live_virtual_trader_status_message,
+        format_live_virtual_trader_trades_message,
         format_settings_message,
         format_trade_reason_message,
         format_virtual_trader_compare_message,
@@ -52,6 +54,9 @@ try:
         forecast,
         model_accuracy,
         model_latest,
+        virtual_trader_live_status,
+        virtual_trader_live_trades,
+        virtual_trader_run_now,
         virtual_trader_summary,
         virtual_trader_trades,
         watchlist,
@@ -69,6 +74,8 @@ except ImportError:  # pragma: no cover - script execution fallback
         format_help_message,
         format_model_accuracy_message,
         format_model_status_message,
+        format_live_virtual_trader_status_message,
+        format_live_virtual_trader_trades_message,
         format_settings_message,
         format_trade_reason_message,
         format_virtual_trader_compare_message,
@@ -107,6 +114,9 @@ except ImportError:  # pragma: no cover - script execution fallback
         forecast,
         model_accuracy,
         model_latest,
+        virtual_trader_live_status,
+        virtual_trader_live_trades,
+        virtual_trader_run_now,
         virtual_trader_summary,
         virtual_trader_trades,
         watchlist,
@@ -478,40 +488,52 @@ async def _send_model_accuracy(ctx, requested_ticker: str | None = None) -> None
 
 
 async def _send_virtual_trader_summary(ctx, requested_ticker: str | None = None) -> None:
-    """Fetch and send the virtual trader summary for one ticker."""
+    """Fetch and send live virtual trader status for one ticker."""
     user_settings = _get_shared_user_settings(ctx)
     symbol = _resolve_reporting_ticker(ctx, requested_ticker)
-    data = virtual_trader_summary(symbol, period="5y")
-    print("VIRTUAL TRADER SUMMARY RAW RESPONSE:", data)
-    data = _require_dict(data, "virtual trader summary response")
-    _require_dict(data.get("summary", {}), "summary")
-    _require_dict(data.get("benchmark_comparison", {}), "benchmark_comparison")
-    await ctx.send(format_virtual_trader_summary_message(symbol, data, user_settings))
+    data = virtual_trader_live_status(user_id=_discord_user_id(ctx), ticker=symbol)
+    print("LIVE VIRTUAL TRADER STATUS RAW RESPONSE:", data)
+    data = _require_dict(data, "live virtual trader status response")
+    _require_dict(data.get("account", {}), "account")
+    await ctx.send(format_live_virtual_trader_status_message(symbol, data, user_settings))
 
 
 async def _send_virtual_trader_trades(ctx, requested_ticker: str | None = None, limit: int = 5) -> None:
-    """Fetch and send recent virtual trader trades for one ticker."""
+    """Fetch and send recent live virtual trader trades for one ticker."""
     user_settings = _get_shared_user_settings(ctx)
     symbol = _resolve_reporting_ticker(ctx, requested_ticker)
-    data = virtual_trader_trades(symbol, period="5y", limit=max(limit, 5))
-    print("VIRTUAL TRADER TRADES RAW RESPONSE:", data)
-    data = _require_dict(data, "virtual trader trades response")
-    _require_list(data.get("trade_log", []), "trade_log")
-    await ctx.send(format_virtual_trader_trades_message(symbol, data, user_settings, limit=limit))
+    data = virtual_trader_live_trades(user_id=_discord_user_id(ctx), ticker=symbol, limit=max(limit, 5))
+    print("LIVE VIRTUAL TRADER TRADES RAW RESPONSE:", data)
+    data = _require_dict(data, "live virtual trader trades response")
+    _require_list(data.get("trades", []), "trades")
+    await ctx.send(format_live_virtual_trader_trades_message(symbol, data, user_settings, limit=limit))
 
 
 async def _send_why_trade(ctx, requested_ticker: str | None = None) -> None:
-    """Fetch and explain the latest virtual trader action for one ticker."""
+    """Fetch and explain the latest live virtual trader action for one ticker."""
     user_settings = _get_shared_user_settings(ctx)
     symbol = _resolve_reporting_ticker(ctx, requested_ticker)
-    data = virtual_trader_trades(symbol, period="5y", limit=5)
-    print("WHY TRADE RAW RESPONSE:", data)
-    data = _require_dict(data, "virtual trader trades response")
-    trade_log = _require_list(data.get("trade_log", []), "trade_log")
-    if not trade_log:
+    data = virtual_trader_live_trades(user_id=_discord_user_id(ctx), ticker=symbol, limit=5)
+    print("WHY TRADE LIVE RAW RESPONSE:", data)
+    data = _require_dict(data, "live virtual trader trades response")
+    trades = _require_list(data.get("trades", []), "trades")
+    if not trades:
         await ctx.send(f"No saved virtual trades yet for `{symbol}`.")
         return
-    await ctx.send(format_trade_reason_message(symbol, trade_log[-1], user_settings))
+    await ctx.send(format_trade_reason_message(symbol, trades[0], user_settings))
+
+
+async def _run_virtual_trader_now(ctx, requested_ticker: str | None = None) -> None:
+    """Trigger one live simulation cycle now and return updated status."""
+    user_settings = _get_shared_user_settings(ctx)
+    symbol = _resolve_reporting_ticker(ctx, requested_ticker)
+    data = virtual_trader_run_now(
+        user_id=_discord_user_id(ctx),
+        tickers=[symbol],
+    )
+    print("RUN VIRTUAL TRADER NOW RAW RESPONSE:", data)
+    data = _require_dict(data, "live virtual trader run response")
+    await ctx.send(format_live_virtual_trader_status_message(symbol, data, user_settings))
 
 
 async def _send_virtual_trader_compare(ctx, requested_ticker: str | None = None) -> None:
@@ -639,6 +661,8 @@ async def on_message(message):
             await _send_model_accuracy(ctx, parsed.tickers[0].upper() if parsed.tickers else None)
         elif parsed.intent == "virtual_trader_summary":
             await _send_virtual_trader_summary(ctx, parsed.tickers[0].upper() if parsed.tickers else None)
+        elif parsed.intent == "run_virtual_trader_now":
+            await _run_virtual_trader_now(ctx, parsed.tickers[0].upper() if parsed.tickers else None)
         elif parsed.intent == "virtual_trader_trades":
             await _send_virtual_trader_trades(ctx, parsed.tickers[0].upper() if parsed.tickers else None)
         elif parsed.intent == "why_trade":
@@ -864,6 +888,18 @@ async def virtualtrader_cmd(ctx, ticker: str | None = None):
         await _send_virtual_trader_summary(ctx, ticker.upper() if ticker else None)
     except Exception as exc:
         print("VIRTUALTRADER ERROR:", repr(exc))
+        await ctx.send(_friendly_error_message(exc))
+
+
+@bot.command(name="runtrader")
+async def runtrader_cmd(ctx, ticker: str | None = None):
+    if not is_allowed(ctx):
+        return
+
+    try:
+        await _run_virtual_trader_now(ctx, ticker.upper() if ticker else None)
+    except Exception as exc:
+        print("RUNTRADER ERROR:", repr(exc))
         await ctx.send(_friendly_error_message(exc))
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
+import pickle
 from typing import Any
 
 import pandas as pd
@@ -39,6 +40,23 @@ def _resolve_model_artifact_dir(
             "Run the training command first."
         )
     return artifact_dir
+
+
+def resolve_model_artifact_dir(
+    ticker: str,
+    period: str = "5y",
+    target_name: str = "target_5d_updown",
+    model_name: str = "logistic_regression",
+    base_dir: str | Path | None = None,
+) -> Path:
+    """Public wrapper for resolving one saved model artifact directory."""
+    return _resolve_model_artifact_dir(
+        ticker=ticker,
+        period=period,
+        target_name=target_name,
+        model_name=model_name,
+        base_dir=base_dir,
+    )
 
 
 def _resolve_virtual_trader_artifact_dir(
@@ -76,6 +94,55 @@ def _read_csv_file(path: Path) -> pd.DataFrame:
         raise ModelResultsError(f"Missing artifact file: {path}") from exc
     except Exception as exc:
         raise ModelResultsError(f"Failed to read CSV artifact: {path}") from exc
+
+
+def load_trained_model_bundle(
+    ticker: str,
+    period: str = "5y",
+    target_name: str = "target_5d_updown",
+    model_name: str = "logistic_regression",
+    base_dir: str | Path | None = None,
+) -> dict[str, Any]:
+    """Load trained model object + feature list from saved artifacts."""
+    artifact_dir = _resolve_model_artifact_dir(
+        ticker=ticker,
+        period=period,
+        target_name=target_name,
+        model_name=model_name,
+        base_dir=base_dir,
+    )
+
+    model_path = artifact_dir / "model.pkl"
+    feature_list_path = artifact_dir / "feature_list.json"
+    metrics_path = artifact_dir / "metrics_summary.json"
+
+    try:
+        with model_path.open("rb") as handle:
+            model = pickle.load(handle)
+    except FileNotFoundError as exc:
+        raise ModelResultsError(f"Missing artifact file: {model_path}") from exc
+    except Exception as exc:
+        raise ModelResultsError(f"Failed to load trained model artifact: {model_path}") from exc
+
+    metrics = _read_json_file(metrics_path)
+    try:
+        feature_names = json.loads(feature_list_path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise ModelResultsError(f"Missing artifact file: {feature_list_path}") from exc
+    except Exception as exc:
+        raise ModelResultsError(f"Failed to read feature list artifact: {feature_list_path}") from exc
+
+    if not isinstance(feature_names, list) or not all(isinstance(item, str) for item in feature_names):
+        raise ModelResultsError("Invalid feature list format in saved artifacts.")
+
+    return {
+        "artifact_dir": artifact_dir,
+        "model": model,
+        "feature_names": feature_names,
+        "task_type": str(metrics.get("task_type", "classification")),
+        "target_name": str(metrics.get("target_name", target_name)),
+        "metrics": metrics,
+    }
 
 
 def _build_rolling_accuracy_series(evaluation_df: pd.DataFrame, window: int) -> pd.DataFrame:

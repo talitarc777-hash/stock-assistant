@@ -194,6 +194,10 @@ def _aggregate_daily_features(
     base["average_sentiment"] = 0.0
     base["positive_article_ratio"] = 0.0
     base["negative_article_ratio"] = 0.0
+    base["article_count_recent_7d"] = 0
+    base["average_sentiment_recent_7d"] = 0.0
+    base["positive_article_ratio_recent_7d"] = 0.0
+    base["negative_article_ratio_recent_7d"] = 0.0
 
     if scored_article_df.empty:
         return base
@@ -213,7 +217,6 @@ def _aggregate_daily_features(
     )
     grouped["positive_article_ratio"] = grouped["positive_count"] / grouped["article_count"]
     grouped["negative_article_ratio"] = grouped["negative_count"] / grouped["article_count"]
-    grouped = grouped.drop(columns=["positive_count", "negative_count"])
 
     merged = base.merge(grouped, on="date", how="left", suffixes=("", "_agg"))
     for column in ("article_count", "average_sentiment", "positive_article_ratio", "negative_article_ratio"):
@@ -222,7 +225,76 @@ def _aggregate_daily_features(
             merged[column] = merged[agg_column].fillna(merged[column])
             merged = merged.drop(columns=[agg_column])
 
+    # Build a trailing 7-day view so "recent news" is available even when
+    # there is no exact same-day headline on a trading date.
+    rolling_base = merged[["date"]].copy().set_index("date")
+    grouped_indexed = grouped.set_index("date").reindex(rolling_base.index).fillna(0.0)
+    grouped_indexed["weighted_sentiment"] = (
+        grouped_indexed["average_sentiment"] * grouped_indexed["article_count"]
+    )
+    grouped_indexed["article_count_recent_7d"] = (
+        grouped_indexed["article_count"].rolling(window=7, min_periods=1).sum()
+    )
+    grouped_indexed["positive_count_recent_7d"] = (
+        grouped_indexed["positive_count"].rolling(window=7, min_periods=1).sum()
+    )
+    grouped_indexed["negative_count_recent_7d"] = (
+        grouped_indexed["negative_count"].rolling(window=7, min_periods=1).sum()
+    )
+    grouped_indexed["weighted_sentiment_recent_7d"] = (
+        grouped_indexed["weighted_sentiment"].rolling(window=7, min_periods=1).sum()
+    )
+    grouped_indexed["average_sentiment_recent_7d"] = grouped_indexed.apply(
+        lambda row: (
+            row["weighted_sentiment_recent_7d"] / row["article_count_recent_7d"]
+            if row["article_count_recent_7d"] > 0
+            else 0.0
+        ),
+        axis=1,
+    )
+    grouped_indexed["positive_article_ratio_recent_7d"] = grouped_indexed.apply(
+        lambda row: (
+            row["positive_count_recent_7d"] / row["article_count_recent_7d"]
+            if row["article_count_recent_7d"] > 0
+            else 0.0
+        ),
+        axis=1,
+    )
+    grouped_indexed["negative_article_ratio_recent_7d"] = grouped_indexed.apply(
+        lambda row: (
+            row["negative_count_recent_7d"] / row["article_count_recent_7d"]
+            if row["article_count_recent_7d"] > 0
+            else 0.0
+        ),
+        axis=1,
+    )
+
+    merged = merged.merge(
+        grouped_indexed[
+            [
+                "article_count_recent_7d",
+                "average_sentiment_recent_7d",
+                "positive_article_ratio_recent_7d",
+                "negative_article_ratio_recent_7d",
+            ]
+        ].reset_index(),
+        on="date",
+        how="left",
+        suffixes=("", "_rolling"),
+    )
+    for column in (
+        "article_count_recent_7d",
+        "average_sentiment_recent_7d",
+        "positive_article_ratio_recent_7d",
+        "negative_article_ratio_recent_7d",
+    ):
+        rolling_column = f"{column}_rolling"
+        if rolling_column in merged.columns:
+            merged[column] = merged[rolling_column].fillna(merged[column])
+            merged = merged.drop(columns=[rolling_column])
+
     merged["article_count"] = merged["article_count"].astype(int)
+    merged["article_count_recent_7d"] = merged["article_count_recent_7d"].astype(int)
     return merged
 
 
@@ -254,6 +326,12 @@ def build_daily_news_features(
             ticker=ticker_symbol,
             company_name=company_name,
         )
+        logger.info(
+            "News fetch completed ticker=%s company=%s fetched_articles=%d",
+            ticker_symbol,
+            company_name or "",
+            len(articles),
+        )
     except Exception as exc:  # pragma: no cover - provider failures vary by environment
         logger.warning(
             "News metadata fetch failed for ticker=%s company=%s: %s",
@@ -269,6 +347,7 @@ def build_daily_news_features(
 
     article_df = articles_to_frame(articles)
     if article_df.empty:
+        logger.info("News fetch returned no usable rows ticker=%s", ticker_symbol)
         return _aggregate_daily_features(
             scored_article_df=pd.DataFrame(),
             date_index=date_index,
@@ -276,8 +355,18 @@ def build_daily_news_features(
         )
 
     scored_df = _score_articles(article_df=article_df, scorer=scorer)
-    return _aggregate_daily_features(
+    features_df = _aggregate_daily_features(
         scored_article_df=scored_df,
         date_index=date_index,
         mapped_ticker=ticker_symbol,
     )
+    matched_rows = int((features_df["article_count"] > 0).sum())
+    matched_recent_rows = int((features_df["article_count_recent_7d"] > 0).sum())
+    logger.info(
+        "News aggregation ticker=%s article_rows=%d matched_exact_days=%d matched_recent_days=%d",
+        ticker_symbol,
+        len(scored_df),
+        matched_rows,
+        matched_recent_rows,
+    )
+    return features_df

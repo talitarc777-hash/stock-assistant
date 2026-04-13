@@ -81,6 +81,7 @@ def _contains_stock_keywords(text: str) -> bool:
         "model",
         "accuracy",
         "virtual trader",
+        "run trader",
         "trades",
         "buy or sell",
     ]
@@ -235,6 +236,10 @@ def parse_natural_language_message(message_text: str) -> ParsedIntent:
     if _contains_any(
         text,
         [
+            "run trader now",
+            "run virtual trader now",
+            "execute trader now",
+            "simulate now",
             "show virtual trader summary",
             "virtual trader summary",
             "virtual trader status",
@@ -244,6 +249,8 @@ def parse_natural_language_message(message_text: str) -> ParsedIntent:
         ticker_match = extract_tickers_from_text(text)
         if ticker_match.ambiguous:
             return ParsedIntent(intent=None, needs_help_hint=True, message=ticker_match.message)
+        if _contains_any(text, ["run trader now", "run virtual trader now", "execute trader now", "simulate now"]):
+            return ParsedIntent(intent="run_virtual_trader_now", tickers=ticker_match.tickers[:1])
         return ParsedIntent(intent="virtual_trader_summary", tickers=ticker_match.tickers[:1])
 
     if _contains_any(

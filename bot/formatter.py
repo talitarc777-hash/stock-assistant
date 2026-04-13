@@ -130,6 +130,7 @@ def format_help_message(prefix: str) -> str:
         f"- `{prefix}modelstatus VOO` show the latest model signal\n"
         f"- `{prefix}modelaccuracy VOO` show model hit rate and metrics\n"
         f"- `{prefix}virtualtrader VOO` show trader summary\n"
+        f"- `{prefix}runtrader VOO` run live trader now\n"
         f"- `{prefix}lasttrades VOO` show recent trades\n"
         f"- `{prefix}whytrade VOO` explain the latest trade\n"
         f"- `{prefix}comparetrader VOO` compare the trader with VOO\n"
@@ -151,6 +152,7 @@ def format_help_message(prefix: str) -> str:
         "- `model status VOO`\n"
         "- `show prediction accuracy for VOO`\n"
         "- `show virtual trader summary`\n"
+        "- `run trader now`\n"
         "- `show last 5 trades`\n"
         "- `why did the model buy or sell`\n"
         "- `compare virtual trader vs VOO`"
@@ -520,3 +522,62 @@ def format_virtual_trader_compare_message(
         f"- {gap_label}: {gap}\n"
         f"- Contributions: {_format_money(summary.get('total_contributions'))}"
     )
+
+
+def format_live_virtual_trader_status_message(
+    symbol: str,
+    data: dict[str, Any],
+    settings: dict[str, Any],
+) -> str:
+    """Format current live virtual trader status for Discord."""
+    language = settings.get("language", "zh")
+    compact_mode = bool(settings.get("compact_mode", False))
+    account = data.get("account", {})
+    decisions = _coerce_list(data.get("latest_decisions"))
+    latest = decisions[0] if decisions else {}
+
+    title = _text(language, "Live virtual trader", "即時虛擬交易", "Live virtual trader / 即時虛擬交易")
+    action_label = _text(language, "Action", "動作", "Action / 動作")
+    reason_label = _text(language, "Reason", "原因", "Reason / 原因")
+    confidence_label = _text(language, "Confidence", "信心", "Confidence / 信心")
+
+    if compact_mode:
+        return (
+            f"{title}: {symbol}\n"
+            f"- Cash: {_format_money(account.get('cash'))}\n"
+            f"- Equity: {_format_money(account.get('total_equity'))}\n"
+            f"- {action_label}: {_safe_text(latest.get('action'), 'N/A')}"
+        )
+
+    return (
+        f"{title}: {symbol}\n"
+        f"- Cash: {_format_money(account.get('cash'))}\n"
+        f"- Holdings value: {_format_money(account.get('holdings_value'))}\n"
+        f"- Total equity: {_format_money(account.get('total_equity'))}\n"
+        f"- Realized PnL: {_format_money(account.get('realized_pnl'))}\n"
+        f"- {action_label}: {_safe_text(latest.get('action'), 'N/A')}\n"
+        f"- {reason_label}: {_safe_text(latest.get('reason'), 'N/A')}\n"
+        f"- {confidence_label}: {_format_ratio(latest.get('confidence_score'))}"
+    )
+
+
+def format_live_virtual_trader_trades_message(
+    symbol: str,
+    data: dict[str, Any],
+    settings: dict[str, Any],
+    limit: int = 5,
+) -> str:
+    """Format latest live simulated trades for Discord."""
+    language = settings.get("language", "zh")
+    trades = _coerce_list(data.get("trades"))[: max(1, limit)]
+    title = _text(language, "Live trades", "即時交易紀錄", "Live trades / 即時交易紀錄")
+    if not trades:
+        return f"{title}: {symbol}\n- {_text(language, 'No records yet.', '暫時未有紀錄。')}"
+
+    lines = []
+    for trade in trades:
+        lines.append(
+            f"- {_safe_text(trade.get('timestamp'))[:19]} | {_safe_text(trade.get('action')).upper()} | "
+            f"{_format_price(trade.get('price'))} | {_safe_text(trade.get('reason'))}"
+        )
+    return f"{title}: {symbol}\n" + "\n".join(lines)

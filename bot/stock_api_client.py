@@ -130,3 +130,66 @@ def virtual_trader_trades(
         f"&period={period}&model_name={model_name}&limit={limit}"
     )
     return _get_json(url)
+
+
+def virtual_trader_live_status(
+    user_id: str,
+    ticker: str | None = None,
+    model_name: str | None = None,
+    auto_run: bool = False,
+):
+    """Fetch current live virtual trader status."""
+    ticker_query = f"&ticker={ticker}" if ticker else ""
+    model_query = f"&model_name={model_name}" if model_name else ""
+    url = (
+        f"{BACKEND_BASE_URL}/virtual-trader/live-status?user_id={user_id}"
+        f"{ticker_query}{model_query}&auto_run={'true' if auto_run else 'false'}"
+    )
+    return _get_json(url)
+
+
+def virtual_trader_run_now(
+    user_id: str,
+    tickers: list[str] | None = None,
+    model_name: str | None = None,
+):
+    """Run live virtual trader now and return updated status."""
+    url = f"{BACKEND_BASE_URL}/virtual-trader/run-now"
+    payload = {"user_id": user_id}
+    if tickers:
+        payload["tickers"] = tickers
+    if model_name:
+        payload["model_name"] = model_name
+    try:
+        response = requests.post(url, json=payload, timeout=20)
+    except requests.exceptions.Timeout as exc:
+        raise BackendTimeoutError("Backend request timed out.") from exc
+    except requests.exceptions.ConnectionError as exc:
+        raise BackendUnavailableError("Backend is unavailable.") from exc
+    except requests.exceptions.RequestException as exc:
+        raise ApiClientError("Backend request failed.") from exc
+
+    try:
+        data = response.json()
+    except ValueError:
+        data = {}
+    if response.status_code >= 400:
+        detail = str(data.get("detail", f"HTTP {response.status_code}"))
+        if response.status_code >= 500:
+            raise BackendUnavailableError(detail)
+        raise ApiClientError(detail)
+    return data
+
+
+def virtual_trader_live_trades(
+    user_id: str,
+    ticker: str | None = None,
+    limit: int = 20,
+):
+    """Fetch latest live virtual trader trade/decision logs."""
+    ticker_query = f"&ticker={ticker}" if ticker else ""
+    url = (
+        f"{BACKEND_BASE_URL}/virtual-trader/live-trades?user_id={user_id}"
+        f"{ticker_query}&limit={int(limit)}"
+    )
+    return _get_json(url)

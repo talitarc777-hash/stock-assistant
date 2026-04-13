@@ -618,3 +618,39 @@ New backend endpoints:
 - `GET /monthly-contributions?user_id=...`
 - `POST /monthly-contributions/initialize`
 - `POST /monthly-contributions/update`
+
+## Live Virtual Trader Mode
+
+The project now supports two different trader views:
+
+- Historical replay mode:
+  uses saved walk-forward evaluation history for research comparison
+- Live virtual trader mode:
+  uses latest available market data and the selected saved model to decide
+  simulated `buy`, `sell`, `hold`, or `no_action` now
+
+Monthly contribution behavior in live mode:
+
+- Contributions still start from `2026-04`
+- When you save monthly records, each month is applied from that month onward
+- If current month has an amount set, it becomes available immediately
+- Duplicate runs in the same month do not double-count contributions
+- If a month amount increases later, only the difference is applied
+
+Live virtual trader endpoints:
+
+- `GET /virtual-trader/live-status?user_id=...`
+- `POST /virtual-trader/run-now`
+- `GET /virtual-trader/live-trades?user_id=...`
+
+News sentiment pipeline and debugging:
+
+- News is fetched from Yahoo provider metadata, scored (FinBERT with lexicon fallback),
+  then aggregated to daily and recent-7-day features
+- New debug endpoints:
+  - `GET /news-sentiment/latest?ticker=VOO`
+  - `GET /news-sentiment/debug?ticker=VOO&date=2026-04-01`
+- These endpoints help separate:
+  - no recent matched news
+  - fetched but unmatched-by-date window
+  - pipeline/fetch failures

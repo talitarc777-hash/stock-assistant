@@ -66,12 +66,24 @@ def build_technical_state_summary(feature_row: pd.Series) -> str:
 def build_news_sentiment_summary(feature_row: pd.Series) -> str:
     """Summarize the recent news signal in cautious wording."""
     article_count = _safe_float(feature_row.get("article_count"))
+    article_count_recent = _safe_float(feature_row.get("article_count_recent_7d"))
     average_sentiment = _safe_float(feature_row.get("average_sentiment"))
+    average_sentiment_recent = _safe_float(feature_row.get("average_sentiment_recent_7d"))
     positive_ratio = _safe_float(feature_row.get("positive_article_ratio"))
     negative_ratio = _safe_float(feature_row.get("negative_article_ratio"))
+    positive_ratio_recent = _safe_float(feature_row.get("positive_article_ratio_recent_7d"))
+    negative_ratio_recent = _safe_float(feature_row.get("negative_article_ratio_recent_7d"))
+
+    using_recent_window = False
+    if (article_count is None or article_count <= 0) and article_count_recent is not None and article_count_recent > 0:
+        using_recent_window = True
+        article_count = article_count_recent
+        average_sentiment = average_sentiment_recent if average_sentiment_recent is not None else average_sentiment
+        positive_ratio = positive_ratio_recent if positive_ratio_recent is not None else positive_ratio
+        negative_ratio = negative_ratio_recent if negative_ratio_recent is not None else negative_ratio
 
     if article_count is None or article_count <= 0:
-        return "News sentiment was limited because no recent articles were captured for this date."
+        return "No recent matched news was found for this ticker/date."
 
     if average_sentiment is not None and average_sentiment > 0.15:
         tone = "Recent news tone was mildly positive"
@@ -80,7 +92,8 @@ def build_news_sentiment_summary(feature_row: pd.Series) -> str:
     else:
         tone = "Recent news tone was fairly balanced"
 
-    detail_parts = [f"based on {int(article_count)} article(s)"]
+    scope_text = "from same-day matches" if not using_recent_window else "from the recent 7-day window"
+    detail_parts = [f"based on {int(article_count)} article(s) {scope_text}"]
     if positive_ratio is not None:
         detail_parts.append(f"positive ratio {positive_ratio:.0%}")
     if negative_ratio is not None:
