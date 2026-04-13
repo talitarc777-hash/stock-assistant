@@ -3,6 +3,10 @@ import React, { useEffect, useState } from "react";
 import MonthlyContributionTable from "../components/MonthlyContributionTable";
 import WatchlistManager from "../components/WatchlistManager";
 import {
+  labelByMode,
+  SETTINGS_MODEL_EVAL_LABELS as MODEL_LABELS,
+} from "../i18n/bilingualUiLabels";
+import {
   fetchModelEvaluationSettings,
   updateModelEvaluationSettings,
 } from "../services/modelSettingsApi";
@@ -25,12 +29,6 @@ function textToWatchlist(value) {
     .filter(Boolean);
 }
 
-function labelByMode(mode, en, zh) {
-  if (mode === "zh") return zh;
-  if (mode === "en") return en;
-  return `${en} / ${zh}`;
-}
-
 const ZH = {
   settingsSaved: "\u8a2d\u5b9a\u5df2\u5132\u5b58\u3002",
   sharedProfile: "\u9019\u500b\u500b\u4eba\u8a2d\u5b9a\u6703\u8207 Discord \u6a5f\u68b0\u4eba\u5171\u7528\u3002",
@@ -44,10 +42,6 @@ const ZH = {
   alertLow: "\u4f4e\u4f4d\u63d0\u793a\u9580\u6abb",
   alertWatchlist: "\u63d0\u793a\u89c0\u5bdf\u540d\u55ae",
   save: "\u5132\u5b58",
-  modelEvaluation: "\u6a21\u578b\u8a55\u4f30",
-  modelEvaluationLabel: "Model Evaluation (\u6a21\u578b\u8a55\u4f30)",
-  modelEvaluationHint:
-    "\u9019\u500b\u5df2\u9078\u6a21\u578b\u6703\u7528\u65bc\u300c\u6a21\u578b\u8a55\u4f30\u300d\u53ca\u300c\u865b\u64ec\u4ea4\u6613\u54e1\u300d\u9801\u9762\u3002",
   profileIdHint:
     "\u5982\u679c\u60a8\u60f3\u5728\u4e0d\u540c\u88dd\u7f6e\u4e0a\u540c\u6b65\u8a2d\u5b9a\u8207\u89c0\u5bdf\u540d\u55ae\uff0c\u8acb\u4f7f\u7528\u76f8\u540c\u7684 Profile ID\u3002",
   alertWatchlistHint:
@@ -205,7 +199,7 @@ export default function SettingsPage({
           </label>
 
           <label>
-            {labelByMode(languageMode, ZH.modelEvaluationLabel, ZH.modelEvaluation)}
+            {labelByMode(languageMode, MODEL_LABELS.modelEvaluation.en, MODEL_LABELS.modelEvaluation.zh)}
             <select
               value={selectedModelName}
               onChange={(event) => setSelectedModelName(event.target.value)}
@@ -220,8 +214,8 @@ export default function SettingsPage({
           <p className="helper-text">
             {labelByMode(
               languageMode,
-              "This selected model is used by Model Evaluation and the Virtual Trader pages.",
-              ZH.modelEvaluationHint
+              MODEL_LABELS.modelEvaluationHint.en,
+              MODEL_LABELS.modelEvaluationHint.zh
             )}
           </p>
 
