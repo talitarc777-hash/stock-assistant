@@ -1,0 +1,48 @@
+{
+  "generated_at_utc": "2026-04-13T09:43:19.187117+00:00",
+  "ticker": "SPY",
+  "period": "5y",
+  "target_name": "target_5d_updown",
+  "task_type": "classification",
+  "model_name": "random_forest",
+  "row_count": 999,
+  "feature_count": 41,
+  "time_series_splits": 5,
+  "validation_method": "walk_forward_expanding_window",
+  "validation_note": "Random train/test shuffling is avoided because time-series evaluation must preserve time order and keep future data out of the training window.",
+  "fold_sizes": [
+    {
+      "fold": 1,
+      "train_rows": 169,
+      "test_rows": 166
+    },
+    {
+      "fold": 2,
+      "train_rows": 335,
+      "test_rows": 166
+    },
+    {
+      "fold": 3,
+      "train_rows": 501,
+      "test_rows": 166
+    },
+    {
+      "fold": 4,
+      "train_rows": 667,
+      "test_rows": 166
+    },
+    {
+      "fold": 5,
+      "train_rows": 833,
+      "test_rows": 166
+    }
+  ],
+  "metrics": {
+    "accuracy": 0.4397590361445783,
+    "precision": 0.6149732620320856,
+    "recall": 0.2263779527559055,
+    "f1": 0.33093525179856115,
+    "positive_rate_actual": 0.6120481927710844,
+    "positive_rate_predicted": 0.2253012048192771
+  }
+}
