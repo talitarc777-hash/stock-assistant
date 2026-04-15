@@ -195,6 +195,12 @@ def virtual_trader_live_trades(
     return _get_json(url)
 
 
+def trader_scheduler_status(log_limit: int = 8):
+    """Fetch trader scheduler runtime status."""
+    url = f"{BACKEND_BASE_URL}/virtual-trader/scheduler-status?log_limit={int(log_limit)}"
+    return _get_json(url)
+
+
 def virtual_account_summary(user_id: str):
     """Fetch immutable virtual account summary."""
     url = f"{BACKEND_BASE_URL}/virtual-account/summary?user_id={user_id}"

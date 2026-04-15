@@ -15,9 +15,12 @@ from app.services.live_virtual_trader import (
     LiveVirtualTraderError,
     get_live_virtual_trader_status,
     list_live_virtual_trader_trades,
-    run_live_virtual_trader_now,
 )
 from app.services.model_selection_service import resolve_selected_model_name
+from app.services.trader_scheduler import (
+    TraderSchedulerBusyError,
+    get_trader_scheduler_service,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,13 +38,22 @@ def get_virtual_trader_live_status(
     try:
         resolved_model_name = resolve_selected_model_name(user_id=user_id, requested_model_name=model_name)
         tickers = [ticker.strip().upper()] if ticker else None
-        status = get_live_virtual_trader_status(
-            user_id=user_id,
-            tickers=tickers,
-            model_name=resolved_model_name,
-            auto_run=auto_run,
-        )
+        if auto_run:
+            status = get_trader_scheduler_service().run_user_now(
+                user_id=user_id,
+                tickers=tickers,
+                model_name=resolved_model_name,
+            )
+        else:
+            status = get_live_virtual_trader_status(
+                user_id=user_id,
+                tickers=tickers,
+                model_name=resolved_model_name,
+                auto_run=False,
+            )
         return LiveTraderStatusResponse(**status.__dict__)
+    except TraderSchedulerBusyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except LiveVirtualTraderError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # pragma: no cover - defensive guard
@@ -73,12 +85,14 @@ def run_virtual_trader_now(request: LiveTraderRunRequest) -> LiveTraderStatusRes
             user_id=request.user_id,
             requested_model_name=request.model_name,
         )
-        status = run_live_virtual_trader_now(
+        status = get_trader_scheduler_service().run_user_now(
             user_id=request.user_id,
             tickers=request.tickers,
             model_name=resolved_model_name,
         )
         return LiveTraderStatusResponse(**status.__dict__)
+    except TraderSchedulerBusyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except LiveVirtualTraderError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # pragma: no cover - defensive guard

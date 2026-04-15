@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 import {
+  fetchTraderSchedulerStatus,
   fetchLiveVirtualTraderStatus,
   fetchLiveVirtualTraderTrades,
   fetchVirtualAccountLedger,
@@ -15,6 +16,7 @@ import CashLedgerTable from "../components/CashLedgerTable";
 import EquityChart from "../components/EquityChart";
 import LineChart from "../components/LineChart";
 import NewsSentimentPanel from "../components/NewsSentimentPanel";
+import TraderStatusPanel from "../components/TraderStatusPanel";
 import { fetchModelEvaluationSettings } from "../services/modelSettingsApi";
 
 const DEFAULT_PERIOD = "5y";
@@ -98,6 +100,7 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
   const [selectedTicker, setSelectedTicker] = useState(currentWatchlist[0] || "VOO");
   const [selectedModelName, setSelectedModelName] = useState(DEFAULT_MODEL);
   const [liveStatus, setLiveStatus] = useState(null);
+  const [schedulerStatus, setSchedulerStatus] = useState(null);
   const [liveTrades, setLiveTrades] = useState([]);
   const [accountSummary, setAccountSummary] = useState(null);
   const [ledgerEvents, setLedgerEvents] = useState([]);
@@ -143,6 +146,7 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
     setError("");
     try {
       const [
+        schedulerStatusPayload,
         statusPayload,
         tradesPayload,
         accountPayload,
@@ -150,6 +154,7 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
         historicalSummaryPayload,
         historicalTradesPayload,
       ] = await Promise.all([
+        fetchTraderSchedulerStatus(8),
         fetchLiveVirtualTraderStatus(profileId, activeTicker, selectedModelName, false),
         fetchLiveVirtualTraderTrades(profileId, activeTicker, 20),
         fetchVirtualAccountSummary(profileId),
@@ -157,6 +162,7 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
         fetchVirtualTraderSummary(activeTicker, DEFAULT_PERIOD, selectedModelName, 500, profileId),
         fetchVirtualTraderTrades(activeTicker, DEFAULT_PERIOD, selectedModelName, 200, profileId),
       ]);
+      setSchedulerStatus(schedulerStatusPayload);
       setLiveStatus(statusPayload);
       setLiveTrades(tradesPayload.trades || []);
       setSelectedLiveTrade((tradesPayload.trades || [])[0] || null);
@@ -166,6 +172,7 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
       setHistoricalTrades(historicalTradesPayload);
     } catch (requestError) {
       setLiveStatus(null);
+      setSchedulerStatus(null);
       setLiveTrades([]);
       setSelectedLiveTrade(null);
       setAccountSummary(null);
@@ -178,9 +185,26 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
     }
   }
 
+  async function loadSchedulerStatusOnly() {
+    try {
+      const payload = await fetchTraderSchedulerStatus(8);
+      setSchedulerStatus(payload);
+    } catch {
+      setSchedulerStatus(null);
+    }
+  }
+
   useEffect(() => {
     loadAllViews(selectedTicker);
   }, [selectedTicker, selectedModelName, profileId]);
+
+  useEffect(() => {
+    if (!profileId) return undefined;
+    const timer = window.setInterval(() => {
+      loadSchedulerStatusOnly();
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, [profileId]);
 
   async function handleRunNow() {
     if (!profileId) return;
@@ -281,6 +305,13 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
 
       {error ? <p className="error-box">{error}</p> : null}
       {isLoading ? <p className="panel">{labelByMode(languageMode, "Loading...", ZH.loading)}</p> : null}
+
+      <TraderStatusPanel
+        languageMode={languageMode}
+        status={schedulerStatus}
+        isLoading={isLoading && !schedulerStatus}
+        onRefresh={loadSchedulerStatusOnly}
+      />
 
       <section className="panel">
         <h3>{labelByMode(languageMode, "Live Trader Status (Near-live Simulation)", ZH.liveStatusTitle)}</h3>

@@ -86,6 +86,18 @@ class NaturalLanguageRouterTests(unittest.TestCase):
         self.assertEqual(parsed.intent, "virtual_trader_summary")
         self.assertEqual(parsed.tickers, [])
 
+    def test_show_trader_scheduler_status(self) -> None:
+        parsed = parse_natural_language_message("show trader status")
+        self.assertEqual(parsed.intent, "trader_scheduler_status")
+
+    def test_show_last_scheduler_run(self) -> None:
+        parsed = parse_natural_language_message("show last run")
+        self.assertEqual(parsed.intent, "trader_scheduler_last_run")
+
+    def test_show_next_scheduler_run(self) -> None:
+        parsed = parse_natural_language_message("show next run")
+        self.assertEqual(parsed.intent, "trader_scheduler_next_run")
+
     def test_show_last_five_trades_without_ticker(self) -> None:
         parsed = parse_natural_language_message("show last 5 trades")
         self.assertEqual(parsed.intent, "virtual_trader_trades")

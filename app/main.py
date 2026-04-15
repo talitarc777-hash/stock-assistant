@@ -1,5 +1,6 @@
 """FastAPI entrypoint for the stock-assistant backend."""
 
+from contextlib import asynccontextmanager
 import logging
 
 from fastapi import FastAPI
@@ -16,11 +17,13 @@ from app.api.models import router as models_router
 from app.api.monthly_contributions import router as monthly_contributions_router
 from app.api.news_sentiment import router as news_sentiment_router
 from app.api.paper import router as paper_router
+from app.api.trader_status import router as trader_status_router
 from app.api.user_profile import router as user_profile_router
 from app.api.universe import router as universe_router
 from app.api.virtual_account import router as virtual_account_router
 from app.api.virtual_trader import router as virtual_trader_router
 from app.core.settings import get_settings
+from app.services.trader_scheduler import get_trader_scheduler_service
 
 logging.basicConfig(
     level=logging.INFO,
@@ -38,6 +41,18 @@ class HealthResponse(BaseModel):
 
 settings = get_settings()
 
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Start/stop background trader scheduler with app lifecycle."""
+    scheduler = get_trader_scheduler_service()
+    scheduler.start()
+    try:
+        yield
+    finally:
+        scheduler.stop()
+
+
 # Create the API app instance.
 app = FastAPI(
     title=settings.app_name,
@@ -46,6 +61,7 @@ app = FastAPI(
         "Decision-support backend for stock and ETF analysis. "
         "This service gives suggestions, not automated trades."
     ),
+    lifespan=lifespan,
 )
 app.add_middleware(
     CORSMiddleware,
@@ -73,6 +89,7 @@ app.include_router(user_profile_router)
 app.include_router(universe_router)
 app.include_router(virtual_account_router)
 app.include_router(virtual_trader_router)
+app.include_router(trader_status_router)
 app.include_router(news_sentiment_router)
 
 

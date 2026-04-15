@@ -160,6 +160,10 @@ export async function fetchLiveVirtualTraderTrades(userId, ticker = null, limit 
   );
 }
 
+export async function fetchTraderSchedulerStatus(logLimit = 8) {
+  return fetchJson(`/virtual-trader/scheduler-status?log_limit=${encodeURIComponent(logLimit)}`);
+}
+
 export async function fetchNewsSentimentLatest(ticker, period = "6mo") {
   return fetchJson(`/news-sentiment/latest?ticker=${encodeURIComponent(ticker)}&period=${period}`);
 }

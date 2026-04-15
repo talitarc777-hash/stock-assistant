@@ -127,6 +127,9 @@ def format_help_message(prefix: str) -> str:
         f"- `{prefix}forecast NVDA` view the outlook\n"
         f"- `{prefix}watchlist` rank your watchlist\n"
         f"- `{prefix}alerts` show current alert signals\n"
+        f"- `{prefix}traderstatus` show scheduler status\n"
+        f"- `{prefix}lastrun` show last scheduler run\n"
+        f"- `{prefix}nextrun` show next scheduler run\n"
         f"- `{prefix}modelstatus VOO` show the latest model signal\n"
         f"- `{prefix}modelaccuracy VOO` show model hit rate and metrics\n"
         f"- `{prefix}virtualtrader VOO` show trader summary\n"
@@ -618,3 +621,46 @@ def format_virtual_account_ledger_message(
             f"{_format_money(event.get('amount'))} | {_safe_text(event.get('ticker'), '-')}"
         )
     return f"{title}\n" + "\n".join(lines)
+
+
+def format_trader_scheduler_status_message(data: dict[str, Any], settings: dict[str, Any]) -> str:
+    """Format scheduler status for Discord in a compact, readable way."""
+    language = settings.get("language", "zh")
+    compact_mode = bool(settings.get("compact_mode", False))
+
+    title = _text(language, "Trader scheduler", "交易排程器", "Trader scheduler / 交易排程器")
+    running_text = (
+        _text(language, "Running", "執行中", "Running / 執行中")
+        if bool(data.get("running"))
+        else _text(language, "Idle", "待機中", "Idle / 待機中")
+    )
+    mode = str(data.get("mode", "market_closed"))
+    mode_text = (
+        _text(language, "Market Open (5 min)", "開市（5 分鐘）", "Market Open (5 min) / 開市（5 分鐘）")
+        if mode == "market_open"
+        else _text(language, "Market Closed (1 hour)", "休市（1 小時）", "Market Closed (1 hour) / 休市（1 小時）")
+    )
+
+    last_run = _safe_text(data.get("last_run_time_utc"), "N/A")
+    next_run = _safe_text(data.get("next_run_time_utc"), "N/A")
+    executed = _safe_text(data.get("last_decisions_executed"), "0")
+    total = _safe_text(data.get("last_decisions_total"), "0")
+    skipped = _safe_text(data.get("skipped_runs_total"), "0")
+
+    if compact_mode:
+        return (
+            f"{title}\n"
+            f"- {_text(language, 'Status', '狀態')}: {running_text}\n"
+            f"- {_text(language, 'Mode', '模式')}: {mode_text}\n"
+            f"- {_text(language, 'Next run', '下次執行')}: {next_run}"
+        )
+
+    return (
+        f"{title}\n"
+        f"- {_text(language, 'Status', '狀態')}: {running_text}\n"
+        f"- {_text(language, 'Mode', '模式')}: {mode_text}\n"
+        f"- {_text(language, 'Last run', '上次執行')}: {last_run}\n"
+        f"- {_text(language, 'Next run', '下次執行')}: {next_run}\n"
+        f"- {_text(language, 'Last decisions', '上次決策')}: {executed}/{total}\n"
+        f"- {_text(language, 'Skipped runs', '略過次數')}: {skipped}"
+    )

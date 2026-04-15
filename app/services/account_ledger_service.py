@@ -376,6 +376,72 @@ class AccountLedgerService:
             )
         return records
 
+    def apply_recurring_monthly_contribution_if_due(
+        self,
+        user_id: str,
+        source: str = "scheduler",
+    ) -> dict[str, Any] | None:
+        """Auto-create the current-month contribution when monthly recurrence is due.
+
+        Beginner-friendly recurrence rule:
+        - if current month already has a monthly_contribution event: do nothing
+        - otherwise carry forward the latest prior monthly_contribution amount
+        - if no prior monthly contribution exists: do nothing
+        """
+        clean_user_id = _clean_user_id(user_id)
+        current_month = _current_month()
+
+        with self._connect() as conn:
+            existing = conn.execute(
+                """
+                SELECT id
+                FROM account_ledger_events
+                WHERE user_id = ?
+                  AND event_type = 'monthly_contribution'
+                  AND reference_month = ?
+                LIMIT 1
+                """,
+                (clean_user_id, current_month),
+            ).fetchone()
+            if existing is not None:
+                return None
+
+            latest_prior = conn.execute(
+                """
+                SELECT reference_month, amount
+                FROM account_ledger_events
+                WHERE user_id = ?
+                  AND event_type = 'monthly_contribution'
+                  AND reference_month IS NOT NULL
+                  AND reference_month < ?
+                ORDER BY reference_month DESC, id DESC
+                LIMIT 1
+                """,
+                (clean_user_id, current_month),
+            ).fetchone()
+
+        if latest_prior is None:
+            return None
+
+        carry_amount = float(latest_prior["amount"] or 0.0)
+        if carry_amount <= 0:
+            return None
+
+        event = self.create_monthly_contribution(
+            user_id=clean_user_id,
+            month=current_month,
+            amount=carry_amount,
+            source=source,
+            reason="auto recurring monthly contribution",
+        )
+        logger.info(
+            "Auto-applied recurring monthly contribution user_id=%s month=%s amount=%.2f",
+            clean_user_id,
+            current_month,
+            carry_amount,
+        )
+        return event
+
     def build_monthly_contribution_view(self, user_id: str) -> list[dict[str, Any]]:
         clean_user_id = _clean_user_id(user_id)
         existing = {row["month"]: row for row in self.list_monthly_contribution_records(clean_user_id)}

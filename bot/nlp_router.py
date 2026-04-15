@@ -82,6 +82,10 @@ def _contains_stock_keywords(text: str) -> bool:
         "accuracy",
         "virtual trader",
         "run trader",
+        "trader status",
+        "scheduler",
+        "last run",
+        "next run",
         "trades",
         "account",
         "cash balance",
@@ -236,6 +240,37 @@ def parse_natural_language_message(message_text: str) -> ParsedIntent:
         if ticker_match.tickers:
             return ParsedIntent(intent="model_accuracy", tickers=ticker_match.tickers[:1])
         return ParsedIntent(intent=None, needs_help_hint=True, message=_ticker_help("model_accuracy"))
+
+    if _contains_any(
+        text,
+        [
+            "show trader status",
+            "trader scheduler status",
+            "scheduler status",
+            "show scheduler status",
+        ],
+    ):
+        return ParsedIntent(intent="trader_scheduler_status")
+
+    if _contains_any(
+        text,
+        [
+            "show last run",
+            "last scheduler run",
+            "when did trader run last",
+        ],
+    ):
+        return ParsedIntent(intent="trader_scheduler_last_run")
+
+    if _contains_any(
+        text,
+        [
+            "show next run",
+            "next scheduler run",
+            "when is next trader run",
+        ],
+    ):
+        return ParsedIntent(intent="trader_scheduler_next_run")
 
     if _contains_any(
         text,

@@ -5,6 +5,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 from uuid import uuid4
+from unittest.mock import patch
 
 from app.services.account_ledger_service import AccountLedgerError, AccountLedgerService
 
@@ -41,6 +42,17 @@ class AccountLedgerServiceTests(unittest.TestCase):
         self.assertAlmostEqual(summary["holdings_value"], 330.0, places=6)
         self.assertAlmostEqual(summary["total_account_value"], 1530.0, places=6)
         self.assertEqual(len(summary["holdings"]), 1)
+
+    def test_apply_recurring_monthly_contribution_if_due(self) -> None:
+        self.service.create_monthly_contribution("u1", "2026-04", 1000.0)
+        with patch("app.services.account_ledger_service._current_month", return_value="2026-05"):
+            created = self.service.apply_recurring_monthly_contribution_if_due("u1", source="scheduler")
+            self.assertIsNotNone(created)
+            self.assertEqual(created["reference_month"], "2026-05")
+            self.assertAlmostEqual(created["amount"], 1000.0, places=6)
+
+            second_try = self.service.apply_recurring_monthly_contribution_if_due("u1", source="scheduler")
+            self.assertIsNone(second_try)
 
 
 if __name__ == "__main__":

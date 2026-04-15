@@ -705,3 +705,18 @@ Continuous local runner:
 .venv\Scripts\python scripts\live_trader_runner.py --once --user-id demo-user
 .venv\Scripts\python scripts\live_trader_runner.py --interval-seconds 300
 ```
+
+## Trader Scheduler (Auto-Run)
+
+The backend now starts a background trader scheduler automatically at app startup.
+
+Cadence rules:
+- Market open (U.S. ET 9:30-16:00, weekdays): every 5 minutes
+- Market closed (including weekends): every 1 hour
+
+Key endpoints:
+- GET /virtual-trader/scheduler-status
+- GET /trader-status (alias)
+- POST /virtual-trader/scheduler-run-now
+
+The scheduler and manual run-now share the same lock to prevent overlapping execution.

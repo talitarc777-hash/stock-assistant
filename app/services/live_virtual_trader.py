@@ -323,6 +323,43 @@ def _latest_prices_for_symbols(symbols: list[str]) -> dict[str, float]:
     return prices
 
 
+def _parse_iso_timestamp(value: str | None) -> datetime | None:
+    """Parse ISO timestamp safely for cooldown checks."""
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def _is_trade_cooldown_active(
+    *,
+    latest_trade: dict[str, Any] | None,
+    action: str,
+    now_utc: datetime,
+    cooldown_minutes: float,
+) -> bool:
+    """Return True when the same action was already executed within cooldown."""
+    if cooldown_minutes <= 0:
+        return False
+    if not latest_trade:
+        return False
+    latest_action = str(latest_trade.get("action", "")).lower()
+    if latest_action != str(action).lower():
+        return False
+    latest_ts = _parse_iso_timestamp(latest_trade.get("timestamp"))
+    if latest_ts is None:
+        return False
+    elapsed_seconds = (now_utc - latest_ts).total_seconds()
+    if elapsed_seconds < 0:
+        return False
+    return elapsed_seconds < (float(cooldown_minutes) * 60.0)
+
+
 def run_live_virtual_trader_now(
     user_id: str,
     tickers: list[str] | None = None,
@@ -335,6 +372,7 @@ def run_live_virtual_trader_now(
     stop_loss_pct: float = 0.10,
     take_profit_pct: float | None = None,
     min_predicted_return_pct: float = 0.0,
+    signal_cooldown_minutes: float = 60.0,
 ) -> LiveStatus:
     """Run one live decision cycle and persist simulated actions."""
     clean_user_id = str(user_id).strip()
@@ -474,7 +512,16 @@ def run_live_virtual_trader_now(
         latest_trade_for_symbol = store.list_trades(clean_user_id, limit=1, ticker=symbol)
         if action in {"buy", "sell"} and latest_trade_for_symbol:
             previous = latest_trade_for_symbol[0]
-            if (
+            now_dt = datetime.now(UTC)
+            if _is_trade_cooldown_active(
+                latest_trade=previous,
+                action=action,
+                now_utc=now_dt,
+                cooldown_minutes=signal_cooldown_minutes,
+            ):
+                action, reason = "no_action", "signal_cooldown_active"
+                quantity = 0.0
+            elif (
                 previous.get("action") == action
                 and previous.get("reason") == reason
             ):

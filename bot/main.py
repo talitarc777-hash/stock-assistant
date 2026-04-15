@@ -17,6 +17,7 @@ try:
         format_live_virtual_trader_status_message,
         format_live_virtual_trader_trades_message,
         format_settings_message,
+        format_trader_scheduler_status_message,
         format_trade_reason_message,
         format_virtual_account_ledger_message,
         format_virtual_account_summary_message,
@@ -64,6 +65,7 @@ try:
         virtual_trader_summary,
         virtual_trader_trades,
         watchlist,
+        trader_scheduler_status,
     )
 except ImportError:  # pragma: no cover - script execution fallback
     from config import (
@@ -81,6 +83,7 @@ except ImportError:  # pragma: no cover - script execution fallback
         format_live_virtual_trader_status_message,
         format_live_virtual_trader_trades_message,
         format_settings_message,
+        format_trader_scheduler_status_message,
         format_trade_reason_message,
         format_virtual_account_ledger_message,
         format_virtual_account_summary_message,
@@ -128,6 +131,7 @@ except ImportError:  # pragma: no cover - script execution fallback
         virtual_trader_summary,
         virtual_trader_trades,
         watchlist,
+        trader_scheduler_status,
     )
 
 intents = discord.Intents.default()
@@ -166,6 +170,8 @@ def _friendly_error_message(exc: Exception) -> str:
     if isinstance(exc, ApiClientError):
         detail = str(exc)
         detail_lower = detail.lower()
+        if "already running" in detail_lower:
+            return "Trader is already running a cycle now. Please try again in a moment."
         if "saved model artifacts were not found" in detail_lower or "run the training command first" in detail_lower:
             return "I couldn't find saved model results for that ticker yet. Run the training step first, then try again."
         if "saved virtual trader artifacts were not found" in detail_lower or "run the virtual trader command first" in detail_lower:
@@ -621,6 +627,44 @@ async def _send_alerts(ctx) -> None:
     await ctx.send(format_alerts_message(alert_lines, user_settings))
 
 
+async def _send_trader_scheduler_status(ctx) -> None:
+    """Fetch and send scheduler runtime status."""
+    user_settings = _get_shared_user_settings(ctx)
+    data = trader_scheduler_status(log_limit=8)
+    data = _require_dict(data, "trader scheduler status response")
+    await ctx.send(format_trader_scheduler_status_message(data, user_settings))
+
+
+async def _send_trader_last_run(ctx) -> None:
+    """Send the most recent scheduler run time only."""
+    user_settings = _get_shared_user_settings(ctx)
+    language = str(user_settings.get("language", "bilingual"))
+    data = trader_scheduler_status(log_limit=2)
+    data = _require_dict(data, "trader scheduler status response")
+    value = data.get("last_run_time_utc") or "N/A"
+    if language == "zh":
+        await ctx.send(f"上次執行時間: {value}")
+    elif language == "en":
+        await ctx.send(f"Last run time: {value}")
+    else:
+        await ctx.send(f"Last run / 上次執行: {value}")
+
+
+async def _send_trader_next_run(ctx) -> None:
+    """Send the next scheduled run time only."""
+    user_settings = _get_shared_user_settings(ctx)
+    language = str(user_settings.get("language", "bilingual"))
+    data = trader_scheduler_status(log_limit=2)
+    data = _require_dict(data, "trader scheduler status response")
+    value = data.get("next_run_time_utc") or "N/A"
+    if language == "zh":
+        await ctx.send(f"下次執行時間: {value}")
+    elif language == "en":
+        await ctx.send(f"Next run time: {value}")
+    else:
+        await ctx.send(f"Next run / 下次執行: {value}")
+
+
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
@@ -697,6 +741,12 @@ async def on_message(message):
             await _send_virtual_account_summary(ctx)
         elif parsed.intent == "virtual_account_ledger":
             await _send_virtual_account_ledger(ctx, limit=10)
+        elif parsed.intent == "trader_scheduler_status":
+            await _send_trader_scheduler_status(ctx)
+        elif parsed.intent == "trader_scheduler_last_run":
+            await _send_trader_last_run(ctx)
+        elif parsed.intent == "trader_scheduler_next_run":
+            await _send_trader_next_run(ctx)
         elif parsed.needs_help_hint and parsed.message:
             await message.channel.send(parsed.message)
         else:
@@ -880,6 +930,42 @@ async def alerts_cmd(ctx):
         await _send_alerts(ctx)
     except Exception as exc:
         print("ALERTS ERROR:", repr(exc))
+        await ctx.send(_friendly_error_message(exc))
+
+
+@bot.command(name="traderstatus")
+async def traderstatus_cmd(ctx):
+    if not is_allowed(ctx):
+        return
+
+    try:
+        await _send_trader_scheduler_status(ctx)
+    except Exception as exc:
+        print("TRADERSTATUS ERROR:", repr(exc))
+        await ctx.send(_friendly_error_message(exc))
+
+
+@bot.command(name="lastrun")
+async def lastrun_cmd(ctx):
+    if not is_allowed(ctx):
+        return
+
+    try:
+        await _send_trader_last_run(ctx)
+    except Exception as exc:
+        print("LASTRUN ERROR:", repr(exc))
+        await ctx.send(_friendly_error_message(exc))
+
+
+@bot.command(name="nextrun")
+async def nextrun_cmd(ctx):
+    if not is_allowed(ctx):
+        return
+
+    try:
+        await _send_trader_next_run(ctx)
+    except Exception as exc:
+        print("NEXTRUN ERROR:", repr(exc))
         await ctx.send(_friendly_error_message(exc))
 
 
