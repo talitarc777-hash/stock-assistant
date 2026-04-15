@@ -170,3 +170,37 @@ export async function fetchNewsSentimentDebug(ticker, date = null, period = "6mo
     `/news-sentiment/debug?ticker=${encodeURIComponent(ticker)}${dateQuery}&period=${period}`
   );
 }
+
+export async function fetchVirtualAccountSummary(userId) {
+  return fetchJson(`/virtual-account/summary?user_id=${encodeURIComponent(userId)}`);
+}
+
+export async function fetchVirtualAccountLedger(userId, limit = 200) {
+  return fetchJson(`/virtual-account/ledger?user_id=${encodeURIComponent(userId)}&limit=${limit}`);
+}
+
+export async function postVirtualAccountDeposit(userId, amount, reason = "") {
+  return postJson("/virtual-account/deposit", {
+    user_id: userId,
+    amount,
+    reason,
+    source: "web",
+  });
+}
+
+export async function postVirtualAccountWithdraw(userId, amount, reason = "") {
+  return postJson("/virtual-account/withdraw", {
+    user_id: userId,
+    amount,
+    reason,
+    source: "web",
+  });
+}
+
+export async function createMonthlyContributions(userId, records) {
+  return postJson("/monthly-contributions/create", {
+    user_id: userId,
+    records,
+    source: "web",
+  });
+}

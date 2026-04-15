@@ -15,6 +15,7 @@ from app.services.market_data import (
     get_price_history,
 )
 from app.services.indicators import IndicatorInputError, add_technical_indicators
+from app.services.live_market_data_service import get_live_market_snapshot
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +85,23 @@ class IndicatorsResponse(BaseModel):
     latest_close: float
     latest_snapshot: IndicatorRow
     latest_30_rows: list[IndicatorRow]
+
+
+class LiveMarketSnapshotResponse(BaseModel):
+    """Typed response for near-live market snapshot endpoint."""
+
+    ticker: str
+    fetched_at_utc: str
+    price_timestamp: str
+    close: float
+    open: float
+    high: float
+    low: float
+    volume: float
+    daily_change_pct: float
+    pe_ratio: float | None = None
+    market_cap: float | None = None
+    data_freshness_note: str
 
 
 @router.get("/price-history", response_model=PriceHistoryResponse)
@@ -186,3 +204,29 @@ def indicators(
             for row in latest_30_df.to_dict(orient="records")
         ],
     )
+
+
+@router.get("/market-data/live-snapshot", response_model=LiveMarketSnapshotResponse)
+def market_data_live_snapshot(
+    ticker: str = Query(
+        ...,
+        min_length=1,
+        max_length=15,
+        pattern=TICKER_PATTERN,
+        description="Ticker symbol, e.g. VOO",
+    ),
+    period: str = Query(
+        "3mo",
+        pattern=PERIOD_PATTERN,
+        description="History period for fallback context, e.g. 3mo",
+    ),
+) -> LiveMarketSnapshotResponse:
+    """Return latest near-live market snapshot (provider-delayed if applicable)."""
+    try:
+        snapshot = get_live_market_snapshot(ticker=ticker, period=period)
+        return LiveMarketSnapshotResponse(**to_json_safe_dict(snapshot))
+    except (InvalidTickerError, EmptyDataError, MarketDataError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover
+        logger.exception("Unexpected error in /market-data/live-snapshot")
+        raise HTTPException(status_code=500, detail="Unexpected server error.") from exc

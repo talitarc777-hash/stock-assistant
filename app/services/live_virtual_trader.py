@@ -19,12 +19,15 @@ from typing import Any
 import pandas as pd
 
 from app.core.settings import get_settings
+from app.services.account_ledger_service import (
+    AccountLedgerError,
+    get_account_ledger_service,
+)
+from app.services.live_market_data_service import get_live_market_snapshot
 from app.services.market_data import get_price_history
 from app.services.model_results import ModelResultsError, load_trained_model_bundle
-from app.services.monthly_contribution_service import get_monthly_contribution_store
 from app.services.prediction_explanations import build_prediction_explanation
 from app.services.research_pipeline import build_feature_dataset
-from app.services.trader_cash_service import get_trader_cash_service
 from app.services.user_profile_service import get_user_profile_store
 
 logger = logging.getLogger(__name__)
@@ -341,16 +344,18 @@ def run_live_virtual_trader_now(
         raise LiveVirtualTraderError("max_position_size_pct must be within (0, 1].")
 
     symbols = _resolve_user_tickers(clean_user_id, tickers)
-    cash_service = get_trader_cash_service()
+    ledger = get_account_ledger_service()
     store = get_live_virtual_trader_store()
-
-    schedule = get_monthly_contribution_store().get_amount_map(clean_user_id)
-    contribution_events = cash_service.apply_monthly_contributions(clean_user_id, schedule)
-    account = cash_service.get_account_snapshot(clean_user_id)
+    contribution_events = ledger.list_events(
+        clean_user_id,
+        limit=24,
+        event_types=["monthly_contribution", "manual_deposit", "withdrawal"],
+    )
 
     decisions: list[dict[str, Any]] = []
     latest_row_cache: dict[str, pd.Series] = {}
     latest_price_cache: dict[str, float] = {}
+    valuation_cache: dict[str, dict[str, Any]] = {}
 
     for symbol in symbols:
         feature_df = build_feature_dataset(
@@ -365,17 +370,26 @@ def run_live_virtual_trader_now(
         latest_row = feature_df.iloc[-1]
         latest_row_cache[symbol] = latest_row
         latest_price_cache[symbol] = float(latest_row["close"])
+        snapshot = get_live_market_snapshot(symbol, period="3mo")
+        valuation_cache[symbol] = snapshot
+        latest_price_cache[symbol] = float(snapshot["close"])
 
-    held_positions = store.list_positions(clean_user_id)
+    account = ledger.build_account_summary(clean_user_id, latest_prices=latest_price_cache)
+    held_positions = account["holdings"]
     extra_symbols = [item["ticker"] for item in held_positions if item["ticker"] not in latest_price_cache]
     if extra_symbols:
         latest_price_cache.update(_latest_prices_for_symbols(extra_symbols))
+        account = ledger.build_account_summary(clean_user_id, latest_prices=latest_price_cache)
+
+    holdings_by_ticker = {item["ticker"]: item for item in account["holdings"]}
 
     for symbol in symbols:
         latest_row = latest_row_cache.get(symbol)
         if latest_row is None:
             continue
         current_price = float(latest_price_cache[symbol])
+        snapshot = valuation_cache.get(symbol, {})
+        pe_ratio = snapshot.get("pe_ratio")
         try:
             bundle = load_trained_model_bundle(
                 ticker=symbol,
@@ -409,11 +423,12 @@ def run_live_virtual_trader_now(
         news = explanation["news_sentiment_summary"]
         benchmark_summary = explanation["benchmark_strength_summary"]
 
-        position = store.get_position(clean_user_id, symbol)
+        position = holdings_by_ticker.get(symbol)
         bullish, bearish = _derive_signal_flags(prediction_value, task_type, min_predicted_return_pct)
         action = "no_action"
         reason = "model_not_bullish"
         quantity = 0.0
+        volatility = float(latest_row.get("rolling_volatility_20_pct", 0.0) or 0.0)
 
         if position and float(position["quantity"]) > 0:
             entry = float(position["avg_entry_price"])
@@ -428,55 +443,91 @@ def run_live_virtual_trader_now(
                 action, reason = "hold", "holding_position"
         else:
             if bullish and _confidence_ok(confidence_score, confidence_threshold):
-                account = cash_service.get_account_snapshot(clean_user_id)
-                holdings_value = sum(
-                    float(item["quantity"]) * float(latest_price_cache.get(item["ticker"], 0.0))
-                    for item in store.list_positions(clean_user_id)
-                )
-                equity = float(account.cash) + float(holdings_value)
-                allocation = min(float(account.cash), float(equity * max_position_size_pct))
-                if allocation > 0 and current_price > 0:
+                account = ledger.build_account_summary(clean_user_id, latest_prices=latest_price_cache)
+                cash_available = float(account["cash"])
+                equity = float(account["total_account_value"])
+                holdings_count = len(account["holdings"])
+                concentration_ok = holdings_count < 15
+                valuation_ok = pe_ratio is None or float(pe_ratio) <= 85
+                volatility_ok = volatility <= 55
+                allocation = min(cash_available, float(equity * max_position_size_pct))
+                if allocation > 0 and current_price > 0 and concentration_ok and valuation_ok and volatility_ok:
                     action, reason = "buy", "model_bullish_signal"
                     quantity = float(allocation / current_price)
                 else:
-                    action, reason = "no_action", "insufficient_cash"
+                    action, reason = "no_action", "risk_or_cash_constraint"
             elif not _confidence_ok(confidence_score, confidence_threshold):
                 action, reason = "no_action", "confidence_below_threshold"
 
         threshold_summary = (
             f"Thresholds: confidence {confidence_score:.0%} vs {confidence_threshold:.0%}; "
-            f"max position {max_position_size_pct:.0%}; stop loss {stop_loss_pct:.0%}."
+            f"max position {max_position_size_pct:.0%}; stop loss {stop_loss_pct:.0%}; "
+            f"volatility20 {volatility:.1f}%; PE {pe_ratio if pe_ratio is not None else 'N/A'}."
             if confidence_score is not None
             else (
                 f"Thresholds: confidence unavailable; required {confidence_threshold:.0%}; "
-                f"max position {max_position_size_pct:.0%}; stop loss {stop_loss_pct:.0%}."
+                f"max position {max_position_size_pct:.0%}; stop loss {stop_loss_pct:.0%}; "
+                f"volatility20 {volatility:.1f}%; PE {pe_ratio if pe_ratio is not None else 'N/A'}."
             )
         )
+
+        latest_trade_for_symbol = store.list_trades(clean_user_id, limit=1, ticker=symbol)
+        if action in {"buy", "sell"} and latest_trade_for_symbol:
+            previous = latest_trade_for_symbol[0]
+            if (
+                previous.get("action") == action
+                and previous.get("reason") == reason
+            ):
+                action, reason = "no_action", "duplicate_signal_suppressed"
+                quantity = 0.0
 
         now_ts = _utc_now()
         if action == "buy":
-            cost = float(quantity * current_price)
-            account = cash_service.adjust_cash_and_realized_pnl(clean_user_id, cash_delta=-cost, realized_pnl_delta=0.0)
-            store.upsert_position(clean_user_id, symbol, quantity, current_price, model_name, entry_timestamp=now_ts)
+            try:
+                ledger.create_trade_event(
+                    user_id=clean_user_id,
+                    action="buy",
+                    ticker=symbol,
+                    quantity=quantity,
+                    price=current_price,
+                    source="trader",
+                    reason=reason,
+                    metadata={
+                        "model_name": model_name,
+                        "confidence_score": confidence_score,
+                        "prediction_value": prediction_value,
+                    },
+                )
+            except AccountLedgerError as exc:
+                action, reason = "no_action", f"ledger_rejected_buy:{exc}"
+                quantity = 0.0
         elif action == "sell" and position:
-            proceeds = float(quantity * current_price)
-            realized_delta = float((current_price - float(position["avg_entry_price"])) * quantity)
-            account = cash_service.adjust_cash_and_realized_pnl(
-                clean_user_id,
-                cash_delta=proceeds,
-                realized_pnl_delta=realized_delta,
-            )
-            store.remove_position(clean_user_id, symbol)
-        else:
-            account = cash_service.get_account_snapshot(clean_user_id)
+            try:
+                ledger.create_trade_event(
+                    user_id=clean_user_id,
+                    action="sell",
+                    ticker=symbol,
+                    quantity=quantity,
+                    price=current_price,
+                    source="trader",
+                    reason=reason,
+                    metadata={
+                        "model_name": model_name,
+                        "confidence_score": confidence_score,
+                        "prediction_value": prediction_value,
+                    },
+                )
+            except AccountLedgerError as exc:
+                action, reason = "no_action", f"ledger_rejected_sell:{exc}"
+                quantity = 0.0
 
-        updated_pos = store.get_position(clean_user_id, symbol)
-        holdings_after = float(updated_pos["quantity"]) if updated_pos else 0.0
-        unrealized_after = (
-            float((current_price - float(updated_pos["avg_entry_price"])) * float(updated_pos["quantity"]))
-            if updated_pos
-            else 0.0
+        account = ledger.build_account_summary(
+            clean_user_id,
+            latest_prices=latest_price_cache,
         )
+        updated_pos = {item["ticker"]: item for item in account["holdings"]}.get(symbol)
+        holdings_after = float(updated_pos["quantity"]) if updated_pos else 0.0
+        unrealized_after = float(updated_pos["unrealized_pnl"]) if updated_pos else 0.0
         action_summary = {
             "buy": "Simulated buy executed from latest model signal.",
             "sell": "Simulated sell executed from risk/model rule.",
@@ -499,15 +550,17 @@ def run_live_virtual_trader_now(
             "news_sentiment_summary": news,
             "benchmark_strength_summary": benchmark_summary,
             "action_summary": action_summary,
-            "cash_after": float(account.cash),
+            "cash_after": float(account["cash"]),
             "holdings_after": holdings_after,
-            "realized_pnl": float(account.realized_pnl),
+            "realized_pnl": float(account["realized_pnl"]),
             "unrealized_pnl": unrealized_after,
             "metadata": {
                 "prediction_value": prediction_value,
                 "task_type": task_type,
                 "price_date": str(latest_row.get("date")),
                 "explanation": explanation["explanation"],
+                "pe_ratio": pe_ratio,
+                "volatility": volatility,
             },
         }
         store.append_trade(trade_payload)
@@ -522,43 +575,28 @@ def run_live_virtual_trader_now(
             confidence_score,
         )
 
-    account = cash_service.get_account_snapshot(clean_user_id)
-    positions = store.list_positions(clean_user_id)
-    missing = [item["ticker"] for item in positions if item["ticker"] not in latest_price_cache]
-    if missing:
-        latest_price_cache.update(_latest_prices_for_symbols(missing))
-
-    holdings: list[dict[str, Any]] = []
-    for position in positions:
-        price = float(latest_price_cache.get(position["ticker"], 0.0))
-        value = float(position["quantity"] * price)
-        unrealized = float((price - position["avg_entry_price"]) * position["quantity"])
-        holdings.append(
-            {
-                **position,
-                "current_price": price,
-                "market_value": value,
-                "unrealized_pnl": unrealized,
-            }
-        )
-
-    holdings_value = float(sum(item["market_value"] for item in holdings))
-    total_equity = float(account.cash + holdings_value)
+    account = ledger.build_account_summary(
+        clean_user_id,
+        latest_prices=latest_price_cache,
+    )
+    holdings = account["holdings"]
+    holdings_value = float(account["holdings_value"])
+    total_equity = float(account["total_account_value"])
 
     return LiveStatus(
         user_id=clean_user_id,
         model_name=model_name,
         generated_at_utc=_utc_now(),
         account={
-            "cash": float(account.cash),
-            "realized_pnl": float(account.realized_pnl),
-            "total_contributions_applied": float(account.total_contributions_applied),
+            "cash": float(account["cash"]),
+            "realized_pnl": float(account["realized_pnl"]),
+            "total_contributions_applied": float(account["net_deposits"]),
             "holdings_value": holdings_value,
             "total_equity": total_equity,
         },
         holdings=holdings,
         latest_decisions=decisions,
-        contribution_events=[item.__dict__ for item in contribution_events],
+        contribution_events=contribution_events,
     )
 
 
@@ -576,32 +614,24 @@ def get_live_virtual_trader_status(
         raise LiveVirtualTraderError("user_id is required.")
 
     symbols = _resolve_user_tickers(clean_user_id, tickers)
-    cash_service = get_trader_cash_service()
-    schedule = get_monthly_contribution_store().get_amount_map(clean_user_id)
-    contribution_events = cash_service.apply_monthly_contributions(clean_user_id, schedule)
-    account = cash_service.get_account_snapshot(clean_user_id)
+    ledger = get_account_ledger_service()
 
     store = get_live_virtual_trader_store()
-    positions = store.list_positions(clean_user_id)
-    latest_prices = _latest_prices_for_symbols(list({item["ticker"] for item in positions} | set(symbols)))
-    holdings: list[dict[str, Any]] = []
-    for position in positions:
-        price = float(latest_prices.get(position["ticker"], 0.0))
-        holdings.append(
-            {
-                **position,
-                "current_price": price,
-                "market_value": float(position["quantity"] * price),
-                "unrealized_pnl": float((price - position["avg_entry_price"]) * position["quantity"]),
-            }
-        )
-    holdings_value = float(sum(item["market_value"] for item in holdings))
-    total_equity = float(account.cash + holdings_value)
+    latest_prices = _latest_prices_for_symbols(list(set(symbols)))
+    account = ledger.build_account_summary(clean_user_id, latest_prices=latest_prices)
+    holdings = account["holdings"]
+    holdings_value = float(account["holdings_value"])
+    total_equity = float(account["total_account_value"])
     trade_filter = symbols[0] if tickers and len(symbols) == 1 else None
     latest_decisions = store.list_trades(
         clean_user_id,
         limit=max(1, len(symbols)),
         ticker=trade_filter,
+    )
+    contribution_events = ledger.list_events(
+        clean_user_id,
+        limit=24,
+        event_types=["monthly_contribution", "manual_deposit", "withdrawal"],
     )
 
     return LiveStatus(
@@ -609,15 +639,15 @@ def get_live_virtual_trader_status(
         model_name=model_name,
         generated_at_utc=_utc_now(),
         account={
-            "cash": float(account.cash),
-            "realized_pnl": float(account.realized_pnl),
-            "total_contributions_applied": float(account.total_contributions_applied),
+            "cash": float(account["cash"]),
+            "realized_pnl": float(account["realized_pnl"]),
+            "total_contributions_applied": float(account["net_deposits"]),
             "holdings_value": holdings_value,
             "total_equity": total_equity,
         },
         holdings=holdings,
         latest_decisions=latest_decisions,
-        contribution_events=[item.__dict__ for item in contribution_events],
+        contribution_events=contribution_events,
     )
 
 
@@ -635,7 +665,11 @@ def list_live_virtual_trader_trades(
         "user_id": clean_user_id,
         "count": len(trades),
         "trades": trades,
-        "contribution_application_history": get_trader_cash_service().list_applied_contribution_rows(clean_user_id),
+        "contribution_application_history": get_account_ledger_service().list_events(
+            clean_user_id,
+            limit=100,
+            event_types=["monthly_contribution", "manual_deposit", "withdrawal"],
+        ),
     }
 
 

@@ -130,6 +130,8 @@ def format_help_message(prefix: str) -> str:
         f"- `{prefix}modelstatus VOO` show the latest model signal\n"
         f"- `{prefix}modelaccuracy VOO` show model hit rate and metrics\n"
         f"- `{prefix}virtualtrader VOO` show trader summary\n"
+        f"- `{prefix}account` show virtual account summary\n"
+        f"- `{prefix}cashledger` show recent cash/trade ledger\n"
         f"- `{prefix}runtrader VOO` run live trader now\n"
         f"- `{prefix}lasttrades VOO` show recent trades\n"
         f"- `{prefix}whytrade VOO` explain the latest trade\n"
@@ -581,3 +583,38 @@ def format_live_virtual_trader_trades_message(
             f"{_format_price(trade.get('price'))} | {_safe_text(trade.get('reason'))}"
         )
     return f"{title}: {symbol}\n" + "\n".join(lines)
+
+
+def format_virtual_account_summary_message(data: dict[str, Any], settings: dict[str, Any]) -> str:
+    """Format immutable virtual account summary for Discord."""
+    language = settings.get("language", "zh")
+    title = _text(language, "Virtual account", "虛擬帳戶", "Virtual account / 虛擬帳戶")
+    return (
+        f"{title}\n"
+        f"- Cash: {_format_money(data.get('cash'))}\n"
+        f"- Holdings value: {_format_money(data.get('holdings_value'))}\n"
+        f"- Total value: {_format_money(data.get('total_account_value'))}\n"
+        f"- Realized PnL: {_format_money(data.get('realized_pnl'))}\n"
+        f"- Unrealized PnL: {_format_money(data.get('unrealized_pnl'))}\n"
+        f"- Net deposits: {_format_money(data.get('net_deposits'))}"
+    )
+
+
+def format_virtual_account_ledger_message(
+    data: dict[str, Any],
+    settings: dict[str, Any],
+    limit: int = 10,
+) -> str:
+    """Format recent immutable cash/trade ledger events for Discord."""
+    language = settings.get("language", "zh")
+    title = _text(language, "Recent ledger events", "最近分類帳事件", "Recent ledger events / 最近分類帳事件")
+    events = _coerce_list(data.get("events"))[: max(1, limit)]
+    if not events:
+        return f"{title}\n- {_text(language, 'No records yet.', '目前沒有記錄。')}"
+    lines = []
+    for event in events:
+        lines.append(
+            f"- {_safe_text(event.get('created_at'))[:19]} | {_safe_text(event.get('event_type'))} | "
+            f"{_format_money(event.get('amount'))} | {_safe_text(event.get('ticker'), '-')}"
+        )
+    return f"{title}\n" + "\n".join(lines)

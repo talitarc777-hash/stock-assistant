@@ -3,10 +3,15 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   fetchLiveVirtualTraderStatus,
   fetchLiveVirtualTraderTrades,
+  fetchVirtualAccountLedger,
+  fetchVirtualAccountSummary,
   fetchVirtualTraderSummary,
   fetchVirtualTraderTrades,
+  postVirtualAccountDeposit,
+  postVirtualAccountWithdraw,
   runLiveVirtualTraderNow,
 } from "../api";
+import CashLedgerTable from "../components/CashLedgerTable";
 import EquityChart from "../components/EquityChart";
 import LineChart from "../components/LineChart";
 import NewsSentimentPanel from "../components/NewsSentimentPanel";
@@ -18,27 +23,36 @@ const DEFAULT_MODEL = "logistic_regression";
 const ZH = {
   virtualTrader: "\u865b\u64ec\u4ea4\u6613\u54e1",
   intro:
-    "\u5373\u6642\u6a21\u5f0f\u6703\u4f7f\u7528\u6700\u65b0\u6a21\u578b\u8f38\u51fa\u8207\u5e02\u5834\u8cc7\u6599\uff1b\u6b77\u53f2\u6a21\u5f0f\u5247\u7528\u4f86\u505a\u56de\u653e\u8207\u6bd4\u8f03\u3002",
+    "\u5373\u6642\u6a21\u5f0f\u6703\u4f7f\u7528\u6700\u65b0\u6a21\u578b\u8f38\u51fa\u8207\u5e02\u5834\u8cc7\u6599\uff1b\u6b77\u53f2\u6a21\u5f0f\u5247\u7528\u65bc\u56de\u653e\u8207\u6bd4\u8f03\u3002",
   ticker: "\u80a1\u7968\u4ee3\u865f",
   model: "\u6a21\u578b",
   running: "\u57f7\u884c\u4e2d...",
   runNow: "\u7acb\u5373\u57f7\u884c\u865b\u64ec\u4ea4\u6613",
   loading: "\u8f09\u5165\u4e2d...",
   liveMode: "\u5373\u6642\u865b\u64ec\u4ea4\u6613\u6a21\u5f0f",
+  liveStatusTitle: "\u5373\u6642\u72c0\u614b\uff08\u8fd1\u5373\u6642\u6a21\u64ec\uff09",
   simulationOnly: "\u53ea\u5c6c\u6a21\u64ec\uff0c\u4e0d\u6703\u767c\u9001\u771f\u5be6\u4e0b\u55ae\u3002",
+  delayedDataWarning:
+    "\u5e02\u5834\u8207\u65b0\u805e\u8cc7\u6599\u70ba\u300c\u8fd1\u5373\u6642\u300d\u8cc7\u6599\uff0c\u53ef\u80fd\u5b58\u5728\u4f9b\u61c9\u5546\u5ef6\u9072\uff0c\u4e26\u975e\u4ea4\u6613\u6240\u7b49\u7d1a\u5be6\u6642\u4e32\u6d41\u3002",
   cash: "\u73fe\u91d1",
   holdingsValue: "\u6301\u5009\u5e02\u503c",
   totalEquity: "\u7e3d\u8cc7\u7522",
   realizedPnl: "\u5df2\u5be6\u73fe\u640d\u76ca",
+  unrealizedPnl: "\u672a\u5be6\u73fe\u640d\u76ca",
+  netDeposits: "\u6de8\u5165\u91d1",
   appliedContributions: "\u5df2\u5957\u7528\u6ce8\u8cc7",
   generatedAt: "\u751f\u6210\u6642\u9593",
   noLiveStatus: "\u76ee\u524d\u6c92\u6709\u5373\u6642\u72c0\u614b\u3002",
+  tradingAccount: "\u4ea4\u6613\u5e33\u6236",
+  totalAccountValue: "\u7e3d\u5e33\u6236\u50f9\u503c",
+  amountUsd: "\u91d1\u984d\uff08USD\uff09",
+  deposit: "\u65b0\u589e\u5165\u91d1",
+  withdraw: "\u65b0\u589e\u63d0\u6b3e",
   currentHoldings: "\u76ee\u524d\u6301\u5009",
   quantity: "\u6578\u91cf",
   entry: "\u5165\u5834\u50f9",
   current: "\u73fe\u50f9",
   value: "\u5e02\u503c",
-  unrealizedPnl: "\u672a\u5be6\u73fe\u640d\u76ca",
   noHoldings: "\u76ee\u524d\u6c92\u6709\u6301\u5009\u3002",
   latestDecisions: "\u6700\u65b0\u6c7a\u7b56",
   action: "\u52d5\u4f5c",
@@ -58,6 +72,8 @@ const ZH = {
   totalContributions: "\u7d2f\u7a4d\u6ce8\u8cc7\u91d1\u984d",
   monthlyContribution: "\u7576\u6708\u6ce8\u8cc7\u91d1\u984d",
   noData: "\u6c92\u6709\u53ef\u7528\u8cc7\u6599",
+  depositHint: "\u5165\u91d1\u6703\u4ee5\u65b0\u7684\u4e0d\u53ef\u4fee\u6539\u5206\u985e\u5e33\u4e8b\u4ef6\u8a18\u9304\u3002",
+  withdrawHint: "\u63d0\u6b3e\u6703\u4ee5\u65b0\u7684\u4e0d\u53ef\u4fee\u6539\u5206\u985e\u5e33\u4e8b\u4ef6\u8a18\u9304\u3002",
 };
 
 function labelByMode(mode, en, zh) {
@@ -83,6 +99,10 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
   const [selectedModelName, setSelectedModelName] = useState(DEFAULT_MODEL);
   const [liveStatus, setLiveStatus] = useState(null);
   const [liveTrades, setLiveTrades] = useState([]);
+  const [accountSummary, setAccountSummary] = useState(null);
+  const [ledgerEvents, setLedgerEvents] = useState([]);
+  const [cashAmount, setCashAmount] = useState("");
+  const [cashReason, setCashReason] = useState("");
   const [selectedLiveTrade, setSelectedLiveTrade] = useState(null);
   const [historicalSummary, setHistoricalSummary] = useState(null);
   const [historicalTrades, setHistoricalTrades] = useState(null);
@@ -122,21 +142,34 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
     setIsLoading(true);
     setError("");
     try {
-      const [status, trades, summary, historicalTradePayload] = await Promise.all([
+      const [
+        statusPayload,
+        tradesPayload,
+        accountPayload,
+        ledgerPayload,
+        historicalSummaryPayload,
+        historicalTradesPayload,
+      ] = await Promise.all([
         fetchLiveVirtualTraderStatus(profileId, activeTicker, selectedModelName, false),
         fetchLiveVirtualTraderTrades(profileId, activeTicker, 20),
+        fetchVirtualAccountSummary(profileId),
+        fetchVirtualAccountLedger(profileId, 150),
         fetchVirtualTraderSummary(activeTicker, DEFAULT_PERIOD, selectedModelName, 500, profileId),
         fetchVirtualTraderTrades(activeTicker, DEFAULT_PERIOD, selectedModelName, 200, profileId),
       ]);
-      setLiveStatus(status);
-      setLiveTrades(trades.trades || []);
-      setSelectedLiveTrade((trades.trades || [])[0] || null);
-      setHistoricalSummary(summary);
-      setHistoricalTrades(historicalTradePayload);
+      setLiveStatus(statusPayload);
+      setLiveTrades(tradesPayload.trades || []);
+      setSelectedLiveTrade((tradesPayload.trades || [])[0] || null);
+      setAccountSummary(accountPayload);
+      setLedgerEvents(ledgerPayload.events || []);
+      setHistoricalSummary(historicalSummaryPayload);
+      setHistoricalTrades(historicalTradesPayload);
     } catch (requestError) {
       setLiveStatus(null);
       setLiveTrades([]);
       setSelectedLiveTrade(null);
+      setAccountSummary(null);
+      setLedgerEvents([]);
       setHistoricalSummary(null);
       setHistoricalTrades(null);
       setError(requestError.message || "Failed to load virtual trader views.");
@@ -154,15 +187,38 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
     setIsRunningNow(true);
     setError("");
     try {
-      const status = await runLiveVirtualTraderNow(profileId, null, selectedModelName);
-      setLiveStatus(status);
-      const tradesPayload = await fetchLiveVirtualTraderTrades(profileId, selectedTicker, 20);
-      setLiveTrades(tradesPayload.trades || []);
-      setSelectedLiveTrade((tradesPayload.trades || [])[0] || null);
+      await runLiveVirtualTraderNow(profileId, null, selectedModelName);
+      await loadAllViews(selectedTicker);
     } catch (requestError) {
       setError(requestError.message || "Failed to run live virtual trader now.");
     } finally {
       setIsRunningNow(false);
+    }
+  }
+
+  async function handleDeposit() {
+    if (!profileId || !cashAmount) return;
+    setError("");
+    try {
+      await postVirtualAccountDeposit(profileId, Number(cashAmount), cashReason);
+      setCashAmount("");
+      setCashReason("");
+      await loadAllViews(selectedTicker);
+    } catch (requestError) {
+      setError(requestError.message || "Failed to deposit cash.");
+    }
+  }
+
+  async function handleWithdraw() {
+    if (!profileId || !cashAmount) return;
+    setError("");
+    try {
+      await postVirtualAccountWithdraw(profileId, Number(cashAmount), cashReason);
+      setCashAmount("");
+      setCashReason("");
+      await loadAllViews(selectedTicker);
+    } catch (requestError) {
+      setError(requestError.message || "Failed to withdraw cash.");
     }
   }
 
@@ -191,7 +247,13 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
       <header className="app-header">
         <div>
           <h1>{labelByMode(languageMode, "Virtual Trader", ZH.virtualTrader)}</h1>
-          <p>{labelByMode(languageMode, "Live mode uses latest model output and current market data. Historical mode keeps replay/backtest comparison.", ZH.intro)}</p>
+          <p>
+            {labelByMode(
+              languageMode,
+              "Live mode uses latest model output and current market data. Historical mode keeps replay/backtest comparison.",
+              ZH.intro
+            )}
+          </p>
         </div>
         <div className="header-controls">
           <label htmlFor="virtual-ticker-select">{labelByMode(languageMode, "Ticker", ZH.ticker)}</label>
@@ -221,8 +283,17 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
       {isLoading ? <p className="panel">{labelByMode(languageMode, "Loading...", ZH.loading)}</p> : null}
 
       <section className="panel">
-        <h3>{labelByMode(languageMode, "Live Virtual Trader Mode", ZH.liveMode)}</h3>
-        <p className="helper-text">{labelByMode(languageMode, "This is simulation only. No broker orders are sent.", ZH.simulationOnly)}</p>
+        <h3>{labelByMode(languageMode, "Live Trader Status (Near-live Simulation)", ZH.liveStatusTitle)}</h3>
+        <p className="helper-text">
+          {labelByMode(languageMode, "This is simulation only. No broker orders are sent.", ZH.simulationOnly)}
+        </p>
+        <p className="helper-text">
+          {labelByMode(
+            languageMode,
+            "Market/news inputs are near-live snapshots and may be delayed by the data provider.",
+            ZH.delayedDataWarning
+          )}
+        </p>
         {liveStatus ? (
           <div className="detail-grid">
             <p><strong>{labelByMode(languageMode, "Cash", ZH.cash)}:</strong> {formatMoney(liveStatus.account?.cash)}</p>
@@ -235,6 +306,49 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
         ) : (
           <p>{labelByMode(languageMode, "No live status yet.", ZH.noLiveStatus)}</p>
         )}
+      </section>
+
+      <section className="panel">
+        <h3>{labelByMode(languageMode, "Trading Account", ZH.tradingAccount)}</h3>
+        <div className="detail-grid">
+          <p><strong>{labelByMode(languageMode, "Cash", ZH.cash)}:</strong> {formatMoney(accountSummary?.cash)}</p>
+          <p><strong>{labelByMode(languageMode, "Holdings value", ZH.holdingsValue)}:</strong> {formatMoney(accountSummary?.holdings_value)}</p>
+          <p><strong>{labelByMode(languageMode, "Total account value", ZH.totalAccountValue)}:</strong> {formatMoney(accountSummary?.total_account_value)}</p>
+          <p><strong>{labelByMode(languageMode, "Realized PnL", ZH.realizedPnl)}:</strong> {formatMoney(accountSummary?.realized_pnl)}</p>
+          <p><strong>{labelByMode(languageMode, "Unrealized PnL", ZH.unrealizedPnl)}:</strong> {formatMoney(accountSummary?.unrealized_pnl)}</p>
+          <p><strong>{labelByMode(languageMode, "Net deposits", ZH.netDeposits)}:</strong> {formatMoney(accountSummary?.net_deposits)}</p>
+        </div>
+        <div className="settings-form">
+          <label>
+            {labelByMode(languageMode, "Amount (USD)", ZH.amountUsd)}
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={cashAmount}
+              onChange={(e) => setCashAmount(e.target.value)}
+            />
+          </label>
+          <label>
+            {labelByMode(languageMode, "Reason", ZH.reason)}
+            <input type="text" value={cashReason} onChange={(e) => setCashReason(e.target.value)} />
+          </label>
+          <div className="settings-actions">
+            <button type="button" onClick={handleDeposit}>
+              {labelByMode(languageMode, "Add Deposit Event", ZH.deposit)}
+            </button>
+            <button type="button" onClick={handleWithdraw}>
+              {labelByMode(languageMode, "Add Withdrawal Event", ZH.withdraw)}
+            </button>
+          </div>
+          <p className="helper-text">
+            {labelByMode(
+              languageMode,
+              "Deposits and withdrawals are saved as immutable ledger events.",
+              `${ZH.depositHint} ${ZH.withdrawHint}`
+            )}
+          </p>
+        </div>
       </section>
 
       <section className="panel">
@@ -254,7 +368,7 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
             <tbody>
               {(liveStatus?.holdings || []).length ? (
                 (liveStatus?.holdings || []).map((item) => (
-                  <tr key={`${item.ticker}-${item.entry_timestamp}`}>
+                  <tr key={`${item.ticker}-${item.entry_timestamp || "ledger"}`}>
                     <td>{item.ticker}</td>
                     <td>{Number(item.quantity).toFixed(4)}</td>
                     <td>{formatMoney(item.avg_entry_price)}</td>
@@ -350,6 +464,7 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
       </section>
 
       <NewsSentimentPanel ticker={selectedTicker} languageMode={languageMode} />
+      <CashLedgerTable languageMode={languageMode} events={ledgerEvents} />
 
       <section className="panel">
         <h3>{labelByMode(languageMode, "Historical Replay Mode", ZH.historicalMode)}</h3>
@@ -360,12 +475,7 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
 
       {historicalSummary ? (
         <>
-          <EquityChart
-            ticker={selectedTicker}
-            points={historicalEquityPoints}
-            languageMode={languageMode}
-          />
-
+          <EquityChart ticker={selectedTicker} points={historicalEquityPoints} languageMode={languageMode} />
           <LineChart
             title={labelByMode(languageMode, "Monthly Contribution History", ZH.monthlyContributionHistory)}
             subtitle={`Ticker: ${selectedTicker} | Last 6 Months`}

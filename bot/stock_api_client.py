@@ -193,3 +193,18 @@ def virtual_trader_live_trades(
         f"{ticker_query}&limit={int(limit)}"
     )
     return _get_json(url)
+
+
+def virtual_account_summary(user_id: str):
+    """Fetch immutable virtual account summary."""
+    url = f"{BACKEND_BASE_URL}/virtual-account/summary?user_id={user_id}"
+    return _get_json(url)
+
+
+def virtual_account_ledger(
+    user_id: str,
+    limit: int = 50,
+):
+    """Fetch immutable virtual account ledger events."""
+    url = f"{BACKEND_BASE_URL}/virtual-account/ledger?user_id={user_id}&limit={int(limit)}"
+    return _get_json(url)

@@ -37,25 +37,28 @@ class LiveTraderDecisionResponse(BaseModel):
 
 
 class LiveTraderHoldingResponse(BaseModel):
-    user_id: str
+    user_id: str | None = None
     ticker: str
     quantity: float
     avg_entry_price: float
-    entry_timestamp: str
-    model_name: str
-    updated_at: str
+    entry_timestamp: str | None = None
+    model_name: str | None = None
+    updated_at: str | None = None
     current_price: float
     market_value: float
     unrealized_pnl: float
 
 
 class LiveTraderContributionEventResponse(BaseModel):
-    user_id: str
-    month: str
-    configured_amount: float
-    applied_amount: float
-    delta_applied_now: float
-    applied_at: str
+    user_id: str | None = None
+    month: str | None = None
+    configured_amount: float | None = None
+    applied_amount: float | None = None
+    delta_applied_now: float | None = None
+    applied_at: str | None = None
+    event_type: str | None = None
+    amount: float | None = None
+    created_at: str | None = None
 
 
 class LiveTraderAccountResponse(BaseModel):
@@ -73,7 +76,7 @@ class LiveTraderStatusResponse(BaseModel):
     account: LiveTraderAccountResponse
     holdings: list[LiveTraderHoldingResponse]
     latest_decisions: list[LiveTraderDecisionResponse]
-    contribution_events: list[LiveTraderContributionEventResponse]
+    contribution_events: list[dict]
 
 
 class LiveTraderTradesResponse(BaseModel):

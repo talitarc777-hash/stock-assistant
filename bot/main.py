@@ -18,6 +18,8 @@ try:
         format_live_virtual_trader_trades_message,
         format_settings_message,
         format_trade_reason_message,
+        format_virtual_account_ledger_message,
+        format_virtual_account_summary_message,
         format_virtual_trader_compare_message,
         format_virtual_trader_summary_message,
         format_virtual_trader_trades_message,
@@ -54,6 +56,8 @@ try:
         forecast,
         model_accuracy,
         model_latest,
+        virtual_account_ledger,
+        virtual_account_summary,
         virtual_trader_live_status,
         virtual_trader_live_trades,
         virtual_trader_run_now,
@@ -78,6 +82,8 @@ except ImportError:  # pragma: no cover - script execution fallback
         format_live_virtual_trader_trades_message,
         format_settings_message,
         format_trade_reason_message,
+        format_virtual_account_ledger_message,
+        format_virtual_account_summary_message,
         format_virtual_trader_compare_message,
         format_virtual_trader_summary_message,
         format_virtual_trader_trades_message,
@@ -114,6 +120,8 @@ except ImportError:  # pragma: no cover - script execution fallback
         forecast,
         model_accuracy,
         model_latest,
+        virtual_account_ledger,
+        virtual_account_summary,
         virtual_trader_live_status,
         virtual_trader_live_trades,
         virtual_trader_run_now,
@@ -548,6 +556,22 @@ async def _send_virtual_trader_compare(ctx, requested_ticker: str | None = None)
     await ctx.send(format_virtual_trader_compare_message(symbol, data, user_settings))
 
 
+async def _send_virtual_account_summary(ctx) -> None:
+    """Fetch and send immutable virtual account summary."""
+    user_settings = _effective_user_settings(ctx)
+    data = virtual_account_summary(user_id=_discord_user_id(ctx))
+    data = _require_dict(data, "virtual account summary response")
+    await ctx.send(format_virtual_account_summary_message(data, user_settings))
+
+
+async def _send_virtual_account_ledger(ctx, limit: int = 10) -> None:
+    """Fetch and send recent immutable ledger events."""
+    user_settings = _effective_user_settings(ctx)
+    data = virtual_account_ledger(user_id=_discord_user_id(ctx), limit=max(limit, 1))
+    data = _require_dict(data, "virtual account ledger response")
+    await ctx.send(format_virtual_account_ledger_message(data, user_settings, limit=limit))
+
+
 async def _send_alerts(ctx) -> None:
     """Fetch and send current alert messages for the effective watchlist."""
     user_settings = _get_shared_user_settings(ctx)
@@ -669,6 +693,10 @@ async def on_message(message):
             await _send_why_trade(ctx, parsed.tickers[0].upper() if parsed.tickers else None)
         elif parsed.intent == "virtual_trader_compare":
             await _send_virtual_trader_compare(ctx, parsed.tickers[0].upper() if parsed.tickers else None)
+        elif parsed.intent == "virtual_account_summary":
+            await _send_virtual_account_summary(ctx)
+        elif parsed.intent == "virtual_account_ledger":
+            await _send_virtual_account_ledger(ctx, limit=10)
         elif parsed.needs_help_hint and parsed.message:
             await message.channel.send(parsed.message)
         else:
@@ -936,6 +964,30 @@ async def comparetrader_cmd(ctx, ticker: str | None = None):
         await _send_virtual_trader_compare(ctx, ticker.upper() if ticker else None)
     except Exception as exc:
         print("COMPARETRADER ERROR:", repr(exc))
+        await ctx.send(_friendly_error_message(exc))
+
+
+@bot.command(name="account")
+async def account_cmd(ctx):
+    if not is_allowed(ctx):
+        return
+
+    try:
+        await _send_virtual_account_summary(ctx)
+    except Exception as exc:
+        print("ACCOUNT ERROR:", repr(exc))
+        await ctx.send(_friendly_error_message(exc))
+
+
+@bot.command(name="cashledger")
+async def cashledger_cmd(ctx):
+    if not is_allowed(ctx):
+        return
+
+    try:
+        await _send_virtual_account_ledger(ctx, limit=10)
+    except Exception as exc:
+        print("CASHLEDGER ERROR:", repr(exc))
         await ctx.send(_friendly_error_message(exc))
 
 

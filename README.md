@@ -654,3 +654,54 @@ News sentiment pipeline and debugging:
   - no recent matched news
   - fetched but unmatched-by-date window
   - pipeline/fetch failures
+
+## Immutable Virtual Account Ledger
+
+The live simulator now uses an append-only account ledger as source-of-truth.
+
+- Historical cash/trade events are immutable (no in-place edits)
+- Account state is rebuilt from ledger history
+- Corrections should be compensating events (new deposit/withdrawal/trade event)
+
+Ledger event types:
+
+- `monthly_contribution`
+- `manual_deposit`
+- `withdrawal`
+- `buy_trade`
+- `sell_trade`
+- `fee` (reserved)
+
+Monthly contribution lock behavior:
+
+- Start month is `2026-04`
+- Create monthly contributions with `POST /monthly-contributions/create`
+- Once a month is created, it is locked and cannot be overwritten
+- Additional cash must be recorded separately via deposit/withdrawal events
+
+Virtual account APIs:
+
+- `GET /virtual-account/summary?user_id=...`
+- `GET /virtual-account/ledger?user_id=...`
+- `POST /virtual-account/deposit`
+- `POST /virtual-account/withdraw`
+
+Live trader + account APIs:
+
+- `POST /virtual-trader/run-now`
+- `GET /virtual-trader/status?user_id=...`
+- `GET /virtual-trader/decisions?user_id=...`
+- `GET /virtual-trader/trades?user_id=...`
+- `GET /market-data/live-snapshot?ticker=VOO`
+
+Data freshness note:
+
+- Market/news are near-live snapshots from latest available provider data
+- This project does not claim exchange-grade true real-time streaming
+
+Continuous local runner:
+
+```powershell
+.venv\Scripts\python scripts\live_trader_runner.py --once --user-id demo-user
+.venv\Scripts\python scripts\live_trader_runner.py --interval-seconds 300
+```

@@ -41,3 +41,10 @@ export async function updateMonthlyContributions(payload) {
     body: JSON.stringify(payload),
   });
 }
+
+export async function createMonthlyContributions(payload) {
+  return requestJson("/monthly-contributions/create", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}

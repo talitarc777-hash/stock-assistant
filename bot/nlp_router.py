@@ -83,6 +83,10 @@ def _contains_stock_keywords(text: str) -> bool:
         "virtual trader",
         "run trader",
         "trades",
+        "account",
+        "cash balance",
+        "holdings",
+        "cash ledger",
         "buy or sell",
     ]
     return _contains_any(text, keywords)
@@ -297,6 +301,30 @@ def parse_natural_language_message(message_text: str) -> ParsedIntent:
         if ticker_match.ambiguous:
             return ParsedIntent(intent=None, needs_help_hint=True, message=ticker_match.message)
         return ParsedIntent(intent="virtual_trader_compare", tickers=ticker_match.tickers[:1])
+
+    if _contains_any(
+        text,
+        [
+            "show virtual trader account",
+            "show account",
+            "virtual account",
+            "show cash balance",
+            "show holdings",
+        ],
+    ):
+        return ParsedIntent(intent="virtual_account_summary")
+
+    if _contains_any(
+        text,
+        [
+            "show last cash deposits",
+            "show last deposits",
+            "show withdrawals",
+            "show cash ledger",
+            "ledger events",
+        ],
+    ):
+        return ParsedIntent(intent="virtual_account_ledger")
 
     if _contains_any(text, ["analyze ", "analysis for", "check ", "what do you think about", "show analysis for"]):
         ticker_match = extract_tickers_from_text(text)

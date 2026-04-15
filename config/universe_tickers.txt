@@ -1,0 +1,13 @@
+# Optional extended U.S. universe list (one ticker per line).
+# Keep this list manageable for local runs.
+VOO
+SPY
+QQQ
+AAPL
+MSFT
+NVDA
+AMZN
+GOOGL
+META
+TSLA
+BRK-B

@@ -13,6 +13,7 @@ class MonthlyContributionRecordResponse(BaseModel):
     amount: float = Field(ge=0)
     created_at: str
     updated_at: str
+    locked: bool = False
 
     @field_validator("month")
     @classmethod
@@ -57,6 +58,29 @@ class MonthlyContributionInitializeRequest(BaseModel):
     """Request body to initialize monthly contribution records."""
 
     user_id: str = Field(min_length=1, max_length=120)
+
+
+class MonthlyContributionCreateItem(BaseModel):
+    """Create-only payload row for immutable monthly contributions."""
+
+    month: str
+    amount: float = Field(gt=0)
+
+    @field_validator("month")
+    @classmethod
+    def validate_month(cls, value: str) -> str:
+        text = str(value).strip()
+        if len(text) != 7 or text[4] != "-":
+            raise ValueError("month must use YYYY-MM format.")
+        return text
+
+
+class MonthlyContributionCreateRequest(BaseModel):
+    """Create immutable monthly contribution records."""
+
+    user_id: str = Field(min_length=1, max_length=120)
+    records: list[MonthlyContributionCreateItem] = Field(min_length=1)
+    source: str = Field(default="web", min_length=2, max_length=40)
 
 
 class ModelEvaluationOptionResponse(BaseModel):
