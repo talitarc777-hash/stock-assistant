@@ -1,8 +1,51 @@
-# Optional extended U.S. universe list (one ticker per line).
-# Keep this list manageable for local runs.
+# Core broad market / style
 VOO
 SPY
+VTI
+IVV
 QQQ
+DIA
+IWM
+SCHB
+VUG
+VTV
+VO
+VB
+VYM
+SCHD
+
+# Bond / cash proxy (optional but useful for regime context)
+BND
+IEF
+TLT
+SHY
+
+# Sectors (SPDR)
+XLB
+XLE
+XLF
+XLI
+XLK
+XLP
+XLU
+XLV
+XLY
+XLC
+XLRE
+
+# Quality dividend / low vol (optional)
+USMV
+SPLV
+
+# Semis / AI cluster (kept small on purpose)
+SMH
+SOXX
+
+# Energy/commodities proxies (US-listed ETFs)
+GLD
+SLV
+
+# Mega/large caps (liquid, widely covered)
 AAPL
 MSFT
 NVDA
@@ -11,3 +54,34 @@ GOOGL
 META
 TSLA
 BRK-B
+JPM
+BAC
+WFC
+V
+MA
+UNH
+LLY
+JNJ
+PFE
+ABBV
+COST
+WMT
+HD
+LOW
+CRM
+ADBE
+AVGO
+ORCL
+CSCO
+AMD
+INTC
+QCOM
+TXN
+TMO
+NKE
+DIS
+XOM
+CVX
+CAT
+GE
+UPS
