@@ -16,6 +16,8 @@ class TraderSchedulerRunLogResponse(BaseModel):
     decisions_executed: int
     skipped: bool
     message: str
+    error_count: int = 0
+    error_messages: list[str] = []
 
 
 class TraderSchedulerStatusResponse(BaseModel):
@@ -32,4 +34,17 @@ class TraderSchedulerStatusResponse(BaseModel):
     skipped_runs_total: int
     last_decisions_total: int
     last_decisions_executed: int
+    last_error_count: int = 0
     recent_runs: list[TraderSchedulerRunLogResponse]
+
+
+class TraderSchedulerHealthResponse(BaseModel):
+    """Simple health response for scheduler runtime checks."""
+
+    healthy: bool
+    scheduler_started: bool
+    running: bool
+    mode: str
+    last_run_time_utc: str | None = None
+    next_run_time_utc: str | None = None
+    consecutive_failures: int

@@ -720,3 +720,9 @@ Key endpoints:
 - POST /virtual-trader/scheduler-run-now
 
 The scheduler and manual run-now share the same lock to prevent overlapping execution.
+
+Scheduler robustness notes:
+- Data fetch retries: each user run attempts up to 2 times before marking an error.
+- Per-run error logging: scheduler status includes error_count and error_messages for recent runs.
+- Health endpoint: GET /virtual-trader/scheduler-health
+- Clean restart: scheduler starts on backend startup and stops on backend shutdown via FastAPI lifespan.

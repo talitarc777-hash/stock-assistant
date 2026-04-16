@@ -79,6 +79,25 @@ class TraderSchedulerServiceTests(unittest.TestCase):
         finally:
             service._run_lock.release()  # pylint: disable=protected-access
 
+    @patch("app.services.trader_scheduler.run_live_virtual_trader_now")
+    def test_run_live_trader_with_retry_succeeds_on_second_attempt(self, mock_live_run) -> None:
+        service = TraderSchedulerService()
+        mock_live_run.side_effect = [RuntimeError("transient fetch error"), self._live_status("u1")]
+
+        status = service._run_live_trader_with_retry(  # pylint: disable=protected-access
+            user_id="u1",
+            model_name="logistic_regression",
+            max_attempts=2,
+        )
+        self.assertEqual(status.user_id, "u1")
+        self.assertEqual(mock_live_run.call_count, 2)
+
+    def test_health_snapshot_defaults(self) -> None:
+        service = TraderSchedulerService()
+        health = service.get_health()
+        self.assertFalse(health["healthy"])
+        self.assertFalse(health["scheduler_started"])
+
 
 if __name__ == "__main__":
     unittest.main()

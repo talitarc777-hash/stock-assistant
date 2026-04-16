@@ -7,6 +7,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Query
 
 from app.models.trader_scheduler import TraderSchedulerStatusResponse
+from app.models.trader_scheduler import TraderSchedulerHealthResponse
 from app.services.trader_scheduler import (
     TraderSchedulerBusyError,
     get_trader_scheduler_service,
@@ -36,6 +37,17 @@ def get_virtual_trader_scheduler_status_alias(
 ) -> TraderSchedulerStatusResponse:
     """Alias endpoint kept for simpler external integrations."""
     return get_virtual_trader_scheduler_status(log_limit=log_limit)
+
+
+@router.get("/virtual-trader/scheduler-health", response_model=TraderSchedulerHealthResponse)
+def get_virtual_trader_scheduler_health() -> TraderSchedulerHealthResponse:
+    """Simple health endpoint for scheduler monitoring."""
+    try:
+        health = get_trader_scheduler_service().get_health()
+        return TraderSchedulerHealthResponse(**health)
+    except Exception as exc:  # pragma: no cover - defensive guard
+        logger.exception("Unexpected scheduler health error")
+        raise HTTPException(status_code=500, detail="Unexpected server error.") from exc
 
 
 @router.post("/virtual-trader/scheduler-run-now", response_model=TraderSchedulerStatusResponse)

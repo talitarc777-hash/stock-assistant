@@ -50,6 +50,8 @@ class TraderSchedulerService:
         self._skipped_runs_total = 0
         self._last_decisions_total = 0
         self._last_decisions_executed = 0
+        self._last_error_count = 0
+        self._consecutive_failures = 0
         self._recent_runs: deque[dict[str, Any]] = deque(maxlen=200)
 
     def start(self) -> None:
@@ -107,6 +109,8 @@ class TraderSchedulerService:
         decisions_executed: int,
         skipped: bool,
         message: str,
+        error_count: int = 0,
+        error_messages: list[str] | None = None,
     ) -> None:
         row = {
             "timestamp_utc": _utc_now_iso(),
@@ -117,6 +121,8 @@ class TraderSchedulerService:
             "decisions_executed": int(decisions_executed),
             "skipped": bool(skipped),
             "message": message,
+            "error_count": int(error_count),
+            "error_messages": list(error_messages or []),
         }
         with self._state_lock:
             self._recent_runs.appendleft(row)
@@ -127,13 +133,19 @@ class TraderSchedulerService:
                 self._last_run_time_utc = row["timestamp_utc"]
                 self._last_decisions_total = int(decisions_total)
                 self._last_decisions_executed = int(decisions_executed)
+                self._last_error_count = int(error_count)
+                if int(error_count) > 0:
+                    self._consecutive_failures += 1
+                else:
+                    self._consecutive_failures = 0
         logger.info(
-            "Trader run source=%s mode=%s users=%d decisions_executed=%d decisions_total=%d skipped=%s",
+            "Trader run source=%s mode=%s users=%d decisions_executed=%d decisions_total=%d errors=%d skipped=%s",
             source,
             mode,
             users_scanned,
             decisions_executed,
             decisions_total,
+            error_count,
             skipped,
         )
 
@@ -147,6 +159,8 @@ class TraderSchedulerService:
             decisions_executed=0,
             skipped=True,
             message=reason,
+            error_count=0,
+            error_messages=[],
         )
         logger.info("Trader run skipped source=%s reason=%s", source, reason)
 
@@ -169,6 +183,36 @@ class TraderSchedulerService:
                 cadence_seconds = self._cadence_seconds
             if self._stop_event.wait(cadence_seconds):
                 break
+
+    @staticmethod
+    def _run_live_trader_with_retry(
+        *,
+        user_id: str,
+        model_name: str,
+        tickers: list[str] | None = None,
+        max_attempts: int = 2,
+    ) -> LiveStatus:
+        """Run live trader with a tiny retry budget for transient data-fetch failures."""
+        last_error: Exception | None = None
+        attempts = max(1, int(max_attempts))
+        for attempt in range(1, attempts + 1):
+            try:
+                return run_live_virtual_trader_now(
+                    user_id=user_id,
+                    tickers=tickers,
+                    model_name=model_name,
+                )
+            except Exception as exc:  # pragma: no cover - runtime defensive guard
+                last_error = exc
+                logger.warning(
+                    "Trader attempt failed user_id=%s attempt=%d/%d error=%s",
+                    user_id,
+                    attempt,
+                    attempts,
+                    exc,
+                )
+        assert last_error is not None
+        raise last_error
 
     def run_cycle(
         self,
@@ -195,6 +239,7 @@ class TraderSchedulerService:
         decisions_total = 0
         decisions_executed = 0
         error_count = 0
+        error_messages: list[str] = []
         ledger = get_account_ledger_service()
 
         try:
@@ -208,15 +253,17 @@ class TraderSchedulerService:
                         source="scheduler",
                     )
                     selected_model_name = resolve_selected_model_name(user_id=clean_user_id)
-                    status = run_live_virtual_trader_now(
+                    status = self._run_live_trader_with_retry(
                         user_id=clean_user_id,
                         model_name=selected_model_name,
+                        max_attempts=2,
                     )
                     user_decisions = list(status.latest_decisions)
                     decisions_total += len(user_decisions)
                     decisions_executed += self._count_executed_decisions(user_decisions)
                 except Exception as exc:  # pragma: no cover - runtime defensive guard
                     error_count += 1
+                    error_messages.append(f"{clean_user_id}: {str(exc)}")
                     logger.exception("Trader cycle failed user_id=%s error=%s", clean_user_id, exc)
 
             message = (
@@ -232,6 +279,8 @@ class TraderSchedulerService:
                 decisions_executed=decisions_executed,
                 skipped=False,
                 message=message,
+                error_count=error_count,
+                error_messages=error_messages,
             )
         finally:
             with self._state_lock:
@@ -270,10 +319,11 @@ class TraderSchedulerService:
                 user_id=clean_user_id,
                 requested_model_name=model_name,
             )
-            status = run_live_virtual_trader_now(
+            status = self._run_live_trader_with_retry(
                 user_id=clean_user_id,
-                tickers=tickers,
                 model_name=selected_model_name,
+                tickers=tickers,
+                max_attempts=2,
             )
             decisions_total = len(status.latest_decisions)
             decisions_executed = self._count_executed_decisions(status.latest_decisions)
@@ -285,6 +335,8 @@ class TraderSchedulerService:
                 decisions_executed=decisions_executed,
                 skipped=False,
                 message=f"manual_run_completed user_id={clean_user_id}",
+                error_count=0,
+                error_messages=[],
             )
             return status
         finally:
@@ -319,8 +371,25 @@ class TraderSchedulerService:
                 "skipped_runs_total": int(self._skipped_runs_total),
                 "last_decisions_total": int(self._last_decisions_total),
                 "last_decisions_executed": int(self._last_decisions_executed),
+                "last_error_count": int(self._last_error_count),
                 "recent_runs": recent_runs,
             }
+
+    def get_health(self) -> dict[str, Any]:
+        """Return a minimal scheduler health snapshot."""
+        status = self.get_status(log_limit=1)
+        healthy = bool(status["scheduler_started"]) and (
+            int(self._consecutive_failures) < 5
+        )
+        return {
+            "healthy": healthy,
+            "scheduler_started": bool(status["scheduler_started"]),
+            "running": bool(status["running"]),
+            "mode": str(status["mode"]),
+            "last_run_time_utc": status["last_run_time_utc"],
+            "next_run_time_utc": status["next_run_time_utc"],
+            "consecutive_failures": int(self._consecutive_failures),
+        }
 
 
 _SERVICE = TraderSchedulerService()
