@@ -155,8 +155,8 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
         historicalTradesPayload,
       ] = await Promise.all([
         fetchTraderSchedulerStatus(8),
-        fetchLiveVirtualTraderStatus(profileId, activeTicker, selectedModelName, false),
-        fetchLiveVirtualTraderTrades(profileId, activeTicker, 20),
+        fetchLiveVirtualTraderStatus(profileId, null, selectedModelName, false),
+        fetchLiveVirtualTraderTrades(profileId, null, 20),
         fetchVirtualAccountSummary(profileId),
         fetchVirtualAccountLedger(profileId, 150),
         fetchVirtualTraderSummary(activeTicker, DEFAULT_PERIOD, selectedModelName, 500, profileId),
@@ -274,24 +274,18 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
           <p>
             {labelByMode(
               languageMode,
-              "Live mode uses latest model output and current market data. Historical mode keeps replay/backtest comparison.",
+              "Live mode scans the active market universe automatically using model-or-fallback decisions.",
               ZH.intro
             )}
           </p>
         </div>
         <div className="header-controls">
-          <label htmlFor="virtual-ticker-select">{labelByMode(languageMode, "Ticker", ZH.ticker)}</label>
-          <select
-            id="virtual-ticker-select"
-            value={selectedTicker}
-            onChange={(event) => setSelectedTicker(event.target.value)}
-          >
-            {(currentWatchlist.length ? currentWatchlist : ["VOO"]).map((ticker) => (
-              <option key={ticker} value={ticker}>
-                {ticker}
-              </option>
-            ))}
-          </select>
+          <span className="helper-chip">
+            {labelByMode(languageMode, "Universe Size", "股票池大小")}: {liveStatus?.universe_size ?? "N/A"}
+          </span>
+          <span className="helper-chip">
+            {labelByMode(languageMode, "Tickers Evaluated", "已評估股票")}: {liveStatus?.tickers_evaluated ?? 0}
+          </span>
           <span className="helper-chip">
             {labelByMode(languageMode, "Model", ZH.model)}: {selectedModelName}
           </span>
@@ -332,6 +326,9 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
             <p><strong>{labelByMode(languageMode, "Total equity", ZH.totalEquity)}:</strong> {formatMoney(liveStatus.account?.total_equity)}</p>
             <p><strong>{labelByMode(languageMode, "Realized PnL", ZH.realizedPnl)}:</strong> {formatMoney(liveStatus.account?.realized_pnl)}</p>
             <p><strong>{labelByMode(languageMode, "Applied contributions", ZH.appliedContributions)}:</strong> {formatMoney(liveStatus.account?.total_contributions_applied)}</p>
+            <p><strong>{labelByMode(languageMode, "Tickers evaluated", "已評估股票")}:</strong> {liveStatus.tickers_evaluated ?? 0}</p>
+            <p><strong>{labelByMode(languageMode, "Tickers failed", "失敗股票")}:</strong> {liveStatus.tickers_failed ?? 0}</p>
+            <p><strong>{labelByMode(languageMode, "Fallback decisions", "後備策略次數")}:</strong> {liveStatus.fallback_used_count ?? 0}</p>
             <p><strong>{labelByMode(languageMode, "Generated at", ZH.generatedAt)}:</strong> {liveStatus.generated_at_utc}</p>
           </div>
         ) : (

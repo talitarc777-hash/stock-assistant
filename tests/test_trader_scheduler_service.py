@@ -38,6 +38,10 @@ class TraderSchedulerServiceTests(unittest.TestCase):
                 {"action": "no_action", "ticker": "QQQ"},
             ],
             contribution_events=[],
+            universe_size=120,
+            tickers_evaluated=2,
+            tickers_failed=0,
+            fallback_used_count=0,
         )
 
     @patch("app.services.trader_scheduler.resolve_selected_model_name")
@@ -64,7 +68,10 @@ class TraderSchedulerServiceTests(unittest.TestCase):
         status = service.get_status(log_limit=5)
 
         self.assertEqual(status["total_runs"], 1)
-        self.assertEqual(status["last_decisions_total"], 4)
+        self.assertEqual(status["last_users_processed"], 2)
+        self.assertEqual(status["last_tickers_processed"], 4)
+        self.assertEqual(status["last_tickers_failed"], 0)
+        self.assertEqual(status["last_fallback_used"], 0)
         self.assertEqual(status["last_decisions_executed"], 2)
         self.assertTrue(status["recent_runs"])
         self.assertEqual(status["recent_runs"][0]["source"], "test")

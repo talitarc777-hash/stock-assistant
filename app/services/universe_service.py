@@ -64,3 +64,13 @@ def get_us_universe(limit: int = 500) -> list[str]:
     file_values = load_universe_from_file("config/universe_tickers.txt")
     merged = _normalize_tickers(DEFAULT_US_UNIVERSE + settings_values + file_values)
     return merged[: max(1, int(limit))]
+
+
+def get_active_universe(limit: int = 120) -> list[str]:
+    """Return active trading universe for autonomous live trader scans.
+
+    We keep this capped for local friendliness while still covering a broad set
+    of U.S. ETFs/stocks. The function can be expanded later without changing
+    caller logic.
+    """
+    return get_us_universe(limit=limit)

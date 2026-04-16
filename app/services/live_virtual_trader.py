@@ -14,6 +14,7 @@ import json
 import logging
 from pathlib import Path
 import sqlite3
+from threading import Thread, Lock
 from typing import Any
 
 import pandas as pd
@@ -28,6 +29,7 @@ from app.services.market_data import get_price_history
 from app.services.model_results import ModelResultsError, load_trained_model_bundle
 from app.services.prediction_explanations import build_prediction_explanation
 from app.services.research_pipeline import build_feature_dataset
+from app.services.universe_service import get_active_universe
 from app.services.user_profile_service import get_user_profile_store
 
 logger = logging.getLogger(__name__)
@@ -62,6 +64,15 @@ class LiveStatus:
     holdings: list[dict[str, Any]]
     latest_decisions: list[dict[str, Any]]
     contribution_events: list[dict[str, Any]]
+    universe_size: int = 0
+    tickers_evaluated: int = 0
+    tickers_failed: int = 0
+    fallback_used_count: int = 0
+
+
+_AUTO_TRAIN_ON_MODEL_MISS = False
+_TRAINING_QUEUE: set[tuple[str, str, str]] = set()
+_TRAINING_LOCK = Lock()
 
 
 class LiveVirtualTraderStore:
@@ -294,8 +305,11 @@ def _resolve_user_tickers(user_id: str, tickers: list[str] | None) -> list[str]:
         values = _normalize_tickers(tickers)
         if values:
             return values
+    # Autonomous mode default: scan a broader active universe.
+    values = _normalize_tickers(get_active_universe(limit=120))
+    # Keep user watchlist symbols included for continuity.
     watchlist, _, _ = get_user_profile_store().get_effective_watchlist(user_id=user_id)
-    values = _normalize_tickers(watchlist)
+    values = _normalize_tickers(values + watchlist)
     if not values:
         raise LiveVirtualTraderError("No tickers available for live virtual trader.")
     return values
@@ -318,9 +332,74 @@ def _derive_signal_flags(predicted_value: float, task_type: str, min_return: flo
 def _latest_prices_for_symbols(symbols: list[str]) -> dict[str, float]:
     prices: dict[str, float] = {}
     for symbol in symbols:
-        history = get_price_history(symbol, period="3mo")
-        prices[symbol] = float(history.sort_values("date").iloc[-1]["close"])
+        try:
+            history = get_price_history(symbol, period="3mo")
+            prices[symbol] = float(history.sort_values("date").iloc[-1]["close"])
+        except Exception as exc:
+            logger.warning("Live trader latest price skipped ticker=%s error=%s", symbol, exc)
     return prices
+
+
+def _schedule_background_training_if_enabled(
+    *,
+    ticker: str,
+    period: str,
+    benchmark: str,
+) -> None:
+    """Optionally schedule non-blocking ticker training when model is missing."""
+    if not _AUTO_TRAIN_ON_MODEL_MISS:
+        return
+
+    job_key = (ticker, period, benchmark)
+    with _TRAINING_LOCK:
+        if job_key in _TRAINING_QUEUE:
+            return
+        _TRAINING_QUEUE.add(job_key)
+
+    def _worker() -> None:
+        try:
+            from app.services.model_training import train_baseline_models_for_ticker
+
+            train_baseline_models_for_ticker(
+                ticker=ticker,
+                period=period,
+                benchmark=benchmark,
+                include_gradient_boosting=False,
+            )
+            logger.info("Background training completed ticker=%s period=%s", ticker, period)
+        except Exception as exc:  # pragma: no cover - background defensive guard
+            logger.exception("Background training failed ticker=%s error=%s", ticker, exc)
+        finally:
+            with _TRAINING_LOCK:
+                _TRAINING_QUEUE.discard(job_key)
+
+    Thread(target=_worker, name=f"train-{ticker}-{period}", daemon=True).start()
+
+
+def _build_rule_based_fallback(
+    latest_row: pd.Series,
+    min_predicted_return_pct: float,
+) -> tuple[float, float, str, str]:
+    """Return fallback prediction tuple: predicted_value, confidence, task_type, reason."""
+    close = float(latest_row.get("close", 0.0) or 0.0)
+    sma50 = float(latest_row.get("sma_50", 0.0) or 0.0)
+    sma200 = float(latest_row.get("sma_200", 0.0) or 0.0)
+    rsi = float(latest_row.get("rsi_14", 0.0) or 0.0)
+    macd_line = float(latest_row.get("macd_line", 0.0) or 0.0)
+    macd_signal = float(latest_row.get("macd_signal", 0.0) or 0.0)
+
+    bullish_trend = close > sma50 > sma200 if sma50 > 0 and sma200 > 0 else False
+    positive_momentum = (50.0 <= rsi <= 70.0) and (macd_line >= macd_signal)
+    bearish_trend = close < sma50 < sma200 if sma50 > 0 and sma200 > 0 else False
+
+    if bullish_trend and positive_momentum:
+        reason = "fallback_rule_bullish_trend_momentum"
+        return (max(1.0, float(min_predicted_return_pct)), 0.65, "regression", reason)
+    if bearish_trend and rsi < 45.0:
+        reason = "fallback_rule_bearish_trend"
+        return (-1.0, 0.60, "regression", reason)
+    reason = "fallback_rule_neutral_hold"
+    return (0.0, 0.55, "regression", reason)
 
 
 def _parse_iso_timestamp(value: str | None) -> datetime | None:
@@ -394,23 +473,32 @@ def run_live_virtual_trader_now(
     latest_row_cache: dict[str, pd.Series] = {}
     latest_price_cache: dict[str, float] = {}
     valuation_cache: dict[str, dict[str, Any]] = {}
+    failed_symbols: list[str] = []
+    fallback_used_count = 0
 
     for symbol in symbols:
-        feature_df = build_feature_dataset(
-            ticker=symbol,
-            period=period,
-            benchmark=benchmark,
-            include_news_sentiment=True,
-            sentiment_model="finbert",
-        ).sort_values("date")
-        if feature_df.empty:
+        try:
+            feature_df = build_feature_dataset(
+                ticker=symbol,
+                period=period,
+                benchmark=benchmark,
+                include_news_sentiment=True,
+                sentiment_model="finbert",
+            ).sort_values("date")
+            if feature_df.empty:
+                failed_symbols.append(symbol)
+                logger.warning("Live trader ticker=%s skipped because feature dataset is empty", symbol)
+                continue
+            latest_row = feature_df.iloc[-1]
+            latest_row_cache[symbol] = latest_row
+            latest_price_cache[symbol] = float(latest_row["close"])
+            snapshot = get_live_market_snapshot(symbol, period="3mo")
+            valuation_cache[symbol] = snapshot
+            latest_price_cache[symbol] = float(snapshot["close"])
+        except Exception as exc:
+            failed_symbols.append(symbol)
+            logger.warning("Live trader ticker=%s skipped due to data error: %s", symbol, exc)
             continue
-        latest_row = feature_df.iloc[-1]
-        latest_row_cache[symbol] = latest_row
-        latest_price_cache[symbol] = float(latest_row["close"])
-        snapshot = get_live_market_snapshot(symbol, period="3mo")
-        valuation_cache[symbol] = snapshot
-        latest_price_cache[symbol] = float(snapshot["close"])
 
     account = ledger.build_account_summary(clean_user_id, latest_prices=latest_price_cache)
     held_positions = account["holdings"]
@@ -429,198 +517,241 @@ def run_live_virtual_trader_now(
         snapshot = valuation_cache.get(symbol, {})
         pe_ratio = snapshot.get("pe_ratio")
         try:
-            bundle = load_trained_model_bundle(
-                ticker=symbol,
-                period="5y",
-                target_name=target_name,
-                model_name=model_name,
+            task_type = "regression"
+            prediction_value = 0.0
+            confidence_score: float | None = None
+            decision_model_name = model_name
+            decision_source = "fallback_rule"
+            model_fallback_reason = "fallback_rule_neutral_hold"
+            model_loaded = False
+            model_load_errors: list[str] = []
+
+            for candidate_ticker, source_name in ((symbol, "trained_model"), ("GLOBAL", "global_model")):
+                try:
+                    bundle = load_trained_model_bundle(
+                        ticker=candidate_ticker,
+                        period="5y",
+                        target_name=target_name,
+                        model_name=model_name,
+                    )
+                    model = bundle["model"]
+                    feature_names = list(bundle["feature_names"])
+                    task_type = str(bundle["task_type"]).lower()
+                    x_latest = pd.DataFrame([{name: latest_row.get(name, None) for name in feature_names}])
+                    prediction_value = float(model.predict(x_latest)[0])
+                    if hasattr(model, "predict_proba"):
+                        try:
+                            probs = model.predict_proba(x_latest)
+                            confidence_score = float(max(probs[0]))
+                        except Exception:
+                            confidence_score = None
+                    decision_source = source_name
+                    decision_model_name = str(bundle.get("model_name", model_name))
+                    model_loaded = True
+                    break
+                except ModelResultsError as exc:
+                    model_load_errors.append(f"{candidate_ticker}:{exc}")
+
+            if not model_loaded:
+                prediction_value, confidence_score, task_type, model_fallback_reason = _build_rule_based_fallback(
+                    latest_row,
+                    min_predicted_return_pct=min_predicted_return_pct,
+                )
+                fallback_used_count += 1
+                logger.info(
+                    "Live trader ticker=%s model_missing -> fallback_strategy used (%s)",
+                    symbol,
+                    model_fallback_reason,
+                )
+                _schedule_background_training_if_enabled(
+                    ticker=symbol,
+                    period="5y",
+                    benchmark=benchmark,
+                )
+                logger.info(
+                    "Model missing -> using fallback%s",
+                    " -> training scheduled" if _AUTO_TRAIN_ON_MODEL_MISS else "",
+                )
+
+            explanation = build_prediction_explanation(
+                feature_row=latest_row,
+                task_type=task_type,
+                predicted_value=prediction_value,
+                confidence_score=confidence_score,
             )
-        except ModelResultsError as exc:
-            raise LiveVirtualTraderError(str(exc)) from exc
-        model = bundle["model"]
-        feature_names = list(bundle["feature_names"])
-        task_type = str(bundle["task_type"]).lower()
-        x_latest = pd.DataFrame([{name: latest_row.get(name, None) for name in feature_names}])
+            technical = explanation["technical_state_summary"]
+            news = explanation["news_sentiment_summary"]
+            benchmark_summary = explanation["benchmark_strength_summary"]
 
-        prediction_value = float(model.predict(x_latest)[0])
-        confidence_score = None
-        if hasattr(model, "predict_proba"):
-            try:
-                probs = model.predict_proba(x_latest)
-                confidence_score = float(max(probs[0]))
-            except Exception:
-                confidence_score = None
+            position = holdings_by_ticker.get(symbol)
+            bullish, bearish = _derive_signal_flags(prediction_value, task_type, min_predicted_return_pct)
+            action = "no_action"
+            reason = model_fallback_reason if decision_source == "fallback_rule" else "model_not_bullish"
+            quantity = 0.0
+            volatility = float(latest_row.get("rolling_volatility_20_pct", 0.0) or 0.0)
 
-        explanation = build_prediction_explanation(
-            feature_row=latest_row,
-            task_type=task_type,
-            predicted_value=prediction_value,
-            confidence_score=confidence_score,
-        )
-        technical = explanation["technical_state_summary"]
-        news = explanation["news_sentiment_summary"]
-        benchmark_summary = explanation["benchmark_strength_summary"]
-
-        position = holdings_by_ticker.get(symbol)
-        bullish, bearish = _derive_signal_flags(prediction_value, task_type, min_predicted_return_pct)
-        action = "no_action"
-        reason = "model_not_bullish"
-        quantity = 0.0
-        volatility = float(latest_row.get("rolling_volatility_20_pct", 0.0) or 0.0)
-
-        if position and float(position["quantity"]) > 0:
-            entry = float(position["avg_entry_price"])
-            quantity = float(position["quantity"])
-            if stop_loss_pct > 0 and current_price <= entry * (1 - stop_loss_pct):
-                action, reason = "sell", "stop_loss"
-            elif take_profit_pct is not None and current_price >= entry * (1 + take_profit_pct):
-                action, reason = "sell", "take_profit"
-            elif bearish and _confidence_ok(confidence_score, confidence_threshold):
-                action, reason = "sell", "model_bearish_signal"
-            else:
-                action, reason = "hold", "holding_position"
-        else:
-            if bullish and _confidence_ok(confidence_score, confidence_threshold):
-                account = ledger.build_account_summary(clean_user_id, latest_prices=latest_price_cache)
-                cash_available = float(account["cash"])
-                equity = float(account["total_account_value"])
-                holdings_count = len(account["holdings"])
-                concentration_ok = holdings_count < 15
-                valuation_ok = pe_ratio is None or float(pe_ratio) <= 85
-                volatility_ok = volatility <= 55
-                allocation = min(cash_available, float(equity * max_position_size_pct))
-                if allocation > 0 and current_price > 0 and concentration_ok and valuation_ok and volatility_ok:
-                    action, reason = "buy", "model_bullish_signal"
-                    quantity = float(allocation / current_price)
+            if position and float(position["quantity"]) > 0:
+                entry = float(position["avg_entry_price"])
+                quantity = float(position["quantity"])
+                if stop_loss_pct > 0 and current_price <= entry * (1 - stop_loss_pct):
+                    action, reason = "sell", "stop_loss"
+                elif take_profit_pct is not None and current_price >= entry * (1 + take_profit_pct):
+                    action, reason = "sell", "take_profit"
+                elif bearish and _confidence_ok(confidence_score, confidence_threshold):
+                    action, reason = "sell", "model_bearish_signal"
                 else:
-                    action, reason = "no_action", "risk_or_cash_constraint"
-            elif not _confidence_ok(confidence_score, confidence_threshold):
-                action, reason = "no_action", "confidence_below_threshold"
+                    action, reason = "hold", "holding_position"
+            else:
+                if bullish and _confidence_ok(confidence_score, confidence_threshold):
+                    account = ledger.build_account_summary(clean_user_id, latest_prices=latest_price_cache)
+                    cash_available = float(account["cash"])
+                    equity = float(account["total_account_value"])
+                    holdings_count = len(account["holdings"])
+                    concentration_ok = holdings_count < 15
+                    valuation_ok = pe_ratio is None or float(pe_ratio) <= 85
+                    volatility_ok = volatility <= 55
+                    allocation = min(cash_available, float(equity * max_position_size_pct))
+                    if allocation > 0 and current_price > 0 and concentration_ok and valuation_ok and volatility_ok:
+                        action, reason = "buy", "model_bullish_signal"
+                        quantity = float(allocation / current_price)
+                    else:
+                        action, reason = "no_action", "risk_or_cash_constraint"
+                elif not _confidence_ok(confidence_score, confidence_threshold):
+                    action, reason = "no_action", "confidence_below_threshold"
 
-        threshold_summary = (
-            f"Thresholds: confidence {confidence_score:.0%} vs {confidence_threshold:.0%}; "
-            f"max position {max_position_size_pct:.0%}; stop loss {stop_loss_pct:.0%}; "
-            f"volatility20 {volatility:.1f}%; PE {pe_ratio if pe_ratio is not None else 'N/A'}."
-            if confidence_score is not None
-            else (
-                f"Thresholds: confidence unavailable; required {confidence_threshold:.0%}; "
+            threshold_summary = (
+                f"Thresholds: confidence {confidence_score:.0%} vs {confidence_threshold:.0%}; "
                 f"max position {max_position_size_pct:.0%}; stop loss {stop_loss_pct:.0%}; "
                 f"volatility20 {volatility:.1f}%; PE {pe_ratio if pe_ratio is not None else 'N/A'}."
+                if confidence_score is not None
+                else (
+                    f"Thresholds: confidence unavailable; required {confidence_threshold:.0%}; "
+                    f"max position {max_position_size_pct:.0%}; stop loss {stop_loss_pct:.0%}; "
+                    f"volatility20 {volatility:.1f}%; PE {pe_ratio if pe_ratio is not None else 'N/A'}."
+                )
             )
-        )
 
-        latest_trade_for_symbol = store.list_trades(clean_user_id, limit=1, ticker=symbol)
-        if action in {"buy", "sell"} and latest_trade_for_symbol:
-            previous = latest_trade_for_symbol[0]
-            now_dt = datetime.now(UTC)
-            if _is_trade_cooldown_active(
-                latest_trade=previous,
-                action=action,
-                now_utc=now_dt,
-                cooldown_minutes=signal_cooldown_minutes,
-            ):
-                action, reason = "no_action", "signal_cooldown_active"
-                quantity = 0.0
-            elif (
-                previous.get("action") == action
-                and previous.get("reason") == reason
-            ):
-                action, reason = "no_action", "duplicate_signal_suppressed"
-                quantity = 0.0
+            latest_trade_for_symbol = store.list_trades(clean_user_id, limit=1, ticker=symbol)
+            if action in {"buy", "sell"} and latest_trade_for_symbol:
+                previous = latest_trade_for_symbol[0]
+                now_dt = datetime.now(UTC)
+                if _is_trade_cooldown_active(
+                    latest_trade=previous,
+                    action=action,
+                    now_utc=now_dt,
+                    cooldown_minutes=signal_cooldown_minutes,
+                ):
+                    action, reason = "no_action", "signal_cooldown_active"
+                    quantity = 0.0
+                elif (
+                    previous.get("action") == action
+                    and previous.get("reason") == reason
+                ):
+                    action, reason = "no_action", "duplicate_signal_suppressed"
+                    quantity = 0.0
 
-        now_ts = _utc_now()
-        if action == "buy":
-            try:
-                ledger.create_trade_event(
-                    user_id=clean_user_id,
-                    action="buy",
-                    ticker=symbol,
-                    quantity=quantity,
-                    price=current_price,
-                    source="trader",
-                    reason=reason,
-                    metadata={
-                        "model_name": model_name,
-                        "confidence_score": confidence_score,
-                        "prediction_value": prediction_value,
-                    },
-                )
-            except AccountLedgerError as exc:
-                action, reason = "no_action", f"ledger_rejected_buy:{exc}"
-                quantity = 0.0
-        elif action == "sell" and position:
-            try:
-                ledger.create_trade_event(
-                    user_id=clean_user_id,
-                    action="sell",
-                    ticker=symbol,
-                    quantity=quantity,
-                    price=current_price,
-                    source="trader",
-                    reason=reason,
-                    metadata={
-                        "model_name": model_name,
-                        "confidence_score": confidence_score,
-                        "prediction_value": prediction_value,
-                    },
-                )
-            except AccountLedgerError as exc:
-                action, reason = "no_action", f"ledger_rejected_sell:{exc}"
-                quantity = 0.0
+            now_ts = _utc_now()
+            if action == "buy":
+                try:
+                    ledger.create_trade_event(
+                        user_id=clean_user_id,
+                        action="buy",
+                        ticker=symbol,
+                        quantity=quantity,
+                        price=current_price,
+                        source="trader",
+                        reason=reason,
+                        metadata={
+                            "model_name": decision_model_name,
+                            "confidence_score": confidence_score,
+                            "prediction_value": prediction_value,
+                            "decision_source": decision_source,
+                        },
+                    )
+                except AccountLedgerError as exc:
+                    action, reason = "no_action", f"ledger_rejected_buy:{exc}"
+                    quantity = 0.0
+            elif action == "sell" and position:
+                try:
+                    ledger.create_trade_event(
+                        user_id=clean_user_id,
+                        action="sell",
+                        ticker=symbol,
+                        quantity=quantity,
+                        price=current_price,
+                        source="trader",
+                        reason=reason,
+                        metadata={
+                            "model_name": decision_model_name,
+                            "confidence_score": confidence_score,
+                            "prediction_value": prediction_value,
+                            "decision_source": decision_source,
+                        },
+                    )
+                except AccountLedgerError as exc:
+                    action, reason = "no_action", f"ledger_rejected_sell:{exc}"
+                    quantity = 0.0
 
-        account = ledger.build_account_summary(
-            clean_user_id,
-            latest_prices=latest_price_cache,
-        )
-        updated_pos = {item["ticker"]: item for item in account["holdings"]}.get(symbol)
-        holdings_after = float(updated_pos["quantity"]) if updated_pos else 0.0
-        unrealized_after = float(updated_pos["unrealized_pnl"]) if updated_pos else 0.0
-        action_summary = {
-            "buy": "Simulated buy executed from latest model signal.",
-            "sell": "Simulated sell executed from risk/model rule.",
-            "hold": "Holding position. No exit trigger was hit.",
-            "no_action": "No action taken. Entry conditions were not met.",
-        }.get(action, "No action.")
+            account = ledger.build_account_summary(
+                clean_user_id,
+                latest_prices=latest_price_cache,
+            )
+            updated_pos = {item["ticker"]: item for item in account["holdings"]}.get(symbol)
+            holdings_after = float(updated_pos["quantity"]) if updated_pos else 0.0
+            unrealized_after = float(updated_pos["unrealized_pnl"]) if updated_pos else 0.0
+            action_summary = {
+                "buy": "Simulated buy executed from model/fallback signal.",
+                "sell": "Simulated sell executed from risk/model rule.",
+                "hold": "Holding position. No exit trigger was hit.",
+                "no_action": "No action taken. Entry conditions were not met.",
+            }.get(action, "No action.")
 
-        trade_payload = {
-            "timestamp": now_ts,
-            "user_id": clean_user_id,
-            "ticker": symbol,
-            "action": action,
-            "quantity": float(quantity),
-            "price": float(current_price),
-            "model_name": model_name,
-            "confidence_score": confidence_score,
-            "reason": reason,
-            "threshold_summary": threshold_summary,
-            "technical_state_summary": technical,
-            "news_sentiment_summary": news,
-            "benchmark_strength_summary": benchmark_summary,
-            "action_summary": action_summary,
-            "cash_after": float(account["cash"]),
-            "holdings_after": holdings_after,
-            "realized_pnl": float(account["realized_pnl"]),
-            "unrealized_pnl": unrealized_after,
-            "metadata": {
-                "prediction_value": prediction_value,
-                "task_type": task_type,
-                "price_date": str(latest_row.get("date")),
-                "explanation": explanation["explanation"],
-                "pe_ratio": pe_ratio,
-                "volatility": volatility,
-            },
-        }
-        store.append_trade(trade_payload)
-        decisions.append(trade_payload)
-        logger.info(
-            "Live trader decision user_id=%s ticker=%s action=%s reason=%s prediction=%s confidence=%s",
-            clean_user_id,
-            symbol,
-            action,
-            reason,
-            prediction_value,
-            confidence_score,
-        )
+            trade_payload = {
+                "timestamp": now_ts,
+                "user_id": clean_user_id,
+                "ticker": symbol,
+                "action": action,
+                "quantity": float(quantity),
+                "price": float(current_price),
+                "model_name": decision_model_name,
+                "confidence_score": confidence_score,
+                "reason": reason,
+                "threshold_summary": threshold_summary,
+                "technical_state_summary": technical,
+                "news_sentiment_summary": news,
+                "benchmark_strength_summary": benchmark_summary,
+                "action_summary": action_summary,
+                "cash_after": float(account["cash"]),
+                "holdings_after": holdings_after,
+                "realized_pnl": float(account["realized_pnl"]),
+                "unrealized_pnl": unrealized_after,
+                "metadata": {
+                    "prediction_value": prediction_value,
+                    "task_type": task_type,
+                    "price_date": str(latest_row.get("date")),
+                    "explanation": explanation["explanation"],
+                    "pe_ratio": pe_ratio,
+                    "volatility": volatility,
+                    "decision_source": decision_source,
+                    "model_load_errors": model_load_errors,
+                },
+            }
+            store.append_trade(trade_payload)
+            decisions.append(trade_payload)
+            logger.info(
+                "Live trader decision user_id=%s ticker=%s action=%s reason=%s prediction=%s confidence=%s source=%s",
+                clean_user_id,
+                symbol,
+                action,
+                reason,
+                prediction_value,
+                confidence_score,
+                decision_source,
+            )
+        except Exception as exc:
+            failed_symbols.append(symbol)
+            logger.warning("Live trader ticker=%s skipped due to decision error: %s", symbol, exc)
+            continue
 
     account = ledger.build_account_summary(
         clean_user_id,
@@ -644,6 +775,10 @@ def run_live_virtual_trader_now(
         holdings=holdings,
         latest_decisions=decisions,
         contribution_events=contribution_events,
+        universe_size=len(symbols),
+        tickers_evaluated=len(decisions),
+        tickers_failed=len(failed_symbols),
+        fallback_used_count=fallback_used_count,
     )
 
 
@@ -665,6 +800,7 @@ def get_live_virtual_trader_status(
 
     store = get_live_virtual_trader_store()
     latest_prices = _latest_prices_for_symbols(list(set(symbols)))
+    tickers_failed = len([symbol for symbol in symbols if symbol not in latest_prices])
     account = ledger.build_account_summary(clean_user_id, latest_prices=latest_prices)
     holdings = account["holdings"]
     holdings_value = float(account["holdings_value"])
@@ -695,6 +831,14 @@ def get_live_virtual_trader_status(
         holdings=holdings,
         latest_decisions=latest_decisions,
         contribution_events=contribution_events,
+        universe_size=len(symbols),
+        tickers_evaluated=len(symbols),
+        tickers_failed=tickers_failed,
+        fallback_used_count=sum(
+            1
+            for item in latest_decisions
+            if str((item.get("metadata") or {}).get("decision_source", "")) == "fallback_rule"
+        ),
     )
 
 

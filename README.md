@@ -726,3 +726,19 @@ Scheduler robustness notes:
 - Per-run error logging: scheduler status includes error_count and error_messages for recent runs.
 - Health endpoint: GET /virtual-trader/scheduler-health
 - Clean restart: scheduler starts on backend startup and stops on backend shutdown via FastAPI lifespan.
+
+Autonomous trader behavior update:
+- Live trader no longer hard-fails when per-ticker model artifacts are missing.
+- Decision priority is now:
+  1) ticker model (if available)
+  2) shared GLOBAL model (if available)
+  3) built-in rule-based fallback strategy
+- Fallback strategy keeps trading simulation running immediately, even with zero trained models.
+- The virtual trader scans an active market universe automatically (via universe_service.get_active_universe).
+- Missing-model fallback does not count as a scheduler error.
+- Scheduler run status now reports:
+  - users_processed
+  - tickers_processed
+  - tickers_failed
+  - fallback_used
+- Virtual Trader UI no longer exposes manual ticker selection for live mode.

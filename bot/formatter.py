@@ -644,7 +644,9 @@ def format_trader_scheduler_status_message(data: dict[str, Any], settings: dict[
     last_run = _safe_text(data.get("last_run_time_utc"), "N/A")
     next_run = _safe_text(data.get("next_run_time_utc"), "N/A")
     executed = _safe_text(data.get("last_decisions_executed"), "0")
-    total = _safe_text(data.get("last_decisions_total"), "0")
+    tickers_processed = _safe_text(data.get("last_tickers_processed"), "0")
+    tickers_failed = _safe_text(data.get("last_tickers_failed"), "0")
+    fallback_used = _safe_text(data.get("last_fallback_used"), "0")
     skipped = _safe_text(data.get("skipped_runs_total"), "0")
 
     if compact_mode:
@@ -661,6 +663,9 @@ def format_trader_scheduler_status_message(data: dict[str, Any], settings: dict[
         f"- {_text(language, 'Mode', '模式')}: {mode_text}\n"
         f"- {_text(language, 'Last run', '上次執行')}: {last_run}\n"
         f"- {_text(language, 'Next run', '下次執行')}: {next_run}\n"
-        f"- {_text(language, 'Last decisions', '上次決策')}: {executed}/{total}\n"
+        f"- {_text(language, 'Tickers processed', '已評估股票')}: {tickers_processed}\n"
+        f"- {_text(language, 'Tickers failed', '失敗股票')}: {tickers_failed}\n"
+        f"- {_text(language, 'Fallback used', '後備策略')}: {fallback_used}\n"
+        f"- {_text(language, 'Trades executed', '執行交易')}: {executed}\n"
         f"- {_text(language, 'Skipped runs', '略過次數')}: {skipped}"
     )

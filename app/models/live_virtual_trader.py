@@ -77,6 +77,10 @@ class LiveTraderStatusResponse(BaseModel):
     holdings: list[LiveTraderHoldingResponse]
     latest_decisions: list[LiveTraderDecisionResponse]
     contribution_events: list[dict]
+    universe_size: int = 0
+    tickers_evaluated: int = 0
+    tickers_failed: int = 0
+    fallback_used_count: int = 0
 
 
 class LiveTraderTradesResponse(BaseModel):

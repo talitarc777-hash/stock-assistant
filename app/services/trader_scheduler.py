@@ -48,7 +48,10 @@ class TraderSchedulerService:
         self._next_run_time_utc: str | None = None
         self._total_runs = 0
         self._skipped_runs_total = 0
-        self._last_decisions_total = 0
+        self._last_users_processed = 0
+        self._last_tickers_processed = 0
+        self._last_tickers_failed = 0
+        self._last_fallback_used = 0
         self._last_decisions_executed = 0
         self._last_error_count = 0
         self._consecutive_failures = 0
@@ -104,8 +107,10 @@ class TraderSchedulerService:
         *,
         source: str,
         mode: str,
-        users_scanned: int,
-        decisions_total: int,
+        users_processed: int,
+        tickers_processed: int,
+        tickers_failed: int,
+        fallback_used: int,
         decisions_executed: int,
         skipped: bool,
         message: str,
@@ -116,8 +121,10 @@ class TraderSchedulerService:
             "timestamp_utc": _utc_now_iso(),
             "source": source,
             "mode": mode,
-            "users_scanned": int(users_scanned),
-            "decisions_total": int(decisions_total),
+            "users_processed": int(users_processed),
+            "tickers_processed": int(tickers_processed),
+            "tickers_failed": int(tickers_failed),
+            "fallback_used": int(fallback_used),
             "decisions_executed": int(decisions_executed),
             "skipped": bool(skipped),
             "message": message,
@@ -131,7 +138,10 @@ class TraderSchedulerService:
             else:
                 self._total_runs += 1
                 self._last_run_time_utc = row["timestamp_utc"]
-                self._last_decisions_total = int(decisions_total)
+                self._last_users_processed = int(users_processed)
+                self._last_tickers_processed = int(tickers_processed)
+                self._last_tickers_failed = int(tickers_failed)
+                self._last_fallback_used = int(fallback_used)
                 self._last_decisions_executed = int(decisions_executed)
                 self._last_error_count = int(error_count)
                 if int(error_count) > 0:
@@ -139,12 +149,14 @@ class TraderSchedulerService:
                 else:
                     self._consecutive_failures = 0
         logger.info(
-            "Trader run source=%s mode=%s users=%d decisions_executed=%d decisions_total=%d errors=%d skipped=%s",
+            "Trader run source=%s mode=%s users_processed=%d tickers_processed=%d tickers_failed=%d fallback_used=%d decisions_executed=%d errors=%d skipped=%s",
             source,
             mode,
-            users_scanned,
+            users_processed,
+            tickers_processed,
+            tickers_failed,
+            fallback_used,
             decisions_executed,
-            decisions_total,
             error_count,
             skipped,
         )
@@ -154,8 +166,10 @@ class TraderSchedulerService:
         self._append_run_log(
             source=source,
             mode=state.mode,
-            users_scanned=0,
-            decisions_total=0,
+            users_processed=0,
+            tickers_processed=0,
+            tickers_failed=0,
+            fallback_used=0,
             decisions_executed=0,
             skipped=True,
             message=reason,
@@ -236,7 +250,10 @@ class TraderSchedulerService:
             self._cadence_seconds = state.interval_seconds
 
         users = user_ids or self._target_users_for_scheduler()
-        decisions_total = 0
+        users_processed = 0
+        tickers_processed = 0
+        tickers_failed = 0
+        fallback_used = 0
         decisions_executed = 0
         error_count = 0
         error_messages: list[str] = []
@@ -259,7 +276,10 @@ class TraderSchedulerService:
                         max_attempts=2,
                     )
                     user_decisions = list(status.latest_decisions)
-                    decisions_total += len(user_decisions)
+                    users_processed += 1
+                    tickers_processed += int(status.tickers_evaluated)
+                    tickers_failed += int(status.tickers_failed)
+                    fallback_used += int(status.fallback_used_count)
                     decisions_executed += self._count_executed_decisions(user_decisions)
                 except Exception as exc:  # pragma: no cover - runtime defensive guard
                     error_count += 1
@@ -267,15 +287,22 @@ class TraderSchedulerService:
                     logger.exception("Trader cycle failed user_id=%s error=%s", clean_user_id, exc)
 
             message = (
-                f"run_completed users={len(users)} errors={error_count}"
+                "run_completed "
+                f"users_processed={users_processed} "
+                f"tickers_processed={tickers_processed} "
+                f"tickers_failed={tickers_failed} "
+                f"fallback_used={fallback_used} "
+                f"errors={error_count}"
                 if users
                 else "run_completed no_users"
             )
             self._append_run_log(
                 source=source,
                 mode=state.mode,
-                users_scanned=len(users),
-                decisions_total=decisions_total,
+                users_processed=users_processed,
+                tickers_processed=tickers_processed,
+                tickers_failed=tickers_failed,
+                fallback_used=fallback_used,
                 decisions_executed=decisions_executed,
                 skipped=False,
                 message=message,
@@ -325,13 +352,17 @@ class TraderSchedulerService:
                 tickers=tickers,
                 max_attempts=2,
             )
-            decisions_total = len(status.latest_decisions)
+            tickers_processed = int(status.tickers_evaluated)
+            tickers_failed = int(status.tickers_failed)
+            fallback_used = int(status.fallback_used_count)
             decisions_executed = self._count_executed_decisions(status.latest_decisions)
             self._append_run_log(
                 source="manual",
                 mode=state.mode,
-                users_scanned=1,
-                decisions_total=decisions_total,
+                users_processed=1,
+                tickers_processed=tickers_processed,
+                tickers_failed=tickers_failed,
+                fallback_used=fallback_used,
                 decisions_executed=decisions_executed,
                 skipped=False,
                 message=f"manual_run_completed user_id={clean_user_id}",
@@ -369,7 +400,10 @@ class TraderSchedulerService:
                 "next_run_time_utc": next_run,
                 "total_runs": int(self._total_runs),
                 "skipped_runs_total": int(self._skipped_runs_total),
-                "last_decisions_total": int(self._last_decisions_total),
+                "last_users_processed": int(self._last_users_processed),
+                "last_tickers_processed": int(self._last_tickers_processed),
+                "last_tickers_failed": int(self._last_tickers_failed),
+                "last_fallback_used": int(self._last_fallback_used),
                 "last_decisions_executed": int(self._last_decisions_executed),
                 "last_error_count": int(self._last_error_count),
                 "recent_runs": recent_runs,

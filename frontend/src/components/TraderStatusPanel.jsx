@@ -8,38 +8,31 @@ function labelByMode(mode, en, zh) {
 
 function modeText(mode, languageMode) {
   if (mode === "market_open") {
-    return labelByMode(languageMode, "Market Open (5 min cycle)", "開市中（每 5 分鐘）");
+    return labelByMode(languageMode, "Market Open (5 min cycle)", "開市時段（每 5 分鐘）");
   }
-  return labelByMode(languageMode, "Market Closed (1 hour cycle)", "休市中（每 1 小時）");
+  return labelByMode(languageMode, "Market Closed (1 hour cycle)", "休市時段（每 1 小時）");
 }
 
-export default function TraderStatusPanel({
-  languageMode,
-  status,
-  isLoading = false,
-  onRefresh = null,
-}) {
-  const running = Boolean(status?.running);
+export default function TraderStatusPanel({ languageMode, status, isLoading = false, onRefresh = null }) {
   const recentRuns = status?.recent_runs || [];
 
   return (
     <section className="panel">
-      <h3>{labelByMode(languageMode, "Trader Scheduler Status", "交易排程器狀態")}</h3>
+      <h3>{labelByMode(languageMode, "Autonomous Trader Status", "自動交易模擬狀態")}</h3>
       <p className="helper-text">
         {labelByMode(
           languageMode,
-          "Automatic runs adapt to U.S. market hours: 5 minutes open, 1 hour closed.",
-          "系統會按美股時段自動執行：開市每 5 分鐘、休市每 1 小時。"
+          "Trader scans the market universe automatically. No manual ticker selection is required.",
+          "系統會自動掃描市場股票池，毋須手動選擇股票。"
         )}
       </p>
+      {isLoading ? <p>{labelByMode(languageMode, "Loading...", "載入中...")}</p> : null}
 
-      {isLoading ? (
-        <p>{labelByMode(languageMode, "Loading...", "載入中...")}</p>
-      ) : (
+      {!isLoading ? (
         <div className="detail-grid">
           <p>
             <strong>{labelByMode(languageMode, "Status", "狀態")}:</strong>{" "}
-            {running
+            {status?.running
               ? labelByMode(languageMode, "Running", "執行中")
               : labelByMode(languageMode, "Idle", "待機中")}
           </p>
@@ -48,23 +41,33 @@ export default function TraderStatusPanel({
             {modeText(status?.mode || "market_closed", languageMode)}
           </p>
           <p>
-            <strong>{labelByMode(languageMode, "Last Run", "上次執行")}:</strong>{" "}
-            {status?.last_run_time_utc || "N/A"}
+            <strong>{labelByMode(languageMode, "Last Run", "上次執行")}:</strong> {status?.last_run_time_utc || "N/A"}
           </p>
           <p>
-            <strong>{labelByMode(languageMode, "Next Run", "下次執行")}:</strong>{" "}
-            {status?.next_run_time_utc || "N/A"}
+            <strong>{labelByMode(languageMode, "Next Run", "下次執行")}:</strong> {status?.next_run_time_utc || "N/A"}
           </p>
           <p>
-            <strong>{labelByMode(languageMode, "Decisions (Last Run)", "上次決策數")}:</strong>{" "}
-            {status?.last_decisions_executed ?? 0} / {status?.last_decisions_total ?? 0}
+            <strong>{labelByMode(languageMode, "Users Processed", "處理用戶數")}:</strong>{" "}
+            {status?.last_users_processed ?? 0}
           </p>
           <p>
-            <strong>{labelByMode(languageMode, "Skipped Runs", "略過次數")}:</strong>{" "}
-            {status?.skipped_runs_total ?? 0}
+            <strong>{labelByMode(languageMode, "Tickers Processed", "已評估股票數")}:</strong>{" "}
+            {status?.last_tickers_processed ?? 0}
+          </p>
+          <p>
+            <strong>{labelByMode(languageMode, "Tickers Failed", "失敗股票數")}:</strong>{" "}
+            {status?.last_tickers_failed ?? 0}
+          </p>
+          <p>
+            <strong>{labelByMode(languageMode, "Fallback Used", "使用後備策略")}:</strong>{" "}
+            {status?.last_fallback_used ?? 0}
+          </p>
+          <p>
+            <strong>{labelByMode(languageMode, "Trades Executed", "執行交易數")}:</strong>{" "}
+            {status?.last_decisions_executed ?? 0}
           </p>
         </div>
-      )}
+      ) : null}
 
       {onRefresh ? (
         <div className="settings-actions">
@@ -74,7 +77,7 @@ export default function TraderStatusPanel({
         </div>
       ) : null}
 
-      <h4>{labelByMode(languageMode, "Recent Runs", "最近執行記錄")}</h4>
+      <h4>{labelByMode(languageMode, "Recent Runs", "最近執行紀錄")}</h4>
       {recentRuns.length ? (
         <div className="table-wrap">
           <table>
@@ -82,7 +85,9 @@ export default function TraderStatusPanel({
               <tr>
                 <th>{labelByMode(languageMode, "Time", "時間")}</th>
                 <th>{labelByMode(languageMode, "Mode", "模式")}</th>
-                <th>{labelByMode(languageMode, "Executed", "已執行")}</th>
+                <th>{labelByMode(languageMode, "Tickers", "股票數")}</th>
+                <th>{labelByMode(languageMode, "Failed", "失敗")}</th>
+                <th>{labelByMode(languageMode, "Fallback", "後備")}</th>
                 <th>{labelByMode(languageMode, "Message", "訊息")}</th>
               </tr>
             </thead>
@@ -91,9 +96,9 @@ export default function TraderStatusPanel({
                 <tr key={`${item.timestamp_utc}-${item.source}-${item.message}`}>
                   <td>{item.timestamp_utc}</td>
                   <td>{modeText(item.mode, languageMode)}</td>
-                  <td>
-                    {item.decisions_executed}/{item.decisions_total}
-                  </td>
+                  <td>{item.tickers_processed}</td>
+                  <td>{item.tickers_failed}</td>
+                  <td>{item.fallback_used}</td>
                   <td>{item.message}</td>
                 </tr>
               ))}
@@ -101,7 +106,7 @@ export default function TraderStatusPanel({
           </table>
         </div>
       ) : (
-        <p>{labelByMode(languageMode, "No run logs yet.", "暫時未有執行記錄。")}</p>
+        <p>{labelByMode(languageMode, "No run logs yet.", "暫時未有執行紀錄。")}</p>
       )}
     </section>
   );
