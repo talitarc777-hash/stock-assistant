@@ -119,7 +119,10 @@ def _build_feature_frame(
         raise ModelTrainingError("No numeric feature columns available for training.")
 
     training_df = dataset_df[["date", target_name] + feature_columns].copy()
-    training_df = training_df.dropna(subset=[target_name]).dropna(subset=feature_columns)
+    # Keep rows that have a target label and let the model pipeline's imputer handle
+    # missing feature values. Dropping on *all* feature NaNs can wipe out the dataset,
+    # especially when optional features (like news sentiment) are sparse.
+    training_df = training_df.dropna(subset=[target_name])
 
     if training_df.empty:
         raise ModelTrainingError(f"No rows remain after cleaning for target {target_name}.")
