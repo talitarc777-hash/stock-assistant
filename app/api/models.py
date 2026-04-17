@@ -248,7 +248,13 @@ def model_latest(
     user_id: str | None = Query(default=None, min_length=1, max_length=120),
 ) -> ModelLatestResponse:
     """Return the latest saved model prediction row for one ticker."""
-    resolved_model_name = resolve_selected_model_name(user_id=user_id, requested_model_name=model_name)
+    resolved_model_name = resolve_selected_model_name(
+        user_id=user_id,
+        requested_model_name=model_name,
+        ticker=ticker,
+        period=period,
+        target_name=target_name,
+    )
     logger.info(
         "Request /model-latest ticker=%s period=%s target=%s model=%s",
         ticker,
@@ -289,7 +295,13 @@ def model_history(
     limit: int = Query(200, ge=1, le=5000),
 ) -> ModelHistoryResponse:
     """Return saved model prediction history and rolling accuracy for one ticker."""
-    resolved_model_name = resolve_selected_model_name(user_id=user_id, requested_model_name=model_name)
+    resolved_model_name = resolve_selected_model_name(
+        user_id=user_id,
+        requested_model_name=model_name,
+        ticker=ticker,
+        period=period,
+        target_name=target_name,
+    )
     logger.info(
         "Request /model-history ticker=%s period=%s target=%s model=%s limit=%s",
         ticker,
@@ -335,7 +347,13 @@ def model_accuracy(
     window: int = Query(20, ge=1, le=252),
 ) -> ModelAccuracyResponse:
     """Return saved walk-forward metrics and rolling accuracy."""
-    resolved_model_name = resolve_selected_model_name(user_id=user_id, requested_model_name=model_name)
+    resolved_model_name = resolve_selected_model_name(
+        user_id=user_id,
+        requested_model_name=model_name,
+        ticker=ticker,
+        period=period,
+        target_name=target_name,
+    )
     logger.info(
         "Request /model-accuracy ticker=%s period=%s target=%s model=%s window=%s",
         ticker,
@@ -397,7 +415,12 @@ def virtual_trader_summary(
     equity_limit: int = Query(500, ge=1, le=5000),
 ) -> VirtualTraderSummaryResponse:
     """Return saved virtual trader summary and equity curve."""
-    resolved_model_name = resolve_selected_model_name(user_id=user_id, requested_model_name=model_name)
+    resolved_model_name = resolve_selected_model_name(
+        user_id=user_id,
+        requested_model_name=model_name,
+        ticker=ticker,
+        period=period,
+    )
     logger.info(
         "Request /virtual-trader-summary ticker=%s period=%s model=%s equity_limit=%s",
         ticker,
@@ -460,7 +483,12 @@ def virtual_trader_trades(
     limit: int = Query(200, ge=1, le=5000),
 ) -> VirtualTraderTradesResponse:
     """Return saved virtual trader trade log and monthly contributions."""
-    resolved_model_name = resolve_selected_model_name(user_id=user_id, requested_model_name=model_name)
+    resolved_model_name = resolve_selected_model_name(
+        user_id=user_id,
+        requested_model_name=model_name,
+        ticker=ticker,
+        period=period,
+    )
     logger.info(
         "Request /virtual-trader-trades ticker=%s period=%s model=%s limit=%s",
         ticker,

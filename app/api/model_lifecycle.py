@@ -1,0 +1,162 @@
+"""Model lifecycle status and control endpoints."""
+
+from __future__ import annotations
+
+import logging
+
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
+
+from app.core.api_utils import PERIOD_PATTERN, TICKER_PATTERN
+from app.models.model_lifecycle import (
+    ModelLifecycleRunNowRequest,
+    ModelLifecycleRunResponse,
+    ModelLifecycleStatusResponse,
+    ModelRegistryItemResponse,
+)
+from app.services.model_lifecycle_scheduler import (
+    ModelLifecycleSchedulerBusyError,
+    get_model_lifecycle_scheduler_service,
+)
+from app.services.model_lifecycle_service import (
+    DEFAULT_TARGET_NAME,
+    ModelLifecycleError,
+    get_model_lifecycle_service,
+)
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(tags=["model-lifecycle"])
+
+
+class ModelLifecycleHealthResponse(BaseModel):
+    """Simple lifecycle scheduler health response."""
+
+    healthy: bool
+    scheduler_started: bool
+    running: bool
+    last_run_time_utc: str | None = None
+    next_run_time_utc: str | None = None
+    consecutive_failures: int
+    last_error: str | None = None
+
+
+@router.get("/model-lifecycle/status", response_model=ModelLifecycleStatusResponse)
+def get_model_lifecycle_status(
+    ticker: str = Query("VOO", min_length=1, max_length=15, pattern=TICKER_PATTERN),
+    period: str = Query("5y", pattern=PERIOD_PATTERN),
+    target_name: str = Query(DEFAULT_TARGET_NAME, min_length=1, max_length=50),
+    log_limit: int = Query(8, ge=1, le=40),
+) -> ModelLifecycleStatusResponse:
+    """Return scheduler status, current production model, and recent lifecycle metrics."""
+    try:
+        payload = get_model_lifecycle_scheduler_service().get_status(
+            ticker=ticker,
+            period=period,
+            target_name=target_name,
+            log_limit=log_limit,
+        )
+        production_payload = payload.get("production_model")
+        return ModelLifecycleStatusResponse(
+            running=bool(payload.get("running")),
+            scheduler_started=bool(payload.get("scheduler_started")),
+            cadence_seconds=int(payload.get("cadence_seconds", 0)),
+            last_run_time_utc=payload.get("last_run_time_utc"),
+            next_run_time_utc=payload.get("next_run_time_utc"),
+            last_retrain_time_utc=payload.get("last_retrain_time_utc"),
+            next_retrain_time_utc=payload.get("next_retrain_time_utc"),
+            last_workflow_type=payload.get("last_workflow_type"),
+            production_model=(
+                ModelRegistryItemResponse(**production_payload) if production_payload else None
+            ),
+            recent_metrics=list(payload.get("recent_metrics", [])),
+            active_triggers=list(payload.get("active_triggers", [])),
+            recent_runs=[ModelLifecycleRunResponse(**item) for item in payload.get("recent_runs", [])],
+        )
+    except Exception as exc:  # pragma: no cover - defensive guard
+        logger.exception("Unexpected model lifecycle status error")
+        raise HTTPException(status_code=500, detail="Unexpected server error.") from exc
+
+
+@router.get("/model-lifecycle/registry", response_model=list[ModelRegistryItemResponse])
+def list_model_registry(
+    ticker: str | None = Query(default=None, min_length=1, max_length=15, pattern=TICKER_PATTERN),
+    period: str | None = Query(default=None, pattern=PERIOD_PATTERN),
+    target_name: str | None = Query(default=None, min_length=1, max_length=50),
+    limit: int = Query(200, ge=1, le=1000),
+) -> list[ModelRegistryItemResponse]:
+    """Return model registry entries and statuses."""
+    try:
+        rows = get_model_lifecycle_service().list_registry(
+            ticker=ticker,
+            period=period,
+            target_name=target_name,
+            limit=limit,
+        )
+        return [ModelRegistryItemResponse(**row) for row in rows]
+    except Exception as exc:  # pragma: no cover - defensive guard
+        logger.exception("Unexpected model lifecycle registry error")
+        raise HTTPException(status_code=500, detail="Unexpected server error.") from exc
+
+
+@router.get("/model-lifecycle/runs", response_model=list[ModelLifecycleRunResponse])
+def list_model_lifecycle_runs(
+    limit: int = Query(20, ge=1, le=200),
+) -> list[ModelLifecycleRunResponse]:
+    """Return recent scheduled/manual lifecycle workflow runs."""
+    try:
+        rows = get_model_lifecycle_service().list_recent_runs(limit=limit)
+        return [ModelLifecycleRunResponse(**row) for row in rows]
+    except Exception as exc:  # pragma: no cover - defensive guard
+        logger.exception("Unexpected model lifecycle runs error")
+        raise HTTPException(status_code=500, detail="Unexpected server error.") from exc
+
+
+@router.post("/model-lifecycle/run-now", response_model=ModelLifecycleStatusResponse)
+def run_model_lifecycle_now(
+    request: ModelLifecycleRunNowRequest,
+) -> ModelLifecycleStatusResponse:
+    """Trigger one immediate model lifecycle workflow run."""
+    scheduler = get_model_lifecycle_scheduler_service()
+    try:
+        payload = scheduler.run_now(
+            workflow_type=request.workflow_type,
+            trigger_reason=request.trigger_reason,
+            tickers=request.tickers,
+        )
+        production_payload = payload.get("production_model")
+        return ModelLifecycleStatusResponse(
+            running=bool(payload.get("running")),
+            scheduler_started=bool(payload.get("scheduler_started")),
+            cadence_seconds=int(payload.get("cadence_seconds", 0)),
+            last_run_time_utc=payload.get("last_run_time_utc"),
+            next_run_time_utc=payload.get("next_run_time_utc"),
+            last_retrain_time_utc=payload.get("last_retrain_time_utc"),
+            next_retrain_time_utc=payload.get("next_retrain_time_utc"),
+            last_workflow_type=payload.get("last_workflow_type"),
+            production_model=(
+                ModelRegistryItemResponse(**production_payload) if production_payload else None
+            ),
+            recent_metrics=list(payload.get("recent_metrics", [])),
+            active_triggers=list(payload.get("active_triggers", [])),
+            recent_runs=[ModelLifecycleRunResponse(**item) for item in payload.get("recent_runs", [])],
+        )
+    except ModelLifecycleSchedulerBusyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ModelLifecycleError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover - defensive guard
+        logger.exception("Unexpected model lifecycle manual run error")
+        raise HTTPException(status_code=500, detail="Unexpected server error.") from exc
+
+
+@router.get("/model-lifecycle/health", response_model=ModelLifecycleHealthResponse)
+def get_model_lifecycle_health() -> ModelLifecycleHealthResponse:
+    """Simple health endpoint for model lifecycle scheduler monitoring."""
+    try:
+        payload = get_model_lifecycle_scheduler_service().get_health()
+        return ModelLifecycleHealthResponse(**payload)
+    except Exception as exc:  # pragma: no cover - defensive guard
+        logger.exception("Unexpected model lifecycle health error")
+        raise HTTPException(status_code=500, detail="Unexpected server error.") from exc
+

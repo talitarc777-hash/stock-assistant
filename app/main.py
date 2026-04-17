@@ -12,6 +12,7 @@ from app.api.backtest import router as backtest_router
 from app.api.dashboard import router as dashboard_router
 from app.api.forecast import router as forecast_router
 from app.api.market_data import router as market_data_router
+from app.api.model_lifecycle import router as model_lifecycle_router
 from app.api.model_settings import router as model_settings_router
 from app.api.models import router as models_router
 from app.api.monthly_contributions import router as monthly_contributions_router
@@ -23,6 +24,7 @@ from app.api.universe import router as universe_router
 from app.api.virtual_account import router as virtual_account_router
 from app.api.virtual_trader import router as virtual_trader_router
 from app.core.settings import get_settings
+from app.services.model_lifecycle_scheduler import get_model_lifecycle_scheduler_service
 from app.services.trader_scheduler import get_trader_scheduler_service
 
 logging.basicConfig(
@@ -44,13 +46,16 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    """Start/stop background trader scheduler with app lifecycle."""
-    scheduler = get_trader_scheduler_service()
-    scheduler.start()
+    """Start/stop background schedulers with app lifecycle."""
+    trader_scheduler = get_trader_scheduler_service()
+    lifecycle_scheduler = get_model_lifecycle_scheduler_service()
+    trader_scheduler.start()
+    lifecycle_scheduler.start()
     try:
         yield
     finally:
-        scheduler.stop()
+        lifecycle_scheduler.stop()
+        trader_scheduler.stop()
 
 
 # Create the API app instance.
@@ -84,6 +89,7 @@ app.include_router(forecast_router)
 app.include_router(paper_router)
 app.include_router(models_router)
 app.include_router(model_settings_router)
+app.include_router(model_lifecycle_router)
 app.include_router(monthly_contributions_router)
 app.include_router(user_profile_router)
 app.include_router(universe_router)

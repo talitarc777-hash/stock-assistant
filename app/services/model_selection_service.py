@@ -11,6 +11,11 @@ from app.models.monthly_contribution import (
     ModelEvaluationSettingsResponse,
 )
 from app.models.user_profile import UserProfileSettingsUpdateRequest
+from app.services.model_lifecycle_service import (
+    DEFAULT_PERIOD,
+    DEFAULT_TARGET_NAME,
+    get_model_lifecycle_service,
+)
 from app.services.user_profile_service import get_user_profile_store
 
 logger = logging.getLogger(__name__)
@@ -100,10 +105,40 @@ def update_model_evaluation_settings(user_id: str, selected_model_name: str) -> 
     return get_model_evaluation_settings(user_id=user_id)
 
 
-def resolve_selected_model_name(user_id: str | None = None, requested_model_name: str | None = None) -> str:
+def resolve_selected_model_name(
+    user_id: str | None = None,
+    requested_model_name: str | None = None,
+    ticker: str | None = None,
+    period: str = DEFAULT_PERIOD,
+    target_name: str = DEFAULT_TARGET_NAME,
+) -> str:
     """Choose the effective model name for model and trader views."""
     if requested_model_name:
         return str(requested_model_name).strip().lower()
+
+    profile_model_name = None
     if user_id:
-        return get_model_evaluation_settings(user_id=user_id).selected_model_name
+        profile_model_name = get_model_evaluation_settings(user_id=user_id).selected_model_name
+
+    lifecycle = get_model_lifecycle_service()
+    target_ticker = str(ticker).strip().upper() if ticker else "GLOBAL"
+    production = lifecycle.get_production_model(
+        ticker=target_ticker,
+        period=period,
+        target_name=target_name,
+    )
+    if production:
+        return str(production["model_name"]).strip().lower()
+
+    if target_ticker != "GLOBAL":
+        shared_production = lifecycle.get_production_model(
+            ticker="GLOBAL",
+            period=period,
+            target_name=target_name,
+        )
+        if shared_production:
+            return str(shared_production["model_name"]).strip().lower()
+
+    if profile_model_name:
+        return str(profile_model_name).strip().lower()
     return DEFAULT_MODEL_NAME

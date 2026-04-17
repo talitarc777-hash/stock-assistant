@@ -208,3 +208,36 @@ export async function createMonthlyContributions(userId, records) {
     source: "web",
   });
 }
+
+export async function fetchModelLifecycleStatus(
+  ticker = "VOO",
+  period = "5y",
+  targetName = "target_5d_updown",
+  logLimit = 8
+) {
+  return fetchJson(
+    `/model-lifecycle/status?ticker=${encodeURIComponent(ticker)}&period=${encodeURIComponent(
+      period
+    )}&target_name=${encodeURIComponent(targetName)}&log_limit=${encodeURIComponent(logLimit)}`
+  );
+}
+
+export async function fetchModelLifecycleRegistry(limit = 200) {
+  return fetchJson(`/model-lifecycle/registry?limit=${encodeURIComponent(limit)}`);
+}
+
+export async function fetchModelLifecycleRuns(limit = 20) {
+  return fetchJson(`/model-lifecycle/runs?limit=${encodeURIComponent(limit)}`);
+}
+
+export async function runModelLifecycleNow(
+  workflowType = "daily_incremental",
+  triggerReason = "manual_trigger",
+  tickers = null
+) {
+  return postJson("/model-lifecycle/run-now", {
+    workflow_type: workflowType,
+    trigger_reason: triggerReason,
+    tickers,
+  });
+}

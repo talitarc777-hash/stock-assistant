@@ -43,5 +43,11 @@
   "article_count",
   "average_sentiment",
   "positive_article_ratio",
-  "negative_article_ratio"
+  "negative_article_ratio",
+  "article_count_recent_7d",
+  "average_sentiment_recent_7d",
+  "positive_article_ratio_recent_7d",
+  "negative_article_ratio_recent_7d",
+  "positive_count",
+  "negative_count"
 ]
