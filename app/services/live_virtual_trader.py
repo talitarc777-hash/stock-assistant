@@ -530,7 +530,7 @@ def run_live_virtual_trader_now(
                 try:
                     bundle = load_trained_model_bundle(
                         ticker=candidate_ticker,
-                        period="5y",
+                        period=period,
                         target_name=target_name,
                         model_name=model_name,
                     )
@@ -565,7 +565,7 @@ def run_live_virtual_trader_now(
                 )
                 _schedule_background_training_if_enabled(
                     ticker=symbol,
-                    period="5y",
+                    period=period,
                     benchmark=benchmark,
                 )
                 logger.info(
