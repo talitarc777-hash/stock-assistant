@@ -9,6 +9,9 @@ from fastapi import APIRouter, HTTPException, Query
 from app.models.account_ledger import (
     AccountLedgerListResponse,
     VirtualAccountDepositRequest,
+    VirtualAccountDiagnosticsResponse,
+    VirtualAccountResetRequest,
+    VirtualAccountResetResponse,
     VirtualAccountSummaryResponse,
     VirtualAccountWithdrawalRequest,
 )
@@ -92,4 +95,40 @@ def virtual_account_withdraw(request: VirtualAccountWithdrawalRequest) -> Virtua
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # pragma: no cover
         logger.exception("Unexpected virtual-account withdrawal error")
+        raise HTTPException(status_code=500, detail="Unexpected server error.") from exc
+
+
+@router.get("/virtual-account/diagnostics", response_model=VirtualAccountDiagnosticsResponse)
+def virtual_account_diagnostics(
+    user_id: str = Query(..., min_length=1, max_length=120),
+) -> VirtualAccountDiagnosticsResponse:
+    """Return profile-scoped persistence diagnostics."""
+    try:
+        payload = get_account_ledger_service().get_profile_diagnostics(user_id=user_id)
+        return VirtualAccountDiagnosticsResponse(**payload)
+    except AccountLedgerError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover
+        logger.exception("Unexpected virtual-account diagnostics error")
+        raise HTTPException(status_code=500, detail="Unexpected server error.") from exc
+
+
+@router.post("/virtual-account/reset", response_model=VirtualAccountResetResponse)
+def virtual_account_reset(request: VirtualAccountResetRequest) -> VirtualAccountResetResponse:
+    """Reset one profile's simulated trading account data only."""
+    if not bool(request.confirm_reset):
+        raise HTTPException(
+            status_code=400,
+            detail="confirm_reset must be true to run a destructive account reset.",
+        )
+    try:
+        payload = get_account_ledger_service().reset_profile_account_data(
+            user_id=request.user_id,
+            reset_monthly_contributions=bool(request.reset_monthly_contributions),
+        )
+        return VirtualAccountResetResponse(**payload)
+    except AccountLedgerError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover
+        logger.exception("Unexpected virtual-account reset error")
         raise HTTPException(status_code=500, detail="Unexpected server error.") from exc

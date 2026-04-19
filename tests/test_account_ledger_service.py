@@ -5,9 +5,11 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 from uuid import uuid4
+import sqlite3
 from unittest.mock import patch
 
 from app.services.account_ledger_service import AccountLedgerError, AccountLedgerService
+from app.services.monthly_contribution_service import MonthlyContributionStore
 
 
 class AccountLedgerServiceTests(unittest.TestCase):
@@ -53,6 +55,57 @@ class AccountLedgerServiceTests(unittest.TestCase):
 
             second_try = self.service.apply_recurring_monthly_contribution_if_due("u1", source="scheduler")
             self.assertIsNone(second_try)
+
+    def test_reset_profile_account_data_is_user_scoped(self) -> None:
+        self.service.create_monthly_contribution("u1", "2026-04", 1000.0)
+        self.service.create_manual_deposit("u1", 200.0)
+        self.service.create_trade_event(
+            user_id="u1",
+            action="buy",
+            ticker="VOO",
+            quantity=2.0,
+            price=100.0,
+        )
+        self.service.create_monthly_contribution("u2", "2026-04", 900.0)
+
+        result = self.service.reset_profile_account_data("u1", reset_monthly_contributions=True)
+        self.assertTrue(result["reset_completed"])
+        self.assertGreaterEqual(result["deleted_ledger_rows"], 1)
+
+        summary_u1 = self.service.build_account_summary("u1", latest_prices={"VOO": 100.0})
+        summary_u2 = self.service.build_account_summary("u2", latest_prices={"VOO": 100.0})
+        self.assertAlmostEqual(summary_u1["cash"], 0.0, places=6)
+        self.assertAlmostEqual(summary_u2["cash"], 900.0, places=6)
+
+    def test_reset_profile_account_data_clears_monthly_store_for_user_only(self) -> None:
+        monthly_store = MonthlyContributionStore(db_path=str(self.db_path))
+        monthly_store.initialize_for_user("u1")
+        monthly_store.update_amount("u1", "2026-04", 1000.0)
+        monthly_store.initialize_for_user("u2")
+        monthly_store.update_amount("u2", "2026-04", 900.0)
+
+        result = self.service.reset_profile_account_data("u1", reset_monthly_contributions=True)
+        self.assertGreaterEqual(result["deleted_monthly_store_rows"], 1)
+
+        with sqlite3.connect(self.db_path) as connection:
+            u1_count = connection.execute(
+                "SELECT COUNT(1) FROM monthly_contributions WHERE user_id = ?",
+                ("u1",),
+            ).fetchone()[0]
+            u2_count = connection.execute(
+                "SELECT COUNT(1) FROM monthly_contributions WHERE user_id = ?",
+                ("u2",),
+            ).fetchone()[0]
+        self.assertEqual(u1_count, 0)
+        self.assertGreater(u2_count, 0)
+
+    def test_profile_diagnostics_counts_rows(self) -> None:
+        self.service.create_monthly_contribution("u1", "2026-04", 1000.0)
+        self.service.create_manual_deposit("u1", 100.0)
+        diagnostics = self.service.get_profile_diagnostics("u1")
+        self.assertEqual(diagnostics["user_id"], "u1")
+        self.assertTrue(diagnostics["loaded_from_storage"])
+        self.assertGreaterEqual(diagnostics["ledger_row_count"], 2)
 
 
 if __name__ == "__main__":

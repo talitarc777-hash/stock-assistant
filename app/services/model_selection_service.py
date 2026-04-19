@@ -16,6 +16,7 @@ from app.services.model_lifecycle_service import (
     DEFAULT_TARGET_NAME,
     get_model_lifecycle_service,
 )
+from app.services.model_results import list_compatible_saved_model_candidates
 from app.services.user_profile_service import get_user_profile_store
 
 logger = logging.getLogger(__name__)
@@ -113,8 +114,11 @@ def resolve_selected_model_name(
     target_name: str = DEFAULT_TARGET_NAME,
 ) -> str:
     """Choose the effective model name for model and trader views."""
-    if requested_model_name:
-        return str(requested_model_name).strip().lower()
+    clean_requested_model = (
+        str(requested_model_name).strip().lower()
+        if requested_model_name and str(requested_model_name).strip()
+        else None
+    )
 
     profile_model_name = None
     if user_id:
@@ -139,6 +143,89 @@ def resolve_selected_model_name(
         if shared_production:
             return str(shared_production["model_name"]).strip().lower()
 
+    # Priority 2: use any compatible saved model artifact before trusting a
+    # requested/profile model name. This avoids avoidable runtime misses.
+    saved_candidates = list_compatible_saved_model_candidates(
+        ticker=target_ticker,
+        period=period,
+        target_name=target_name,
+        requested_model_name=None,
+        limit=6,
+    )
+    if saved_candidates:
+        selected_saved = str(saved_candidates[0]["model_name"]).strip().lower()
+        logger.info(
+            "Resolved model from saved artifacts ticker=%s period=%s target=%s model=%s source=%s",
+            target_ticker,
+            period,
+            target_name,
+            selected_saved,
+            saved_candidates[0].get("source", "saved"),
+        )
+        return selected_saved
+
+    # Priority 3: allow requested/profile model only when it is backed by at
+    # least one compatible saved artifact.
+    if clean_requested_model:
+        requested_candidates = list_compatible_saved_model_candidates(
+            ticker=target_ticker,
+            period=period,
+            target_name=target_name,
+            requested_model_name=clean_requested_model,
+            limit=20,
+        )
+        has_requested_artifact = any(
+            str(item.get("model_name", "")).strip().lower() == clean_requested_model
+            for item in requested_candidates
+        )
+        if has_requested_artifact:
+            logger.info(
+                "Resolved model from validated request ticker=%s period=%s target=%s model=%s",
+                target_ticker,
+                period,
+                target_name,
+                clean_requested_model,
+            )
+            return clean_requested_model
+        logger.warning(
+            "Requested model has no compatible saved artifacts ticker=%s period=%s target=%s requested=%s",
+            target_ticker,
+            period,
+            target_name,
+            clean_requested_model,
+        )
+
     if profile_model_name:
-        return str(profile_model_name).strip().lower()
+        profile_candidates = list_compatible_saved_model_candidates(
+            ticker=target_ticker,
+            period=period,
+            target_name=target_name,
+            requested_model_name=profile_model_name,
+            limit=20,
+        )
+        has_profile_artifact = any(
+            str(item.get("model_name", "")).strip().lower() == profile_model_name
+            for item in profile_candidates
+        )
+        if has_profile_artifact:
+            return str(profile_model_name).strip().lower()
+        logger.warning(
+            "Profile-selected model has no compatible saved artifacts ticker=%s period=%s target=%s profile_model=%s",
+            target_ticker,
+            period,
+            target_name,
+            profile_model_name,
+        )
+
+    model_options = {item.model_name for item in list_available_model_options()}
+    if DEFAULT_MODEL_NAME in model_options:
+        return DEFAULT_MODEL_NAME
+    if model_options:
+        return sorted(model_options)[0]
+    logger.warning(
+        "No model options discovered for ticker=%s period=%s target=%s. Returning hardcoded default.",
+        target_ticker,
+        period,
+        target_name,
+    )
     return DEFAULT_MODEL_NAME

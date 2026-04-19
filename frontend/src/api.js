@@ -201,6 +201,18 @@ export async function postVirtualAccountWithdraw(userId, amount, reason = "") {
   });
 }
 
+export async function fetchVirtualAccountDiagnostics(userId) {
+  return fetchJson(`/virtual-account/diagnostics?user_id=${encodeURIComponent(userId)}`);
+}
+
+export async function postVirtualAccountReset(userId, resetMonthlyContributions = true) {
+  return postJson("/virtual-account/reset", {
+    user_id: userId,
+    confirm_reset: true,
+    reset_monthly_contributions: Boolean(resetMonthlyContributions),
+  });
+}
+
 export async function createMonthlyContributions(userId, records) {
   return postJson("/monthly-contributions/create", {
     user_id: userId,

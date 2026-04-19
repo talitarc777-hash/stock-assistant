@@ -95,6 +95,14 @@ class AccountLedgerService:
         conn.row_factory = sqlite3.Row
         return conn
 
+    @staticmethod
+    def _table_exists(connection: sqlite3.Connection, table_name: str) -> bool:
+        row = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
+            (str(table_name).strip(),),
+        ).fetchone()
+        return row is not None
+
     def _initialize(self) -> None:
         with self._connect() as conn:
             conn.execute(
@@ -581,6 +589,173 @@ class AccountLedgerService:
             "net_deposits": net_deposits,
             "holdings": holdings_rows,
             "latest_prices": price_map,
+        }
+
+    def reset_profile_account_data(
+        self,
+        user_id: str,
+        *,
+        reset_monthly_contributions: bool = True,
+    ) -> dict[str, Any]:
+        """Delete one profile's simulated account records from persistent storage.
+
+        This is intentionally profile-scoped and destructive. It does not touch
+        other profiles or any model artifact files.
+        """
+        clean_user_id = _clean_user_id(user_id)
+        deleted_ledger_rows = 0
+        deleted_monthly_contribution_rows = 0
+        deleted_live_trade_rows = 0
+        deleted_live_position_rows = 0
+        deleted_trader_cash_rows = 0
+        deleted_trader_contribution_rows = 0
+        deleted_monthly_store_rows = 0
+
+        with self._connect() as conn:
+            # Optional monthly-contribution reset:
+            # - if False, preserve recurring monthly_contribution events
+            # - always remove deposits/withdrawals/trades for a fresh account state
+            if reset_monthly_contributions:
+                monthly_before = conn.execute(
+                    """
+                    SELECT COUNT(1) AS cnt
+                    FROM account_ledger_events
+                    WHERE user_id = ? AND event_type = 'monthly_contribution'
+                    """,
+                    (clean_user_id,),
+                ).fetchone()
+                cursor = conn.execute(
+                    "DELETE FROM account_ledger_events WHERE user_id = ?",
+                    (clean_user_id,),
+                )
+                deleted_ledger_rows = int(cursor.rowcount or 0)
+                deleted_monthly_contribution_rows = (
+                    0 if monthly_before is None else int(monthly_before["cnt"] or 0)
+                )
+            else:
+                cursor = conn.execute(
+                    """
+                    DELETE FROM account_ledger_events
+                    WHERE user_id = ?
+                      AND event_type IN ('manual_deposit', 'withdrawal', 'buy_trade', 'sell_trade', 'fee')
+                    """,
+                    (clean_user_id,),
+                )
+                deleted_ledger_rows = int(cursor.rowcount or 0)
+                cursor_mc = conn.execute(
+                    """
+                    SELECT COUNT(1) AS cnt
+                    FROM account_ledger_events
+                    WHERE user_id = ? AND event_type = 'monthly_contribution'
+                    """,
+                    (clean_user_id,),
+                ).fetchone()
+                deleted_monthly_contribution_rows = 0 if cursor_mc is None else 0
+
+            # Live trader persistent tables (if present).
+            if self._table_exists(conn, "live_trader_trade_log"):
+                cursor = conn.execute(
+                    "DELETE FROM live_trader_trade_log WHERE user_id = ?",
+                    (clean_user_id,),
+                )
+                deleted_live_trade_rows = int(cursor.rowcount or 0)
+            if self._table_exists(conn, "live_trader_positions"):
+                cursor = conn.execute(
+                    "DELETE FROM live_trader_positions WHERE user_id = ?",
+                    (clean_user_id,),
+                )
+                deleted_live_position_rows = int(cursor.rowcount or 0)
+
+            # Legacy trader cash service tables (if present).
+            if self._table_exists(conn, "live_trader_accounts"):
+                cursor = conn.execute(
+                    "DELETE FROM live_trader_accounts WHERE user_id = ?",
+                    (clean_user_id,),
+                )
+                deleted_trader_cash_rows = int(cursor.rowcount or 0)
+            if self._table_exists(conn, "live_trader_monthly_contributions"):
+                cursor = conn.execute(
+                    "DELETE FROM live_trader_monthly_contributions WHERE user_id = ?",
+                    (clean_user_id,),
+                )
+                deleted_trader_contribution_rows = int(cursor.rowcount or 0)
+
+            # Separate monthly contribution store used by historical simulation
+            # APIs. This must be cleared as part of a true profile reset.
+            if self._table_exists(conn, "monthly_contributions"):
+                cursor = conn.execute(
+                    "DELETE FROM monthly_contributions WHERE user_id = ?",
+                    (clean_user_id,),
+                )
+                deleted_monthly_store_rows = int(cursor.rowcount or 0)
+
+            conn.commit()
+
+        logger.warning(
+            "Virtual account reset user_id=%s ledger=%d live_trades=%d live_positions=%d trader_cash=%d trader_monthly=%d monthly_store=%d reset_monthly_contributions=%s",
+            clean_user_id,
+            deleted_ledger_rows,
+            deleted_live_trade_rows,
+            deleted_live_position_rows,
+            deleted_trader_cash_rows,
+            deleted_trader_contribution_rows,
+            deleted_monthly_store_rows,
+            bool(reset_monthly_contributions),
+        )
+        return {
+            "user_id": clean_user_id,
+            "reset_completed": True,
+            "deleted_ledger_rows": deleted_ledger_rows,
+            "deleted_live_trade_rows": deleted_live_trade_rows,
+            "deleted_live_position_rows": deleted_live_position_rows,
+            "deleted_trader_cash_rows": deleted_trader_cash_rows,
+            "deleted_trader_contribution_rows": deleted_trader_contribution_rows,
+            "deleted_monthly_contribution_rows": deleted_monthly_contribution_rows,
+            "deleted_monthly_store_rows": deleted_monthly_store_rows,
+            "message": "Reset completed for this profile.",
+        }
+
+    def get_profile_diagnostics(self, user_id: str) -> dict[str, Any]:
+        """Return profile-scoped persistence diagnostics for troubleshooting."""
+        clean_user_id = _clean_user_id(user_id)
+        summary = self.build_account_summary(clean_user_id)
+        with self._connect() as conn:
+            ledger_row = conn.execute(
+                "SELECT COUNT(1) AS cnt FROM account_ledger_events WHERE user_id = ?",
+                (clean_user_id,),
+            ).fetchone()
+            trade_row = None
+            position_row = None
+            if self._table_exists(conn, "live_trader_trade_log"):
+                trade_row = conn.execute(
+                    "SELECT COUNT(1) AS cnt FROM live_trader_trade_log WHERE user_id = ?",
+                    (clean_user_id,),
+                ).fetchone()
+            if self._table_exists(conn, "live_trader_positions"):
+                position_row = conn.execute(
+                    "SELECT COUNT(1) AS cnt FROM live_trader_positions WHERE user_id = ?",
+                    (clean_user_id,),
+                ).fetchone()
+            monthly_row = conn.execute(
+                """
+                SELECT COUNT(1) AS cnt
+                FROM account_ledger_events
+                WHERE user_id = ? AND event_type = 'monthly_contribution'
+                """,
+                (clean_user_id,),
+            ).fetchone()
+
+        return {
+            "user_id": clean_user_id,
+            "loaded_from_storage": True,
+            "ledger_row_count": 0 if ledger_row is None else int(ledger_row["cnt"] or 0),
+            "trade_row_count": 0 if trade_row is None else int(trade_row["cnt"] or 0),
+            "position_row_count": 0 if position_row is None else int(position_row["cnt"] or 0),
+            "monthly_contribution_row_count": 0 if monthly_row is None else int(monthly_row["cnt"] or 0),
+            "cash": float(summary["cash"]),
+            "holdings_count": len(summary["holdings"]),
+            "total_account_value": float(summary["total_account_value"]),
+            "as_of": summary["as_of"],
         }
 
 

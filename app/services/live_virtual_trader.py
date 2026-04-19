@@ -27,7 +27,11 @@ from app.services.account_ledger_service import (
 from app.services.live_market_data_service import get_live_market_snapshot
 from app.services.market_data import get_price_history
 from app.services.model_lifecycle_service import get_model_lifecycle_service
-from app.services.model_results import ModelResultsError, load_trained_model_bundle
+from app.services.model_results import (
+    ModelResultsError,
+    list_compatible_saved_model_candidates,
+    load_trained_model_bundle,
+)
 from app.services.prediction_explanations import build_prediction_explanation
 from app.services.research_pipeline import build_feature_dataset
 from app.services.universe_service import get_active_universe
@@ -528,17 +532,47 @@ def run_live_virtual_trader_now(
             model_loaded = False
             model_load_errors: list[str] = []
 
-            runtime_candidates = lifecycle_service.resolve_runtime_model_candidates(
+            registry_candidates = lifecycle_service.resolve_runtime_model_candidates(
                 ticker=symbol,
                 period=period,
                 target_name=target_name,
                 requested_model_name=model_name,
             )
+            saved_candidates = list_compatible_saved_model_candidates(
+                ticker=symbol,
+                period=period,
+                target_name=target_name,
+                requested_model_name=model_name,
+                limit=12,
+            )
+
+            runtime_candidates: list[dict[str, Any]] = []
+            seen_runtime: set[tuple[str, str]] = set()
+            for candidate in registry_candidates + saved_candidates:
+                tkr = str(candidate.get("ticker", symbol)).strip().upper()
+                mdl = str(candidate.get("model_name", model_name)).strip().lower()
+                key = (tkr, mdl)
+                if key in seen_runtime:
+                    continue
+                seen_runtime.add(key)
+                runtime_candidates.append(
+                    {
+                        "ticker": tkr,
+                        "model_name": mdl,
+                        "source": str(candidate.get("source", "candidate")),
+                    }
+                )
+
             if not runtime_candidates:
                 runtime_candidates = [
                     {"ticker": symbol, "model_name": model_name, "source": "trained_model"},
                     {"ticker": "GLOBAL", "model_name": model_name, "source": "global_model"},
                 ]
+            logger.info(
+                "Live trader model candidate order ticker=%s candidates=%s",
+                symbol,
+                [f"{row['ticker']}/{row['model_name']}:{row['source']}" for row in runtime_candidates[:8]],
+            )
 
             for candidate in runtime_candidates:
                 candidate_ticker = str(candidate.get("ticker", symbol)).strip().upper()
@@ -565,6 +599,13 @@ def run_live_virtual_trader_now(
                     decision_source = source_name
                     decision_model_name = str(bundle.get("model_name", candidate_model_name))
                     model_loaded = True
+                    logger.info(
+                        "Live trader selected saved model ticker=%s selected=%s/%s source=%s",
+                        symbol,
+                        candidate_ticker,
+                        decision_model_name,
+                        decision_source,
+                    )
                     break
                 except ModelResultsError as exc:
                     model_load_errors.append(f"{candidate_ticker}/{candidate_model_name}:{exc}")

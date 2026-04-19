@@ -84,6 +84,44 @@ class VirtualAccountWithdrawalRequest(BaseModel):
     source: str = Field(default="web", min_length=2, max_length=40)
 
 
+class VirtualAccountResetRequest(BaseModel):
+    """Request payload for destructive profile-scoped account reset."""
+
+    user_id: str = Field(min_length=1, max_length=120)
+    confirm_reset: bool = False
+    reset_monthly_contributions: bool = True
+
+
+class VirtualAccountResetResponse(BaseModel):
+    """Response after resetting one profile's virtual account data."""
+
+    user_id: str
+    reset_completed: bool
+    deleted_ledger_rows: int
+    deleted_live_trade_rows: int
+    deleted_live_position_rows: int
+    deleted_trader_cash_rows: int
+    deleted_trader_contribution_rows: int
+    deleted_monthly_contribution_rows: int
+    deleted_monthly_store_rows: int
+    message: str
+
+
+class VirtualAccountDiagnosticsResponse(BaseModel):
+    """Profile-scoped persistence diagnostics snapshot."""
+
+    user_id: str
+    loaded_from_storage: bool
+    ledger_row_count: int
+    trade_row_count: int
+    position_row_count: int
+    monthly_contribution_row_count: int
+    cash: float
+    holdings_count: int
+    total_account_value: float
+    as_of: str
+
+
 class MonthlyContributionCreateRequest(BaseModel):
     """Create-only monthly contribution event request."""
 

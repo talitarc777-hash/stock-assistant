@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 import pickle
 from typing import Any
+from functools import lru_cache
 
 import pandas as pd
 
@@ -22,6 +23,110 @@ class ModelResultsError(Exception):
 def _get_models_base_dir(base_dir: str | Path | None = None) -> Path:
     """Resolve the base directory containing saved research model artifacts."""
     return Path(base_dir or get_settings().research_models_dir)
+
+
+@lru_cache(maxsize=64)
+def _scan_saved_model_artifacts(period: str, target_name: str, base_dir_text: str) -> list[dict[str, str]]:
+    """Cache discovered saved model artifact directories for quick runtime reuse."""
+    base_dir = Path(base_dir_text)
+    discovered: list[dict[str, str]] = []
+    if not base_dir.exists():
+        return discovered
+    pattern = f"*/{period}/{target_name}/*/model.pkl"
+    for model_path in base_dir.glob(pattern):
+        try:
+            ticker = model_path.parent.parent.parent.name.strip().upper()
+            model_name = model_path.parent.name.strip().lower()
+            if ticker and model_name:
+                discovered.append(
+                    {
+                        "ticker": ticker,
+                        "model_name": model_name,
+                        "artifact_dir": str(model_path.parent),
+                    }
+                )
+        except Exception:
+            continue
+    return discovered
+
+
+def list_compatible_saved_model_candidates(
+    ticker: str,
+    period: str = "5y",
+    target_name: str = "target_5d_updown",
+    requested_model_name: str | None = None,
+    base_dir: str | Path | None = None,
+    limit: int = 12,
+) -> list[dict[str, str]]:
+    """Find compatible saved models before falling back to rules.
+
+    Priority:
+    1) exact ticker + requested model (if present)
+    2) exact ticker + any model
+    3) GLOBAL ticker + any model
+    4) any ticker + requested model
+    5) any ticker + any model
+    """
+    clean_ticker = str(ticker).strip().upper()
+    clean_period = str(period).strip()
+    clean_target = str(target_name).strip()
+    requested = str(requested_model_name).strip().lower() if requested_model_name else None
+    base_path = _get_models_base_dir(base_dir)
+    rows = _scan_saved_model_artifacts(clean_period, clean_target, str(base_path))
+    if not rows:
+        return []
+
+    preferred_model_order = [
+        "logistic_regression",
+        "random_forest",
+        "gradient_boosting",
+        "linear_regression",
+    ]
+    rank_map = {name: idx for idx, name in enumerate(preferred_model_order)}
+
+    def sort_key(row: dict[str, str]) -> tuple[int, int]:
+        model_rank = rank_map.get(row["model_name"], 99)
+        ticker_rank = 2
+        if row["ticker"] == clean_ticker:
+            ticker_rank = 0
+        elif row["ticker"] == "GLOBAL":
+            ticker_rank = 1
+        return (ticker_rank, model_rank)
+
+    seen: set[tuple[str, str]] = set()
+    output: list[dict[str, str]] = []
+
+    def append_row(row: dict[str, str], source: str) -> None:
+        key = (row["ticker"], row["model_name"])
+        if key in seen:
+            return
+        seen.add(key)
+        output.append(
+            {
+                "ticker": row["ticker"],
+                "model_name": row["model_name"],
+                "source": source,
+            }
+        )
+
+    if requested:
+        for row in sorted(rows, key=sort_key):
+            if row["ticker"] == clean_ticker and row["model_name"] == requested:
+                append_row(row, "saved_exact_ticker_requested_model")
+        for row in sorted(rows, key=sort_key):
+            if row["ticker"] != clean_ticker and row["model_name"] == requested:
+                append_row(row, "saved_compatible_requested_model")
+
+    for row in sorted(rows, key=sort_key):
+        if row["ticker"] == clean_ticker:
+            append_row(row, "saved_exact_ticker_model")
+    for row in sorted(rows, key=sort_key):
+        if row["ticker"] == "GLOBAL":
+            append_row(row, "saved_global_model")
+    for row in sorted(rows, key=sort_key):
+        append_row(row, "saved_compatible_model")
+
+    return output[: max(1, int(limit))]
 
 
 def _resolve_model_artifact_dir(

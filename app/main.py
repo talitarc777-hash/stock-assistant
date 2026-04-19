@@ -25,6 +25,7 @@ from app.api.virtual_account import router as virtual_account_router
 from app.api.virtual_trader import router as virtual_trader_router
 from app.core.settings import get_settings
 from app.services.model_lifecycle_scheduler import get_model_lifecycle_scheduler_service
+from app.services.model_lifecycle_service import get_model_lifecycle_service
 from app.services.trader_scheduler import get_trader_scheduler_service
 
 logging.basicConfig(
@@ -47,6 +48,8 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     """Start/stop background schedulers with app lifecycle."""
+    synced = get_model_lifecycle_service().sync_registry_from_saved_artifacts(limit=800)
+    logging.getLogger(__name__).info("Model lifecycle startup sync completed discovered=%d", synced)
     trader_scheduler = get_trader_scheduler_service()
     lifecycle_scheduler = get_model_lifecycle_scheduler_service()
     trader_scheduler.start()
