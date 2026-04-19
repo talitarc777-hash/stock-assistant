@@ -14,6 +14,7 @@ class MonthlyContributionRecordResponse(BaseModel):
     created_at: str
     updated_at: str
     locked: bool = False
+    applied_to_cash: bool = False
 
     @field_validator("month")
     @classmethod

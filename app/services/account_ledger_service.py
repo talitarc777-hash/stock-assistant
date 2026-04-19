@@ -19,7 +19,11 @@ from typing import Any
 from app.core.settings import get_settings
 from app.models.account_ledger import LEDGER_EVENT_TYPES
 from app.services.market_data import get_price_history
-from app.services.monthly_contribution_service import START_MONTH
+from app.services.monthly_contribution_service import (
+    START_MONTH,
+    MonthlyContributionStore,
+    get_monthly_contribution_store,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +91,13 @@ class AccountLedgerService:
 
     def __init__(self, db_path: str | None = None) -> None:
         self.db_path = Path(db_path or get_settings().profile_db_path)
+        # Keep monthly-planning reads scoped to the same database path when a
+        # custom DB is used (for tests/local sandbox runs).
+        self.monthly_contribution_store = (
+            get_monthly_contribution_store()
+            if db_path is None
+            else MonthlyContributionStore(db_path=str(self.db_path))
+        )
         self._initialize()
 
     def _connect(self) -> sqlite3.Connection:
@@ -393,8 +404,8 @@ class AccountLedgerService:
 
         Beginner-friendly recurrence rule:
         - if current month already has a monthly_contribution event: do nothing
-        - otherwise carry forward the latest prior monthly_contribution amount
-        - if no prior monthly contribution exists: do nothing
+        - else if current month has a confirmed monthly plan: apply that planned amount
+        - else fallback to latest prior applied monthly_contribution amount (compatibility)
         """
         clean_user_id = _clean_user_id(user_id)
         current_month = _current_month()
@@ -413,27 +424,34 @@ class AccountLedgerService:
             ).fetchone()
             if existing is not None:
                 return None
-
-            latest_prior = conn.execute(
-                """
-                SELECT reference_month, amount
-                FROM account_ledger_events
-                WHERE user_id = ?
-                  AND event_type = 'monthly_contribution'
-                  AND reference_month IS NOT NULL
-                  AND reference_month < ?
-                ORDER BY reference_month DESC, id DESC
-                LIMIT 1
-                """,
-                (clean_user_id, current_month),
-            ).fetchone()
-
-        if latest_prior is None:
-            return None
-
-        carry_amount = float(latest_prior["amount"] or 0.0)
-        if carry_amount <= 0:
-            return None
+        planned_records = {
+            item.month: item
+            for item in self.monthly_contribution_store.list_records(clean_user_id)
+            if bool(item.locked)
+        }
+        planned_current = planned_records.get(current_month)
+        if planned_current and float(planned_current.amount) > 0:
+            carry_amount = float(planned_current.amount)
+        else:
+            with self._connect() as conn:
+                latest_prior = conn.execute(
+                    """
+                    SELECT reference_month, amount
+                    FROM account_ledger_events
+                    WHERE user_id = ?
+                      AND event_type = 'monthly_contribution'
+                      AND reference_month IS NOT NULL
+                      AND reference_month < ?
+                    ORDER BY reference_month DESC, id DESC
+                    LIMIT 1
+                    """,
+                    (clean_user_id, current_month),
+                ).fetchone()
+            if latest_prior is None:
+                return None
+            carry_amount = float(latest_prior["amount"] or 0.0)
+            if carry_amount <= 0:
+                return None
 
         event = self.create_monthly_contribution(
             user_id=clean_user_id,
@@ -452,19 +470,24 @@ class AccountLedgerService:
 
     def build_monthly_contribution_view(self, user_id: str) -> list[dict[str, Any]]:
         clean_user_id = _clean_user_id(user_id)
-        existing = {row["month"]: row for row in self.list_monthly_contribution_records(clean_user_id)}
+        planned_records = {
+            item.month: item
+            for item in self.monthly_contribution_store.list_records(clean_user_id)
+        }
+        applied_months = {row["month"] for row in self.list_monthly_contribution_records(clean_user_id)}
         rows: list[dict[str, Any]] = []
         for month in _month_range(START_MONTH, _current_month()):
-            if month in existing:
-                row = existing[month]
+            if month in planned_records:
+                row = planned_records[month]
                 rows.append(
                     {
                         "user_id": clean_user_id,
                         "month": month,
-                        "amount": row["amount"],
-                        "created_at": row["created_at"],
-                        "updated_at": row["created_at"],
-                        "locked": True,
+                        "amount": float(row.amount),
+                        "created_at": row.created_at,
+                        "updated_at": row.updated_at,
+                        "locked": bool(row.locked),
+                        "applied_to_cash": month in applied_months,
                     }
                 )
             else:
@@ -476,6 +499,7 @@ class AccountLedgerService:
                         "created_at": "",
                         "updated_at": "",
                         "locked": False,
+                        "applied_to_cash": False,
                     }
                 )
         return rows

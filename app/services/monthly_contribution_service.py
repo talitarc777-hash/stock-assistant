@@ -73,12 +73,25 @@ class MonthlyContributionStore:
                     user_id TEXT NOT NULL,
                     month TEXT NOT NULL,
                     amount REAL NOT NULL,
+                    locked INTEGER NOT NULL DEFAULT 0,
+                    confirmed_at TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
                     PRIMARY KEY (user_id, month)
                 )
                 """
             )
+            # Lightweight migration path for existing local DBs.
+            columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(monthly_contributions)").fetchall()
+            }
+            if "locked" not in columns:
+                connection.execute(
+                    "ALTER TABLE monthly_contributions ADD COLUMN locked INTEGER NOT NULL DEFAULT 0"
+                )
+            if "confirmed_at" not in columns:
+                connection.execute("ALTER TABLE monthly_contributions ADD COLUMN confirmed_at TEXT")
             connection.commit()
 
     def _row_to_record(self, row: sqlite3.Row) -> MonthlyContributionRecordResponse:
@@ -88,6 +101,7 @@ class MonthlyContributionStore:
             amount=float(row["amount"]),
             created_at=row["created_at"],
             updated_at=row["updated_at"],
+            locked=bool(row["locked"]),
         )
 
     def _fetch_records(self, user_id: str) -> list[MonthlyContributionRecordResponse]:
@@ -163,6 +177,15 @@ class MonthlyContributionStore:
         self.initialize_for_user(clean_user_id)
         now = _utc_now()
         with self._connect() as connection:
+            existing = connection.execute(
+                """
+                SELECT locked FROM monthly_contributions
+                WHERE user_id = ? AND month = ?
+                """,
+                (clean_user_id, clean_month),
+            ).fetchone()
+            if existing is not None and bool(existing["locked"]):
+                raise ValueError("This month is already confirmed and cannot be edited.")
             connection.execute(
                 """
                 UPDATE monthly_contributions
@@ -183,6 +206,59 @@ class MonthlyContributionStore:
             raise ValueError("Failed to update monthly contribution record.")
         logger.info(
             "Updated monthly contribution user_id=%s month=%s amount=%.2f",
+            clean_user_id,
+            clean_month,
+            numeric_amount,
+        )
+        return self._row_to_record(row)
+
+    def confirm_amount(self, user_id: str, month: str, amount: float) -> MonthlyContributionRecordResponse:
+        """Confirm one monthly planned contribution and lock that month."""
+        clean_user_id = str(user_id).strip()
+        if not clean_user_id:
+            raise ValueError("user_id is required.")
+        clean_month = _month_key(month)
+        if clean_month < START_MONTH:
+            raise ValueError(f"month must be {START_MONTH} or later.")
+        try:
+            numeric_amount = float(amount)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("amount must be numeric.") from exc
+        if numeric_amount <= 0:
+            raise ValueError("amount must be greater than 0.")
+
+        self.initialize_for_user(clean_user_id)
+        now = _utc_now()
+        with self._connect() as connection:
+            existing = connection.execute(
+                """
+                SELECT locked FROM monthly_contributions
+                WHERE user_id = ? AND month = ?
+                """,
+                (clean_user_id, clean_month),
+            ).fetchone()
+            if existing is not None and bool(existing["locked"]):
+                raise ValueError("This month is already confirmed and immutable.")
+            connection.execute(
+                """
+                UPDATE monthly_contributions
+                SET amount = ?, locked = 1, confirmed_at = ?, updated_at = ?
+                WHERE user_id = ? AND month = ?
+                """,
+                (numeric_amount, now, now, clean_user_id, clean_month),
+            )
+            connection.commit()
+            row = connection.execute(
+                """
+                SELECT * FROM monthly_contributions
+                WHERE user_id = ? AND month = ?
+                """,
+                (clean_user_id, clean_month),
+            ).fetchone()
+        if row is None:
+            raise ValueError("Failed to confirm monthly contribution record.")
+        logger.info(
+            "Confirmed monthly contribution user_id=%s month=%s amount=%.2f",
             clean_user_id,
             clean_month,
             numeric_amount,

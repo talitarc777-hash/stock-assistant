@@ -16,6 +16,11 @@ import {
   fetchUserWatchlist,
   updateUserProfileSettings,
 } from "./services/userProfileApi";
+import {
+  getStoredProfileId,
+  normalizeProfileId,
+  setStoredProfileId,
+} from "./services/profileStorage";
 import "./styles.css";
 
 const DEFAULT_PERIOD = "5y";
@@ -26,7 +31,6 @@ const MODEL_LIFECYCLE_PATH = "/model-lifecycle";
 const SETTINGS_PATH = "/settings";
 const VIRTUAL_TRADER_PATH = "/virtual-trader";
 const LANGUAGE_STORAGE_KEY = "stock-assistant-language-mode";
-const PROFILE_ID_STORAGE_KEY = "stock-assistant-profile-id";
 
 const ZH = {
   currentAlerts: "\u76ee\u524d\u63d0\u793a",
@@ -74,10 +78,6 @@ function normalizePath(pathname) {
   if (pathname === SETTINGS_PATH) return SETTINGS_PATH;
   if (pathname === VIRTUAL_TRADER_PATH) return VIRTUAL_TRADER_PATH;
   return DASHBOARD_PATH;
-}
-
-function getInitialProfileId() {
-  return window.localStorage.getItem(PROFILE_ID_STORAGE_KEY) || "demo-user";
 }
 
 function getInitialLanguageMode() {
@@ -523,7 +523,7 @@ function DashboardPage({ languageMode, profileId, currentWatchlist, onProfileUpd
 
 export default function App() {
   const [routePath, setRoutePath] = useState(() => normalizePath(window.location.pathname));
-  const [profileId, setProfileId] = useState(getInitialProfileId);
+  const [profileId, setProfileId] = useState(getStoredProfileId);
   const [languageMode, setLanguageMode] = useState(getInitialLanguageMode);
   const [profile, setProfile] = useState(null);
   const [currentWatchlist, setCurrentWatchlist] = useState([]);
@@ -540,7 +540,7 @@ export default function App() {
   }, [languageMode]);
 
   useEffect(() => {
-    window.localStorage.setItem(PROFILE_ID_STORAGE_KEY, profileId);
+    setStoredProfileId(profileId);
   }, [profileId]);
 
   async function loadSharedProfile(nextProfileId = profileId) {
@@ -563,7 +563,7 @@ export default function App() {
   }, [profileId]);
 
   async function handleProfileIdChange(nextProfileId) {
-    const cleanId = nextProfileId.trim() || "demo-user";
+    const cleanId = normalizeProfileId(nextProfileId);
     setProfileId(cleanId);
   }
 

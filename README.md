@@ -1,4 +1,4 @@
-# stock-assistant
+ï»¿# stock-assistant
 
 Beginner-friendly Python project for a **stock analysis assistant**.
 
@@ -264,7 +264,7 @@ This module is for **simulation only**:
 - No real-money trading
 - No broker execution
 - No automated order placement
-- Only hypothetical ?œwould buy / would sell??events
+- Only hypothetical ?î¯ould buy / would sell??events
 
 API endpoint:
 
@@ -579,15 +579,15 @@ How to read prediction vs actual:
 
 The web settings page now lets you configure two shared simulation inputs:
 
-- `Model Evaluation¡]¼Ò«¬µû¦ô¡^`
+- `Model Evaluationï¼ˆæ¨¡å‹è©•ä¼°ï¼‰`
   choose the active trained model for the web model-evaluation pages and virtual-trader pages
-- `Monthly Contribution Records¡]¨C¤ëª`¸ê¬ö¿ı¡^`
+- `Monthly Contribution Recordsï¼ˆæ¯æœˆæ³¨è³‡ç´€éŒ„ï¼‰`
   edit the available money for each month in USD
 
 How model selection works:
 
 - Open the dashboard settings page
-- In `Model Evaluation¡]¼Ò«¬µû¦ô¡^`, choose a saved model such as:
+- In `Model Evaluationï¼ˆæ¨¡å‹è©•ä¼°ï¼‰`, choose a saved model such as:
   - `Logistic Regression`
   - `Random Forest`
   - `Gradient Boosting`
@@ -598,18 +598,19 @@ How monthly contribution records work:
 
 - Records always start from `2026-04` (April 2026)
 - If no records exist yet, the backend initializes them automatically from April 2026 through the current month
-- You can edit each month independently, for example:
-  - `2026-04: 1000`
-  - `2026-05: 1500`
-  - `2026-06: 800`
-- Amounts are user-editable and are not fixed at 1000 USD
+- Use `Monthly Contribution Inputï¼ˆæ¯æœˆæ³¨è³‡è¼¸å…¥ï¼‰` to confirm a month amount
+- After confirmation, that month is locked and shown in `Monthly Contribution Recordsï¼ˆæ¯æœˆæ³¨è³‡è¨˜éŒ„ï¼‰`
+- Confirmed records become the planned monthly auto-cash input for live simulation
+- Amounts are user-editable before confirmation and are not fixed at 1000 USD
 - A value of `0` means no contribution is added for that month
 
 How the virtual trader uses these records:
 
-- When the web UI requests virtual-trader results with a `user_id`, the backend uses the saved monthly contribution records for that user
+- On each scheduler cycle, the system checks the current month
+- If the month has a confirmed amount and it has not been applied yet, one immutable `monthly_contribution` ledger event is created
+- The same month is never applied twice
 - This replaces the old fixed monthly injection assumption for the web simulation flow
-- Equity curve, monthly contribution history, and benchmark comparison now reflect those saved monthly amounts
+- Equity curve, monthly contribution history, and benchmark comparison reflect saved monthly records
 
 New backend endpoints:
 
@@ -617,7 +618,13 @@ New backend endpoints:
 - `POST /model-evaluation/settings`
 - `GET /monthly-contributions?user_id=...`
 - `POST /monthly-contributions/initialize`
-- `POST /monthly-contributions/update`
+- `POST /monthly-contributions/create`
+
+Device Profile ID default:
+
+- The dashboard stores the last used `Profile ID` in browser localStorage
+- Reopening the app on the same device auto-fills that previous profile ID
+- Switching profile IDs updates this local device default
 
 ## Live Virtual Trader Mode
 
@@ -642,6 +649,19 @@ Live virtual trader endpoints:
 - `GET /virtual-trader/live-status?user_id=...`
 - `POST /virtual-trader/run-now`
 - `GET /virtual-trader/live-trades?user_id=...`
+
+Virtual Trader page workflow (top-to-bottom):
+
+- Live Trader Status
+- Current Holdings
+- Monthly Contribution Input + Monthly Contribution Records
+- Trading Account summary/actions
+- Recent decisions/trades, ledger, and historical charts
+
+Monthly Contribution History chart behavior:
+
+- The chart starts from the first month with actual contribution records
+- Empty leading months are trimmed for readability
 
 News sentiment pipeline and debugging:
 
@@ -742,3 +762,4 @@ Autonomous trader behavior update:
   - tickers_failed
   - fallback_used
 - Virtual Trader UI no longer exposes manual ticker selection for live mode.
+

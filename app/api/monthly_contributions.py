@@ -18,6 +18,7 @@ from app.services.account_ledger_service import (
 )
 from app.services.monthly_contribution_service import (
     START_MONTH,
+    get_monthly_contribution_store,
 )
 
 logger = logging.getLogger(__name__)
@@ -84,18 +85,16 @@ def update_monthly_contributions(
 def create_monthly_contributions(
     request: MonthlyContributionCreateRequest,
 ) -> MonthlyContributionListResponse:
-    """Create immutable monthly contribution ledger events for specific months."""
+    """Confirm immutable monthly contribution planning records for specific months."""
     try:
-        ledger = get_account_ledger_service()
+        store = get_monthly_contribution_store()
         for record in request.records:
-            ledger.create_monthly_contribution(
+            store.confirm_amount(
                 user_id=request.user_id,
                 month=record.month,
                 amount=record.amount,
-                source=request.source,
-                reason="monthly contribution",
             )
-        rows = ledger.build_monthly_contribution_view(user_id=request.user_id)
+        rows = get_account_ledger_service().build_monthly_contribution_view(user_id=request.user_id)
         return MonthlyContributionListResponse(
             user_id=request.user_id,
             start_month=START_MONTH,

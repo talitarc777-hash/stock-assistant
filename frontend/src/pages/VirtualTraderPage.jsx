@@ -13,8 +13,10 @@ import {
   runLiveVirtualTraderNow,
 } from "../api";
 import CashLedgerTable from "../components/CashLedgerTable";
+import { getLabel } from "../constants/i18n";
 import EquityChart from "../components/EquityChart";
 import LineChart from "../components/LineChart";
+import MonthlyContributionPlanner from "../components/MonthlyContributionPlanner";
 import NewsSentimentPanel from "../components/NewsSentimentPanel";
 import ResetTradingAccountButton from "../components/ResetTradingAccountButton";
 import TraderStatusPanel from "../components/TraderStatusPanel";
@@ -32,11 +34,14 @@ const ZH = {
   running: "\u57f7\u884c\u4e2d...",
   runNow: "\u7acb\u5373\u57f7\u884c\u865b\u64ec\u4ea4\u6613",
   loading: "\u8f09\u5165\u4e2d...",
-  liveMode: "\u5373\u6642\u865b\u64ec\u4ea4\u6613\u6a21\u5f0f",
   liveStatusTitle: "\u5373\u6642\u72c0\u614b\uff08\u8fd1\u5373\u6642\u6a21\u64ec\uff09",
   simulationOnly: "\u53ea\u5c6c\u6a21\u64ec\uff0c\u4e0d\u6703\u767c\u9001\u771f\u5be6\u4e0b\u55ae\u3002",
   delayedDataWarning:
     "\u5e02\u5834\u8207\u65b0\u805e\u8cc7\u6599\u70ba\u300c\u8fd1\u5373\u6642\u300d\u8cc7\u6599\uff0c\u53ef\u80fd\u5b58\u5728\u4f9b\u61c9\u5546\u5ef6\u9072\uff0c\u4e26\u975e\u4ea4\u6613\u6240\u7b49\u7d1a\u5be6\u6642\u4e32\u6d41\u3002",
+  universeSize: "\u5e02\u5834\u76e3\u63a7\u6578\u91cf",
+  tickersEvaluated: "\u5df2\u8a55\u4f30\u80a1\u7968",
+  tickersFailed: "\u8a55\u4f30\u5931\u6557\u80a1\u7968",
+  fallbackDecisions: "\u5099\u63f4\u7b56\u7565\u6b21\u6578",
   cash: "\u73fe\u91d1",
   holdingsValue: "\u6301\u5009\u5e02\u503c",
   totalEquity: "\u7e3d\u8cc7\u7522",
@@ -197,6 +202,7 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
 
   useEffect(() => {
     loadAllViews(selectedTicker);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTicker, selectedModelName, profileId]);
 
   useEffect(() => {
@@ -260,7 +266,10 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
 
   const contributionPoints = useMemo(() => {
     if (!historicalTrades?.monthly_contributions) return [];
-    return historicalTrades.monthly_contributions.map((item) => ({
+    const confirmed = historicalTrades.monthly_contributions.filter(
+      (item) => Number(item.amount) > 0 || Number(item.cumulative_contributions) > 0
+    );
+    return confirmed.map((item) => ({
       date: item.date,
       cumulative_contributions: toNumeric(item.cumulative_contributions),
       amount: toNumeric(item.amount),
@@ -271,7 +280,7 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
     <>
       <header className="app-header">
         <div>
-          <h1>{labelByMode(languageMode, "Virtual Trader", ZH.virtualTrader)}</h1>
+          <h1>{getLabel(languageMode, "virtualTrader")}</h1>
           <p>
             {labelByMode(
               languageMode,
@@ -282,10 +291,10 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
         </div>
         <div className="header-controls">
           <span className="helper-chip">
-            {labelByMode(languageMode, "Universe Size", "股票池大小")}: {liveStatus?.universe_size ?? "N/A"}
+            {labelByMode(languageMode, "Universe Size", ZH.universeSize)}: {liveStatus?.universe_size ?? "N/A"}
           </span>
           <span className="helper-chip">
-            {labelByMode(languageMode, "Tickers Evaluated", "已評估股票")}: {liveStatus?.tickers_evaluated ?? 0}
+            {labelByMode(languageMode, "Tickers Evaluated", ZH.tickersEvaluated)}: {liveStatus?.tickers_evaluated ?? 0}
           </span>
           <span className="helper-chip">
             {labelByMode(languageMode, "Model", ZH.model)}: {selectedModelName}
@@ -309,7 +318,7 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
       />
 
       <section className="panel">
-        <h3>{labelByMode(languageMode, "Live Trader Status (Near-live Simulation)", ZH.liveStatusTitle)}</h3>
+        <h3>{getLabel(languageMode, "liveTraderStatus")}</h3>
         <p className="helper-text">
           {labelByMode(languageMode, "This is simulation only. No broker orders are sent.", ZH.simulationOnly)}
         </p>
@@ -327,9 +336,9 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
             <p><strong>{labelByMode(languageMode, "Total equity", ZH.totalEquity)}:</strong> {formatMoney(liveStatus.account?.total_equity)}</p>
             <p><strong>{labelByMode(languageMode, "Realized PnL", ZH.realizedPnl)}:</strong> {formatMoney(liveStatus.account?.realized_pnl)}</p>
             <p><strong>{labelByMode(languageMode, "Applied contributions", ZH.appliedContributions)}:</strong> {formatMoney(liveStatus.account?.total_contributions_applied)}</p>
-            <p><strong>{labelByMode(languageMode, "Tickers evaluated", "已評估股票")}:</strong> {liveStatus.tickers_evaluated ?? 0}</p>
-            <p><strong>{labelByMode(languageMode, "Tickers failed", "失敗股票")}:</strong> {liveStatus.tickers_failed ?? 0}</p>
-            <p><strong>{labelByMode(languageMode, "Fallback decisions", "後備策略次數")}:</strong> {liveStatus.fallback_used_count ?? 0}</p>
+            <p><strong>{labelByMode(languageMode, "Tickers evaluated", ZH.tickersEvaluated)}:</strong> {liveStatus.tickers_evaluated ?? 0}</p>
+            <p><strong>{labelByMode(languageMode, "Tickers failed", ZH.tickersFailed)}:</strong> {liveStatus.tickers_failed ?? 0}</p>
+            <p><strong>{labelByMode(languageMode, "Fallback decisions", ZH.fallbackDecisions)}:</strong> {liveStatus.fallback_used_count ?? 0}</p>
             <p><strong>{labelByMode(languageMode, "Generated at", ZH.generatedAt)}:</strong> {liveStatus.generated_at_utc}</p>
           </div>
         ) : (
@@ -338,69 +347,7 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
       </section>
 
       <section className="panel">
-        <h3>{labelByMode(languageMode, "Trading Account", ZH.tradingAccount)}</h3>
-        <p className="helper-text">
-          {labelByMode(
-            languageMode,
-            `Profile ID: ${profileId} | Persistence: saved by profile and survives refresh/restart.`,
-            `Profile ID\uff1a${profileId} | \u6301\u4e45\u5316\uff1a\u4ee5 Profile \u5132\u5b58\uff0c\u91cd\u65b0\u6574\u7406/\u91cd\u555f\u5f8c\u4ecd\u4fdd\u7559\u3002`
-          )}
-        </p>
-        <div className="detail-grid">
-          <p><strong>{labelByMode(languageMode, "Cash", ZH.cash)}:</strong> {formatMoney(accountSummary?.cash)}</p>
-          <p><strong>{labelByMode(languageMode, "Holdings value", ZH.holdingsValue)}:</strong> {formatMoney(accountSummary?.holdings_value)}</p>
-          <p><strong>{labelByMode(languageMode, "Total account value", ZH.totalAccountValue)}:</strong> {formatMoney(accountSummary?.total_account_value)}</p>
-          <p><strong>{labelByMode(languageMode, "Realized PnL", ZH.realizedPnl)}:</strong> {formatMoney(accountSummary?.realized_pnl)}</p>
-          <p><strong>{labelByMode(languageMode, "Unrealized PnL", ZH.unrealizedPnl)}:</strong> {formatMoney(accountSummary?.unrealized_pnl)}</p>
-          <p><strong>{labelByMode(languageMode, "Net deposits", ZH.netDeposits)}:</strong> {formatMoney(accountSummary?.net_deposits)}</p>
-        </div>
-        <div className="settings-form">
-          <label>
-            {labelByMode(languageMode, "Amount (USD)", ZH.amountUsd)}
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={cashAmount}
-              onChange={(e) => setCashAmount(e.target.value)}
-            />
-          </label>
-          <label>
-            {labelByMode(languageMode, "Reason", ZH.reason)}
-            <input type="text" value={cashReason} onChange={(e) => setCashReason(e.target.value)} />
-          </label>
-          <div className="settings-actions">
-            <button type="button" onClick={handleDeposit}>
-              {labelByMode(languageMode, "Add Deposit Event", ZH.deposit)}
-            </button>
-            <button type="button" onClick={handleWithdraw}>
-              {labelByMode(languageMode, "Add Withdrawal Event", ZH.withdraw)}
-            </button>
-          </div>
-          <p className="helper-text">
-            {labelByMode(
-              languageMode,
-              "Deposits and withdrawals are saved as immutable ledger events.",
-              `${ZH.depositHint} ${ZH.withdrawHint}`
-            )}
-          </p>
-        </div>
-        <p className="helper-text">
-          {labelByMode(
-            languageMode,
-            "Reset is destructive and permanent. It clears this profile's simulated cash flow, holdings, trade history, and monthly contribution records.",
-            "\u91cd\u8a2d\u70ba\u6bc0\u58de\u6027\u4e14\u7121\u6cd5\u5fa9\u539f\uff0c\u6703\u6e05\u9664\u6b64 Profile \u7684\u6a21\u64ec\u73fe\u91d1\u6d41\u3001\u6301\u5009\u3001\u4ea4\u6613\u7d00\u9304\u53ca\u6bcf\u6708\u6ce8\u8cc7\u8a18\u9304\u3002"
-          )}
-        </p>
-        <ResetTradingAccountButton
-          userId={profileId}
-          languageMode={languageMode}
-          onResetComplete={() => loadAllViews(selectedTicker)}
-        />
-      </section>
-
-      <section className="panel">
-        <h3>{labelByMode(languageMode, "Current holdings", ZH.currentHoldings)}</h3>
+        <h3>{getLabel(languageMode, "currentHoldings")}</h3>
         <div className="table-wrap">
           <table>
             <thead>
@@ -435,9 +382,77 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
         </div>
       </section>
 
+      <MonthlyContributionPlanner
+        userId={profileId}
+        languageMode={languageMode}
+        onUpdated={() => loadAllViews(selectedTicker)}
+      />
+
+      <section className="panel">
+        <h3>{labelByMode(languageMode, "Trading Account", ZH.tradingAccount)}</h3>
+        <p className="helper-text">
+          {labelByMode(
+            languageMode,
+            `Profile ID: ${profileId} | Persistence: saved by profile and survives refresh/restart.`,
+            `Profile ID\uff1a${profileId} | \u6301\u4e45\u5316\uff1a\u4ee5 Profile \u5132\u5b58\uff0c\u91cd\u65b0\u6574\u7406/\u91cd\u555f\u5f8c\u4ecd\u4fdd\u7559\u3002`
+          )}
+        </p>
+        <div className="detail-grid">
+          <p><strong>{labelByMode(languageMode, "Cash", ZH.cash)}:</strong> {formatMoney(accountSummary?.cash)}</p>
+          <p><strong>{labelByMode(languageMode, "Holdings value", ZH.holdingsValue)}:</strong> {formatMoney(accountSummary?.holdings_value)}</p>
+          <p><strong>{labelByMode(languageMode, "Total account value", ZH.totalAccountValue)}:</strong> {formatMoney(accountSummary?.total_account_value)}</p>
+          <p><strong>{labelByMode(languageMode, "Realized PnL", ZH.realizedPnl)}:</strong> {formatMoney(accountSummary?.realized_pnl)}</p>
+          <p><strong>{labelByMode(languageMode, "Unrealized PnL", ZH.unrealizedPnl)}:</strong> {formatMoney(accountSummary?.unrealized_pnl)}</p>
+          <p><strong>{labelByMode(languageMode, "Net deposits", ZH.netDeposits)}:</strong> {formatMoney(accountSummary?.net_deposits)}</p>
+        </div>
+        <div className="settings-form">
+          <label>
+            {labelByMode(languageMode, "Amount (USD)", ZH.amountUsd)}
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={cashAmount}
+              onChange={(event) => setCashAmount(event.target.value)}
+            />
+          </label>
+          <label>
+            {labelByMode(languageMode, "Reason", ZH.reason)}
+            <input type="text" value={cashReason} onChange={(event) => setCashReason(event.target.value)} />
+          </label>
+          <div className="settings-actions">
+            <button type="button" onClick={handleDeposit}>
+              {labelByMode(languageMode, "Add Deposit Event", ZH.deposit)}
+            </button>
+            <button type="button" onClick={handleWithdraw}>
+              {labelByMode(languageMode, "Add Withdrawal Event", ZH.withdraw)}
+            </button>
+          </div>
+          <p className="helper-text">
+            {labelByMode(
+              languageMode,
+              "Deposits and withdrawals are saved as immutable ledger events.",
+              `${ZH.depositHint} ${ZH.withdrawHint}`
+            )}
+          </p>
+        </div>
+        <p className="helper-text">
+          {labelByMode(
+            languageMode,
+            "Reset is destructive and permanent. It clears this profile's simulated cash flow, holdings, trade history, and monthly contribution records.",
+            "\u91cd\u8a2d\u70ba\u6bc0\u58de\u6027\u4e14\u7121\u6cd5\u5fa9\u539f\uff0c\u6703\u6e05\u9664\u6b64 Profile \u7684\u6a21\u64ec\u73fe\u91d1\u6d41\u3001\u6301\u5009\u3001\u4ea4\u6613\u7d00\u9304\u53ca\u6bcf\u6708\u6ce8\u8cc7\u8a18\u9304\u3002"
+          )}
+        </p>
+        <ResetTradingAccountButton
+          userId={profileId}
+          languageMode={languageMode}
+          onResetComplete={() => loadAllViews(selectedTicker)}
+        />
+      </section>
+
       <div className="layout-grid">
         <section className="panel">
-          <h3>{labelByMode(languageMode, "Latest decisions", ZH.latestDecisions)}</h3>
+          <h3>{labelByMode(languageMode, "Latest Decisions", ZH.latestDecisions)}</h3>
           <div className="table-wrap">
             <table>
               <thead>
@@ -463,7 +478,7 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
         </section>
 
         <section className="panel">
-          <h3>{labelByMode(languageMode, "Latest simulated trades", ZH.latestTrades)}</h3>
+          <h3>{labelByMode(languageMode, "Recent Trades", ZH.latestTrades)}</h3>
           <div className="table-wrap">
             <table>
               <thead>
@@ -494,7 +509,7 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
       </div>
 
       <section className="panel explanation-panel">
-        <h3>{labelByMode(languageMode, "Latest decision reason", ZH.latestReason)}</h3>
+        <h3>{labelByMode(languageMode, "Latest Decision Reason", ZH.latestReason)}</h3>
         {!selectedLiveTrade ? (
           <p>{labelByMode(languageMode, "No trade decision selected.", ZH.noDecision)}</p>
         ) : (
@@ -505,7 +520,12 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
               <p><strong>{labelByMode(languageMode, "Technical state", ZH.technicalState)}:</strong> {selectedLiveTrade.technical_state_summary}</p>
               <p><strong>{labelByMode(languageMode, "News sentiment", ZH.newsSentiment)}:</strong> {selectedLiveTrade.news_sentiment_summary}</p>
               <p><strong>{labelByMode(languageMode, "Benchmark strength", ZH.benchmarkStrength)}:</strong> {selectedLiveTrade.benchmark_strength_summary}</p>
-              <p><strong>{labelByMode(languageMode, "Confidence", ZH.confidence)}:</strong> {selectedLiveTrade.confidence_score !== null && selectedLiveTrade.confidence_score !== undefined ? `${(Number(selectedLiveTrade.confidence_score) * 100).toFixed(0)}%` : "N/A"}</p>
+              <p>
+                <strong>{labelByMode(languageMode, "Confidence", ZH.confidence)}:</strong>{" "}
+                {selectedLiveTrade.confidence_score !== null && selectedLiveTrade.confidence_score !== undefined
+                  ? `${(Number(selectedLiveTrade.confidence_score) * 100).toFixed(0)}%`
+                  : "N/A"}
+              </p>
             </div>
           </>
         )}
@@ -517,7 +537,11 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
       <section className="panel">
         <h3>{labelByMode(languageMode, "Historical Replay Mode", ZH.historicalMode)}</h3>
         <p className="helper-text">
-          {labelByMode(languageMode, "Historical view is replay-style for evaluation. Live mode above is the current simulator.", ZH.historicalIntro)}
+          {labelByMode(
+            languageMode,
+            "Historical view is replay-style for evaluation. Live mode above is the current simulator.",
+            ZH.historicalIntro
+          )}
         </p>
       </section>
 
@@ -526,10 +550,10 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
           <EquityChart ticker={selectedTicker} points={historicalEquityPoints} languageMode={languageMode} />
           <LineChart
             title={labelByMode(languageMode, "Monthly Contribution History", ZH.monthlyContributionHistory)}
-            subtitle={`Ticker: ${selectedTicker} | Last 6 Months`}
+            subtitle={`Ticker: ${selectedTicker}`}
             points={contributionPoints}
-            xAxisLabel="Date"
-            yAxisLabel="Price (USD)"
+            xAxisLabel="Month"
+            yAxisLabel="Contribution Amount (USD)"
             yValueKind="price"
             lines={[
               {
@@ -547,7 +571,7 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
                 valueKind: "price",
               },
             ]}
-            noDataMessage={labelByMode(languageMode, "No data available", ZH.noData)}
+            noDataMessage={getLabel(languageMode, "noDataAvailable")}
             height={180}
           />
         </>
