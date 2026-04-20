@@ -402,10 +402,10 @@ class AccountLedgerService:
     ) -> dict[str, Any] | None:
         """Auto-create the current-month contribution when monthly recurrence is due.
 
-        Beginner-friendly recurrence rule:
+        Recurrence rule:
         - if current month already has a monthly_contribution event: do nothing
-        - else if current month has a confirmed monthly plan: apply that planned amount
-        - else fallback to latest prior applied monthly_contribution amount (compatibility)
+        - else use the active recurring monthly contribution amount
+        - compatibility fallback: latest prior applied monthly amount
         """
         clean_user_id = _clean_user_id(user_id)
         current_month = _current_month()
@@ -424,15 +424,14 @@ class AccountLedgerService:
             ).fetchone()
             if existing is not None:
                 return None
-        planned_records = {
-            item.month: item
-            for item in self.monthly_contribution_store.list_records(clean_user_id)
-            if bool(item.locked)
-        }
-        planned_current = planned_records.get(current_month)
-        if planned_current and float(planned_current.amount) > 0:
-            carry_amount = float(planned_current.amount)
-        else:
+
+        carry_amount = float(
+            self.monthly_contribution_store.get_effective_amount_for_month(
+                clean_user_id,
+                current_month,
+            )
+        )
+        if carry_amount <= 0:
             with self._connect() as conn:
                 latest_prior = conn.execute(
                     """
@@ -634,6 +633,7 @@ class AccountLedgerService:
         deleted_trader_cash_rows = 0
         deleted_trader_contribution_rows = 0
         deleted_monthly_store_rows = 0
+        deleted_monthly_input_rows = 0
 
         with self._connect() as conn:
             # Optional monthly-contribution reset:
@@ -712,11 +712,17 @@ class AccountLedgerService:
                     (clean_user_id,),
                 )
                 deleted_monthly_store_rows = int(cursor.rowcount or 0)
+            if self._table_exists(conn, "monthly_contribution_settings"):
+                cursor = conn.execute(
+                    "DELETE FROM monthly_contribution_settings WHERE user_id = ?",
+                    (clean_user_id,),
+                )
+                deleted_monthly_input_rows = int(cursor.rowcount or 0)
 
             conn.commit()
 
         logger.warning(
-            "Virtual account reset user_id=%s ledger=%d live_trades=%d live_positions=%d trader_cash=%d trader_monthly=%d monthly_store=%d reset_monthly_contributions=%s",
+            "Virtual account reset user_id=%s ledger=%d live_trades=%d live_positions=%d trader_cash=%d trader_monthly=%d monthly_store=%d monthly_input=%d reset_monthly_contributions=%s",
             clean_user_id,
             deleted_ledger_rows,
             deleted_live_trade_rows,
@@ -724,6 +730,7 @@ class AccountLedgerService:
             deleted_trader_cash_rows,
             deleted_trader_contribution_rows,
             deleted_monthly_store_rows,
+            deleted_monthly_input_rows,
             bool(reset_monthly_contributions),
         )
         return {
@@ -736,6 +743,7 @@ class AccountLedgerService:
             "deleted_trader_contribution_rows": deleted_trader_contribution_rows,
             "deleted_monthly_contribution_rows": deleted_monthly_contribution_rows,
             "deleted_monthly_store_rows": deleted_monthly_store_rows,
+            "deleted_monthly_input_rows": deleted_monthly_input_rows,
             "message": "Reset completed for this profile.",
         }
 

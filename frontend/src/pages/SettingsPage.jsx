@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 
-import MonthlyContributionTable from "../components/MonthlyContributionTable";
 import WatchlistManager from "../components/WatchlistManager";
 import {
   labelByMode,
@@ -282,7 +281,6 @@ export default function SettingsPage({
         onUpdated={() => onProfileUpdated(profileId)}
       />
 
-      <MonthlyContributionTable userId={profileId} languageMode={languageMode} />
     </div>
   );
 }

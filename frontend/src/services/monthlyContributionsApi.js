@@ -48,3 +48,16 @@ export async function createMonthlyContributions(payload) {
     body: JSON.stringify(payload),
   });
 }
+
+export async function fetchMonthlyContributionInput(userId) {
+  return requestJson(
+    `/virtual-account/monthly-contribution-input?user_id=${encodeURIComponent(userId)}`
+  );
+}
+
+export async function saveMonthlyContributionInput(payload) {
+  return requestJson("/virtual-account/monthly-contribution-input", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}

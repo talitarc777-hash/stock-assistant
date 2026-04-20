@@ -15,10 +15,15 @@ from app.models.account_ledger import (
     VirtualAccountSummaryResponse,
     VirtualAccountWithdrawalRequest,
 )
+from app.models.monthly_contribution import (
+    MonthlyContributionInputResponse,
+    MonthlyContributionInputUpdateRequest,
+)
 from app.services.account_ledger_service import (
     AccountLedgerError,
     get_account_ledger_service,
 )
+from app.services.monthly_contribution_service import get_monthly_contribution_store
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +42,43 @@ def virtual_account_summary(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # pragma: no cover
         logger.exception("Unexpected virtual-account summary error")
+        raise HTTPException(status_code=500, detail="Unexpected server error.") from exc
+
+
+@router.get(
+    "/virtual-account/monthly-contribution-input",
+    response_model=MonthlyContributionInputResponse,
+)
+def virtual_account_monthly_contribution_input(
+    user_id: str = Query(..., min_length=1, max_length=120),
+) -> MonthlyContributionInputResponse:
+    """Return the active recurring monthly contribution input for one profile."""
+    try:
+        return get_monthly_contribution_store().get_active_input(user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover
+        logger.exception("Unexpected virtual-account monthly contribution read error")
+        raise HTTPException(status_code=500, detail="Unexpected server error.") from exc
+
+
+@router.post(
+    "/virtual-account/monthly-contribution-input",
+    response_model=MonthlyContributionInputResponse,
+)
+def virtual_account_monthly_contribution_input_update(
+    request: MonthlyContributionInputUpdateRequest,
+) -> MonthlyContributionInputResponse:
+    """Save recurring monthly contribution amount used for first-day auto-cash."""
+    try:
+        return get_monthly_contribution_store().set_active_input(
+            user_id=request.user_id,
+            amount=request.amount,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover
+        logger.exception("Unexpected virtual-account monthly contribution update error")
         raise HTTPException(status_code=500, detail="Unexpected server error.") from exc
 
 

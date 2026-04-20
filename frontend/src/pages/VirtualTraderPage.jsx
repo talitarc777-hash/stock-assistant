@@ -16,7 +16,7 @@ import CashLedgerTable from "../components/CashLedgerTable";
 import { getLabel } from "../constants/i18n";
 import EquityChart from "../components/EquityChart";
 import LineChart from "../components/LineChart";
-import MonthlyContributionPlanner from "../components/MonthlyContributionPlanner";
+import MonthlyContributionInput from "../components/MonthlyContributionInput";
 import NewsSentimentPanel from "../components/NewsSentimentPanel";
 import ResetTradingAccountButton from "../components/ResetTradingAccountButton";
 import TraderStatusPanel from "../components/TraderStatusPanel";
@@ -382,7 +382,7 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
         </div>
       </section>
 
-      <MonthlyContributionPlanner
+      <MonthlyContributionInput
         userId={profileId}
         languageMode={languageMode}
         onUpdated={() => loadAllViews(selectedTicker)}
@@ -439,8 +439,8 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
         <p className="helper-text">
           {labelByMode(
             languageMode,
-            "Reset is destructive and permanent. It clears this profile's simulated cash flow, holdings, trade history, and monthly contribution records.",
-            "\u91cd\u8a2d\u70ba\u6bc0\u58de\u6027\u4e14\u7121\u6cd5\u5fa9\u539f\uff0c\u6703\u6e05\u9664\u6b64 Profile \u7684\u6a21\u64ec\u73fe\u91d1\u6d41\u3001\u6301\u5009\u3001\u4ea4\u6613\u7d00\u9304\u53ca\u6bcf\u6708\u6ce8\u8cc7\u8a18\u9304\u3002"
+            "Reset is destructive and permanent. It clears this profile's simulated cash flow, holdings, trade history, and monthly contribution settings/history.",
+            "\u91cd\u8a2d\u70ba\u6bc0\u58de\u6027\u4e14\u7121\u6cd5\u5fa9\u539f\uff0c\u6703\u6e05\u9664\u6b64 Profile \u7684\u6a21\u64ec\u73fe\u91d1\u6d41\u3001\u6301\u5009\u3001\u4ea4\u6613\u7d00\u9304\u53ca\u6bcf\u6708\u6ce8\u8cc7\u8a2d\u5b9a/\u6b77\u53f2\u3002"
           )}
         </p>
         <ResetTradingAccountButton

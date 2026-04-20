@@ -8,7 +8,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from app.core.settings import get_settings
-from app.models.monthly_contribution import MonthlyContributionRecordResponse
+from app.models.monthly_contribution import (
+    MonthlyContributionInputResponse,
+    MonthlyContributionRecordResponse,
+)
 from app.services.user_profile_service import get_user_profile_store
 
 logger = logging.getLogger(__name__)
@@ -52,6 +55,16 @@ def _current_month_key() -> str:
     return f"{now.year:04d}-{now.month:02d}"
 
 
+def _next_month_key(month_key: str) -> str:
+    clean = _month_key(month_key)
+    year, month = int(clean[:4]), int(clean[5:7])
+    month += 1
+    if month > 12:
+        year += 1
+        month = 1
+    return f"{year:04d}-{month:02d}"
+
+
 class MonthlyContributionStore:
     """Small data-access layer for user-specific monthly contribution records."""
 
@@ -81,6 +94,17 @@ class MonthlyContributionStore:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS monthly_contribution_settings (
+                    user_id TEXT PRIMARY KEY,
+                    amount REAL NOT NULL,
+                    effective_from_month TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
             # Lightweight migration path for existing local DBs.
             columns = {
                 row["name"]
@@ -94,6 +118,14 @@ class MonthlyContributionStore:
                 connection.execute("ALTER TABLE monthly_contributions ADD COLUMN confirmed_at TEXT")
             connection.commit()
 
+    @staticmethod
+    def _table_exists(connection: sqlite3.Connection, table_name: str) -> bool:
+        row = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
+            (str(table_name).strip(),),
+        ).fetchone()
+        return row is not None
+
     def _row_to_record(self, row: sqlite3.Row) -> MonthlyContributionRecordResponse:
         return MonthlyContributionRecordResponse(
             user_id=row["user_id"],
@@ -102,6 +134,15 @@ class MonthlyContributionStore:
             created_at=row["created_at"],
             updated_at=row["updated_at"],
             locked=bool(row["locked"]),
+        )
+
+    def _row_to_input(self, row: sqlite3.Row) -> MonthlyContributionInputResponse:
+        return MonthlyContributionInputResponse(
+            user_id=row["user_id"],
+            amount=float(row["amount"]),
+            effective_from_month=row["effective_from_month"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
         )
 
     def _fetch_records(self, user_id: str) -> list[MonthlyContributionRecordResponse]:
@@ -115,6 +156,132 @@ class MonthlyContributionStore:
                 (user_id,),
             ).fetchall()
         return [self._row_to_record(row) for row in rows]
+
+    def get_active_input(self, user_id: str) -> MonthlyContributionInputResponse:
+        """Return the active recurring monthly contribution amount for one user."""
+        clean_user_id = str(user_id).strip()
+        if not clean_user_id:
+            raise ValueError("user_id is required.")
+        get_user_profile_store().get_or_create_profile(clean_user_id)
+        now = _utc_now()
+        current_month = _current_month_key()
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT * FROM monthly_contribution_settings
+                WHERE user_id = ?
+                """,
+                (clean_user_id,),
+            ).fetchone()
+            if row is None:
+                connection.execute(
+                    """
+                    INSERT INTO monthly_contribution_settings (
+                        user_id, amount, effective_from_month, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (clean_user_id, 0.0, current_month, now, now),
+                )
+                connection.commit()
+                row = connection.execute(
+                    """
+                    SELECT * FROM monthly_contribution_settings
+                    WHERE user_id = ?
+                    """,
+                    (clean_user_id,),
+                ).fetchone()
+        if row is None:
+            raise ValueError("Failed to load monthly contribution input.")
+        return self._row_to_input(row)
+
+    def set_active_input(self, user_id: str, amount: float) -> MonthlyContributionInputResponse:
+        """Save a new recurring monthly contribution amount for future monthly cycles."""
+        clean_user_id = str(user_id).strip()
+        if not clean_user_id:
+            raise ValueError("user_id is required.")
+        try:
+            numeric_amount = float(amount)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("amount must be numeric.") from exc
+        if numeric_amount < 0:
+            raise ValueError("amount must be non-negative.")
+
+        get_user_profile_store().get_or_create_profile(clean_user_id)
+        now = _utc_now()
+        current_month = _current_month_key()
+        next_month = _next_month_key(current_month)
+
+        # The new amount should apply from the next cycle unless the current
+        # month has not been applied yet.
+        effective_from_month = next_month
+        with self._connect() as connection:
+            has_current_applied = False
+            if self._table_exists(connection, "account_ledger_events"):
+                applied_row = connection.execute(
+                    """
+                    SELECT id
+                    FROM account_ledger_events
+                    WHERE user_id = ?
+                      AND event_type = 'monthly_contribution'
+                      AND reference_month = ?
+                    LIMIT 1
+                    """,
+                    (clean_user_id, current_month),
+                ).fetchone()
+                has_current_applied = applied_row is not None
+            if not has_current_applied:
+                effective_from_month = current_month
+
+            existing = connection.execute(
+                """
+                SELECT user_id FROM monthly_contribution_settings
+                WHERE user_id = ?
+                """,
+                (clean_user_id,),
+            ).fetchone()
+            if existing is None:
+                connection.execute(
+                    """
+                    INSERT INTO monthly_contribution_settings (
+                        user_id, amount, effective_from_month, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (clean_user_id, numeric_amount, effective_from_month, now, now),
+                )
+            else:
+                connection.execute(
+                    """
+                    UPDATE monthly_contribution_settings
+                    SET amount = ?, effective_from_month = ?, updated_at = ?
+                    WHERE user_id = ?
+                    """,
+                    (numeric_amount, effective_from_month, now, clean_user_id),
+                )
+            connection.commit()
+            row = connection.execute(
+                """
+                SELECT * FROM monthly_contribution_settings
+                WHERE user_id = ?
+                """,
+                (clean_user_id,),
+            ).fetchone()
+        if row is None:
+            raise ValueError("Failed to save monthly contribution input.")
+        logger.info(
+            "Saved recurring monthly contribution input user_id=%s amount=%.2f effective_from_month=%s",
+            clean_user_id,
+            numeric_amount,
+            effective_from_month,
+        )
+        return self._row_to_input(row)
+
+    def get_effective_amount_for_month(self, user_id: str, month: str) -> float:
+        """Return the recurring amount that should apply for a given month."""
+        clean_month = _month_key(month)
+        input_row = self.get_active_input(user_id)
+        if clean_month < input_row.effective_from_month:
+            return 0.0
+        return float(input_row.amount)
 
     def initialize_for_user(self, user_id: str) -> list[MonthlyContributionRecordResponse]:
         """Ensure records exist from April 2026 through the current month."""
@@ -266,8 +433,56 @@ class MonthlyContributionStore:
         return self._row_to_record(row)
 
     def get_amount_map(self, user_id: str) -> dict[str, float]:
-        """Return a month-to-amount mapping for simulation use."""
-        return {record.month: record.amount for record in self.list_records(user_id)}
+        """Return a month-to-amount mapping for simulation use.
+
+        Compatibility behavior:
+        - base map comes from the active recurring monthly input
+        - legacy confirmed monthly plan rows (if present) override base values
+        - applied ledger monthly_contribution rows override everything else
+        """
+        clean_user_id = str(user_id).strip()
+        if not clean_user_id:
+            raise ValueError("user_id is required.")
+        get_user_profile_store().get_or_create_profile(clean_user_id)
+
+        current_month = _current_month_key()
+        month_map: dict[str, float] = {}
+        recurring = self.get_active_input(clean_user_id)
+        for month in _month_range(START_MONTH, current_month):
+            month_map[month] = float(recurring.amount) if month >= recurring.effective_from_month else 0.0
+
+        with self._connect() as connection:
+            # Legacy locked monthly plans (old workflow).
+            if self._table_exists(connection, "monthly_contributions"):
+                locked_rows = connection.execute(
+                    """
+                    SELECT month, amount
+                    FROM monthly_contributions
+                    WHERE user_id = ? AND locked = 1
+                    """,
+                    (clean_user_id,),
+                ).fetchall()
+                for row in locked_rows:
+                    month_map[row["month"]] = float(row["amount"] or 0.0)
+
+            # Applied immutable monthly ledger events are the strongest source.
+            if self._table_exists(connection, "account_ledger_events"):
+                applied_rows = connection.execute(
+                    """
+                    SELECT reference_month, amount
+                    FROM account_ledger_events
+                    WHERE user_id = ?
+                      AND event_type = 'monthly_contribution'
+                      AND reference_month IS NOT NULL
+                    """,
+                    (clean_user_id,),
+                ).fetchall()
+                for row in applied_rows:
+                    month_key = row["reference_month"]
+                    if not month_key:
+                        continue
+                    month_map[month_key] = float(row["amount"] or 0.0)
+        return month_map
 
 
 _STORE = MonthlyContributionStore()

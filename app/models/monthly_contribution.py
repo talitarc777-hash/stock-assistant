@@ -84,6 +84,32 @@ class MonthlyContributionCreateRequest(BaseModel):
     source: str = Field(default="web", min_length=2, max_length=40)
 
 
+class MonthlyContributionInputResponse(BaseModel):
+    """Active recurring monthly contribution input for one profile."""
+
+    user_id: str
+    amount: float = Field(ge=0)
+    effective_from_month: str
+    created_at: str
+    updated_at: str
+
+    @field_validator("effective_from_month")
+    @classmethod
+    def validate_effective_from_month(cls, value: str) -> str:
+        text = str(value).strip()
+        if len(text) != 7 or text[4] != "-":
+            raise ValueError("effective_from_month must use YYYY-MM format.")
+        return text
+
+
+class MonthlyContributionInputUpdateRequest(BaseModel):
+    """Update request for recurring monthly contribution input."""
+
+    user_id: str = Field(min_length=1, max_length=120)
+    amount: float = Field(ge=0)
+    source: str = Field(default="web", min_length=2, max_length=40)
+
+
 class ModelEvaluationOptionResponse(BaseModel):
     """One available trained model option for UI selection."""
 

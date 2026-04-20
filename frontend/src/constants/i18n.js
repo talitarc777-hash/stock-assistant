@@ -3,6 +3,22 @@ export const LABELS = {
     en: "Monthly Contribution Input",
     zh: "\u6bcf\u6708\u6ce8\u8cc7\u8a2d\u5b9a",
   },
+  monthlyContributionAmount: {
+    en: "Monthly Contribution Amount (USD)",
+    zh: "\u6bcf\u6708\u6ce8\u8cc7\u91d1\u984d\uff08USD\uff09",
+  },
+  saveMonthlyContribution: {
+    en: "Save Monthly Contribution",
+    zh: "\u5132\u5b58\u6bcf\u6708\u6ce8\u8cc7\u91d1\u984d",
+  },
+  monthlyContributionSaved: {
+    en: "Monthly contribution amount saved.",
+    zh: "\u6bcf\u6708\u6ce8\u8cc7\u91d1\u984d\u5df2\u5132\u5b58\u3002",
+  },
+  monthlyContributionEffectiveFrom: {
+    en: "Effective from: {month}",
+    zh: "\u751f\u6548\u6708\u4efd\uff1a{month}",
+  },
   monthlyContributionRecords: {
     en: "Monthly Contribution Records",
     zh: "\u6bcf\u6708\u6ce8\u8cc7\u8a18\u9304",
@@ -20,8 +36,8 @@ export const LABELS = {
     zh: "\u6c92\u6709\u53ef\u8a2d\u5b9a\u7684\u6708\u4efd",
   },
   helperContributionFirstDay: {
-    en: "This amount will be added to trading cash on the first day of the selected month.",
-    zh: "\u6b64\u91d1\u984d\u6703\u5728\u6240\u9078\u6708\u4efd\u7684\u7b2c\u4e00\u5929\uff0c\u81ea\u52d5\u52a0\u5165\u6a21\u64ec\u4ea4\u6613\u53ef\u7528\u73fe\u91d1\u3002",
+    en: "This amount will be automatically added to trading cash on the first day of each month until you change it.",
+    zh: "\u6b64\u91d1\u984d\u6703\u65bc\u6bcf\u6708\u7b2c\u4e00\u5929\u81ea\u52d5\u52a0\u5165\u6a21\u64ec\u4ea4\u6613\u73fe\u91d1\uff0c\u76f4\u5230\u4f60\u518d\u6b21\u66f4\u6539\u70ba\u6b62\u3002",
   },
   helperConfirmedRecordsBelow: {
     en: "Confirmed records are shown below for reference.",
@@ -62,6 +78,10 @@ export const LABELS = {
   save: {
     en: "Save",
     zh: "\u5132\u5b58",
+  },
+  saving: {
+    en: "Saving...",
+    zh: "\u5132\u5b58\u4e2d...",
   },
   contributionValidationError: {
     en: "Please choose a month and enter an amount greater than 0.",
@@ -110,7 +130,7 @@ export function getLabel(mode, key, vars = null) {
   if (!entry) return String(key);
 
   let text = mode === "zh" ? entry.zh : entry.en;
-  if (mode === "both") {
+  if (mode === "both" || mode === "bilingual") {
     text = `${entry.en} / ${entry.zh}`;
   }
 

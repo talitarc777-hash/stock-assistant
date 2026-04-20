@@ -343,6 +343,8 @@ Endpoint:
 - `GET /user-alerts/scan?user_id=...`
 - `GET /user-alerts/enabled-users`
 - `POST /user-profile/reset`
+- `GET /virtual-account/monthly-contribution-input?user_id=...`
+- `POST /virtual-account/monthly-contribution-input`
 
 Example (PowerShell):
 
@@ -581,8 +583,8 @@ The web settings page now lets you configure two shared simulation inputs:
 
 - `Model Evaluation（模型評估）`
   choose the active trained model for the web model-evaluation pages and virtual-trader pages
-- `Monthly Contribution Records（每月注資紀錄）`
-  edit the available money for each month in USD
+- `Monthly Contribution Input（每月注資設定）`
+  set one recurring monthly amount in USD
 
 How model selection works:
 
@@ -594,31 +596,27 @@ How model selection works:
 - The selected model is stored in backend SQLite and reused after reloads
 - The current selected model is shown in both the Model Evaluation page and the Virtual Trader page
 
-How monthly contribution records work:
+How the recurring monthly contribution input works:
 
-- Records always start from `2026-04` (April 2026)
-- If no records exist yet, the backend initializes them automatically from April 2026 through the current month
-- Use `Monthly Contribution Input（每月注資輸入）` to confirm a month amount
-- After confirmation, that month is locked and shown in `Monthly Contribution Records（每月注資記錄）`
-- Confirmed records become the planned monthly auto-cash input for live simulation
-- Amounts are user-editable before confirmation and are not fixed at 1000 USD
-- A value of `0` means no contribution is added for that month
+- You only need to set one active monthly amount
+- That amount is applied automatically on the first day of each month
+- The same amount keeps recurring until you change it
+- If you update the amount later, historical applied months are not rewritten
+- A value of `0` means no new monthly auto-cash is added
 
-How the virtual trader uses these records:
+How the virtual trader uses this input:
 
 - On each scheduler cycle, the system checks the current month
-- If the month has a confirmed amount and it has not been applied yet, one immutable `monthly_contribution` ledger event is created
+- If the month has not been applied yet, one immutable `monthly_contribution` ledger event is created
 - The same month is never applied twice
-- This replaces the old fixed monthly injection assumption for the web simulation flow
-- Equity curve, monthly contribution history, and benchmark comparison reflect saved monthly records
+- Account Ledger remains the source of truth for monthly contribution history
 
 New backend endpoints:
 
 - `GET /model-evaluation/settings?user_id=...`
 - `POST /model-evaluation/settings`
-- `GET /monthly-contributions?user_id=...`
-- `POST /monthly-contributions/initialize`
-- `POST /monthly-contributions/create`
+- `GET /virtual-account/monthly-contribution-input?user_id=...`
+- `POST /virtual-account/monthly-contribution-input`
 
 Device Profile ID default:
 
@@ -638,11 +636,11 @@ The project now supports two different trader views:
 
 Monthly contribution behavior in live mode:
 
-- Contributions still start from `2026-04`
-- When you save monthly records, each month is applied from that month onward
-- If current month has an amount set, it becomes available immediately
+- Monthly auto-cash starts from `2026-04`
+- The active recurring monthly amount is used automatically every month
+- If current month has not been applied yet, the new saved amount can apply immediately
 - Duplicate runs in the same month do not double-count contributions
-- If a month amount increases later, only the difference is applied
+- If the amount changes after a month is already applied, the new value applies from the next cycle
 
 Live virtual trader endpoints:
 
@@ -654,7 +652,7 @@ Virtual Trader page workflow (top-to-bottom):
 
 - Live Trader Status
 - Current Holdings
-- Monthly Contribution Input + Monthly Contribution Records
+- Monthly Contribution Input
 - Trading Account summary/actions
 - Recent decisions/trades, ledger, and historical charts
 
@@ -692,12 +690,12 @@ Ledger event types:
 - `sell_trade`
 - `fee` (reserved)
 
-Monthly contribution lock behavior:
+Monthly contribution behavior:
 
 - Start month is `2026-04`
-- Create monthly contributions with `POST /monthly-contributions/create`
-- Once a month is created, it is locked and cannot be overwritten
-- Additional cash must be recorded separately via deposit/withdrawal events
+- Set or update recurring monthly amount via `POST /virtual-account/monthly-contribution-input`
+- Auto-applied amounts are recorded as immutable `monthly_contribution` ledger events
+- Additional cash changes remain separate ledger events (`manual_deposit` / `withdrawal`)
 
 Virtual account APIs:
 
