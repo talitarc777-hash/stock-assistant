@@ -123,6 +123,98 @@ export const LABELS = {
     en: "No data available",
     zh: "\u6c92\u6709\u53ef\u7528\u8cc7\u6599",
   },
+  noRecentTraderDecisions: {
+    en: "No recent trader decisions yet.",
+    zh: "\u76ee\u524d\u5c1a\u672a\u6709\u6700\u65b0\u4ea4\u6613\u6c7a\u7b56\u3002",
+  },
+  curveTimestampUnavailable: {
+    en: "Curve timestamp not available yet",
+    zh: "\u8cc7\u7522\u66f2\u7dda\u6642\u9593\u6233\u66ab\u6642\u672a\u53ef\u7528",
+  },
+  historyTitle: {
+    en: "Full Account History",
+    zh: "\u5b8c\u6574\u5e33\u6236\u6b77\u53f2",
+  },
+  historyImmutableHint: {
+    en: "This is an immutable transaction history. Older records are never edited in place.",
+    zh: "\u9019\u662f\u4e0d\u53ef\u4fee\u6539\u7684\u4ea4\u6613\u6b77\u53f2\uff0c\u8f03\u65e9\u7d00\u9304\u4e0d\u6703\u88ab\u76f4\u63a5\u8986\u5beb\u3002",
+  },
+  filterAll: {
+    en: "All",
+    zh: "\u5168\u90e8",
+  },
+  filterCashEvents: {
+    en: "Cash Events",
+    zh: "\u73fe\u91d1\u4e8b\u4ef6",
+  },
+  filterBuys: {
+    en: "Buys",
+    zh: "\u8cb7\u5165",
+  },
+  filterSells: {
+    en: "Sells",
+    zh: "\u8ce3\u51fa",
+  },
+  dateTime: {
+    en: "Date/Time",
+    zh: "\u65e5\u671f\u6642\u9593",
+  },
+  eventType: {
+    en: "Event Type",
+    zh: "\u4e8b\u4ef6\u985e\u578b",
+  },
+  tickerLabel: {
+    en: "Ticker",
+    zh: "\u80a1\u7968\u4ee3\u865f",
+  },
+  quantityLabel: {
+    en: "Quantity",
+    zh: "\u6578\u91cf",
+  },
+  priceLabel: {
+    en: "Price",
+    zh: "\u50f9\u683c",
+  },
+  cashChange: {
+    en: "Cash Change",
+    zh: "\u73fe\u91d1\u8b8a\u52d5",
+  },
+  balanceAfter: {
+    en: "Balance After",
+    zh: "\u8b8a\u52d5\u5f8c\u73fe\u91d1",
+  },
+  noteReason: {
+    en: "Note / Reason",
+    zh: "\u5099\u8a3b / \u539f\u56e0",
+  },
+  noHistoryRecords: {
+    en: "No history records found.",
+    zh: "\u76ee\u524d\u627e\u4e0d\u5230\u5e33\u6236\u6b77\u53f2\u7d00\u9304\u3002",
+  },
+  eventMonthlyContribution: {
+    en: "Monthly Contribution",
+    zh: "\u6bcf\u6708\u6ce8\u8cc7",
+  },
+  eventManualDeposit: {
+    en: "Manual Deposit",
+    zh: "\u624b\u52d5\u5165\u91d1",
+  },
+  eventWithdrawal: {
+    en: "Withdrawal",
+    zh: "\u63d0\u6b3e",
+  },
+  eventBuyTrade: {
+    en: "Buy Trade",
+    zh: "\u8cb7\u5165\u4ea4\u6613",
+  },
+  eventSellTrade: {
+    en: "Sell Trade",
+    zh: "\u8ce3\u51fa\u4ea4\u6613",
+  },
+  eventFee: {
+    en: "Fee",
+    zh: "\u8cbb\u7528",
+  },
 };
 
 export function getLabel(mode, key, vars = null) {

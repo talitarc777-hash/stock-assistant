@@ -708,6 +708,9 @@ Virtual account APIs:
 
 - `GET /virtual-account/summary?user_id=...`
 - `GET /virtual-account/equity-curve?user_id=...`
+- `GET /virtual-account/holdings?user_id=...`
+- `GET /virtual-account/history?user_id=...`
+- `GET /virtual-account/recent-trades?user_id=...`
 - `GET /virtual-account/ledger?user_id=...`
 - `POST /virtual-account/deposit`
 - `POST /virtual-account/withdraw`
@@ -719,6 +722,31 @@ Live trader + account APIs:
 - `GET /virtual-trader/decisions?user_id=...`
 - `GET /virtual-trader/trades?user_id=...`
 - `GET /market-data/live-snapshot?ticker=VOO`
+
+Trading account model:
+
+- `summary`
+  is the canonical snapshot for one profile
+- `holdings`
+  shows only current open positions derived from immutable buy/sell ledger rows
+- `recent-trades`
+  shows executed buy/sell activity only
+- `history`
+  shows the full immutable account timeline, including monthly contributions, deposits, withdrawals, buys, and sells
+
+Cash flow rules:
+
+- `monthly_contribution` increases cash once when that month is auto-applied
+- `manual_deposit` increases cash immediately
+- `withdrawal` reduces cash immediately
+- `buy_trade` reduces cash and increases holdings exposure
+- `sell_trade` increases cash and reduces holdings exposure
+
+How to interpret current holdings vs history:
+
+- Current Holdings = what is still open right now
+- Full Account History = every past account-impacting event, including closed trades and cash movements
+- The latest equity-curve point should match the latest account summary because both are rebuilt from the same ledger path
 
 Data freshness note:
 

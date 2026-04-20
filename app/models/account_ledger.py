@@ -40,6 +40,35 @@ class AccountLedgerListResponse(BaseModel):
     events: list[AccountLedgerEventResponse]
 
 
+class VirtualAccountHistoryEventResponse(BaseModel):
+    """One immutable account-history row with derived balance context."""
+
+    id: int
+    user_id: str
+    event_type: str
+    created_at: str
+    ticker: str | None = None
+    quantity: float | None = None
+    price: float | None = None
+    gross_amount: float | None = None
+    fee_amount: float = 0.0
+    net_amount: float
+    cash_change: float
+    cash_balance_after: float
+    reason: str | None = None
+    source: str | None = None
+    reference_month: str | None = None
+    metadata: dict = Field(default_factory=dict)
+
+
+class VirtualAccountHistoryResponse(BaseModel):
+    """Full immutable account history for one profile."""
+
+    user_id: str
+    count: int
+    events: list[VirtualAccountHistoryEventResponse]
+
+
 class VirtualHoldingResponse(BaseModel):
     """Derived holding state from immutable buy/sell ledger events."""
 
@@ -49,6 +78,42 @@ class VirtualHoldingResponse(BaseModel):
     current_price: float
     market_value: float
     unrealized_pnl: float
+    unrealized_pnl_pct: float | None = None
+    latest_signal: str | None = None
+
+
+class VirtualAccountHoldingsResponse(BaseModel):
+    """Current holdings derived from immutable trade history."""
+
+    user_id: str
+    count: int
+    holdings: list[VirtualHoldingResponse]
+
+
+class VirtualAccountRecentTradeResponse(BaseModel):
+    """Recent executed trade events derived from immutable ledger records."""
+
+    id: int
+    user_id: str
+    created_at: str
+    event_type: str
+    ticker: str
+    quantity: float
+    price: float
+    gross_amount: float
+    net_amount: float
+    cash_balance_after: float
+    reason: str | None = None
+    source: str | None = None
+    metadata: dict = Field(default_factory=dict)
+
+
+class VirtualAccountRecentTradesResponse(BaseModel):
+    """Recent buy/sell activity for one profile."""
+
+    user_id: str
+    count: int
+    trades: list[VirtualAccountRecentTradeResponse]
 
 
 class VirtualAccountSummaryResponse(BaseModel):

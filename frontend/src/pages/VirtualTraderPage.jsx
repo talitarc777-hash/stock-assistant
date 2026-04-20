@@ -4,21 +4,27 @@ import {
   fetchTraderSchedulerStatus,
   fetchLiveVirtualTraderStatus,
   fetchLiveVirtualTraderTrades,
-  fetchVirtualAccountLedger,
+  fetchVirtualAccountEquityCurve,
+  fetchVirtualAccountHistory,
+  fetchVirtualAccountHoldings,
+  fetchVirtualAccountRecentTrades,
+  fetchVirtualAccountSummary,
   fetchVirtualTraderSummary,
-  fetchVirtualTraderTrades,
   postVirtualAccountDeposit,
   postVirtualAccountWithdraw,
   runLiveVirtualTraderNow,
 } from "../api";
-import CashLedgerTable from "../components/CashLedgerTable";
+import AccountSummaryCards from "../components/AccountSummaryCards";
 import { getLabel } from "../constants/i18n";
 import EquityChart from "../components/EquityChart";
+import HoldingsTable from "../components/HoldingsTable";
 import LineChart from "../components/LineChart";
 import MonthlyContributionInput from "../components/MonthlyContributionInput";
 import NewsSentimentPanel from "../components/NewsSentimentPanel";
+import RecentTradesTable from "../components/RecentTradesTable";
 import ResetTradingAccountButton from "../components/ResetTradingAccountButton";
 import TraderStatusPanel from "../components/TraderStatusPanel";
+import TransactionHistoryTable from "../components/TransactionHistoryTable";
 import { fetchModelEvaluationSettings } from "../services/modelSettingsApi";
 
 const DEFAULT_PERIOD = "5y";
@@ -106,13 +112,17 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
   const [selectedModelName, setSelectedModelName] = useState(DEFAULT_MODEL);
   const [liveStatus, setLiveStatus] = useState(null);
   const [schedulerStatus, setSchedulerStatus] = useState(null);
-  const [liveTrades, setLiveTrades] = useState([]);
-  const [ledgerEvents, setLedgerEvents] = useState([]);
+  const [accountSummary, setAccountSummary] = useState(null);
+  const [accountHoldings, setAccountHoldings] = useState([]);
+  const [accountHistory, setAccountHistory] = useState([]);
+  const [recentTrades, setRecentTrades] = useState([]);
+  const [equityCurve, setEquityCurve] = useState([]);
+  const [liveDecisionLog, setLiveDecisionLog] = useState([]);
   const [cashAmount, setCashAmount] = useState("");
   const [cashReason, setCashReason] = useState("");
   const [selectedLiveTrade, setSelectedLiveTrade] = useState(null);
   const [historicalSummary, setHistoricalSummary] = useState(null);
-  const [historicalTrades, setHistoricalTrades] = useState(null);
+  const [historicalContributionData, setHistoricalContributionData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isRunningNow, setIsRunningNow] = useState(false);
   const [error, setError] = useState("");
@@ -152,33 +162,49 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
       const [
         schedulerStatusPayload,
         statusPayload,
-        tradesPayload,
-        ledgerPayload,
+        accountSummaryPayload,
+        holdingsPayload,
+        historyPayload,
+        recentTradesPayload,
+        equityCurvePayload,
+        decisionsPayload,
         historicalSummaryPayload,
         historicalTradesPayload,
       ] = await Promise.all([
         fetchTraderSchedulerStatus(8),
         fetchLiveVirtualTraderStatus(profileId, null, selectedModelName, false),
+        fetchVirtualAccountSummary(profileId),
+        fetchVirtualAccountHoldings(profileId),
+        fetchVirtualAccountHistory(profileId, 250),
+        fetchVirtualAccountRecentTrades(profileId, 20),
+        fetchVirtualAccountEquityCurve(profileId, 240),
         fetchLiveVirtualTraderTrades(profileId, null, 20),
-        fetchVirtualAccountLedger(profileId, 150),
         fetchVirtualTraderSummary(activeTicker, DEFAULT_PERIOD, selectedModelName, 500, profileId),
         fetchVirtualTraderTrades(activeTicker, DEFAULT_PERIOD, selectedModelName, 200, profileId),
       ]);
       setSchedulerStatus(schedulerStatusPayload);
       setLiveStatus(statusPayload);
-      setLiveTrades(tradesPayload.trades || []);
-      setSelectedLiveTrade((tradesPayload.trades || [])[0] || null);
-      setLedgerEvents(ledgerPayload.events || []);
+      setAccountSummary(accountSummaryPayload);
+      setAccountHoldings(holdingsPayload.holdings || []);
+      setAccountHistory(historyPayload.events || []);
+      setRecentTrades(recentTradesPayload.trades || []);
+      setEquityCurve(equityCurvePayload.points || []);
+      setLiveDecisionLog(decisionsPayload.trades || []);
+      setSelectedLiveTrade((decisionsPayload.trades || [])[0] || null);
       setHistoricalSummary(historicalSummaryPayload);
-      setHistoricalTrades(historicalTradesPayload);
+      setHistoricalContributionData(historicalTradesPayload);
     } catch (requestError) {
       setLiveStatus(null);
       setSchedulerStatus(null);
-      setLiveTrades([]);
+      setAccountSummary(null);
+      setAccountHoldings([]);
+      setAccountHistory([]);
+      setRecentTrades([]);
+      setEquityCurve([]);
+      setLiveDecisionLog([]);
       setSelectedLiveTrade(null);
-      setLedgerEvents([]);
       setHistoricalSummary(null);
-      setHistoricalTrades(null);
+      setHistoricalContributionData(null);
       setError(requestError.message || "Failed to load virtual trader views.");
     } finally {
       setIsLoading(false);
@@ -247,6 +273,17 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
     }
   }
 
+  const liveEquityPoints = useMemo(() => {
+    if (!equityCurve?.length) return [];
+    return equityCurve.map((item) => ({
+      date: item.timestamp,
+      total_equity: toNumeric(item.total_equity),
+      cash: toNumeric(item.cash),
+      holdings_value: toNumeric(item.holdings_value),
+    }));
+  }, [equityCurve]);
+
+  const liveLatestEquityPoint = liveEquityPoints.length ? liveEquityPoints[liveEquityPoints.length - 1] : null;
   const historicalEquityPoints = useMemo(() => {
     if (!historicalSummary?.equity_curve) return [];
     return historicalSummary.equity_curve.map((item) => ({
@@ -257,27 +294,15 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
       benchmark_equity: toNumeric(item.benchmark_equity),
     }));
   }, [historicalSummary]);
-
-  const liveEquityPoints = useMemo(() => {
-    if (!liveStatus?.equity_curve) return [];
-    return liveStatus.equity_curve.map((item) => ({
-      date: item.timestamp,
-      total_equity: toNumeric(item.total_equity),
-      cash: toNumeric(item.cash),
-      holdings_value: toNumeric(item.holdings_value),
-    }));
-  }, [liveStatus]);
-
-  const liveLatestEquityPoint = liveEquityPoints.length ? liveEquityPoints[liveEquityPoints.length - 1] : null;
-  const liveSummary = liveStatus?.account || null;
   const liveEquityMismatch =
-    liveSummary && liveLatestEquityPoint
-      ? Math.abs(Number(liveSummary.total_equity || 0) - Number(liveLatestEquityPoint.total_equity || 0)) > 0.01
+    accountSummary && liveLatestEquityPoint
+      ? Math.abs(Number(accountSummary.total_account_value || 0) - Number(liveLatestEquityPoint.total_equity || 0)) >
+        0.01
       : false;
 
   const contributionPoints = useMemo(() => {
-    if (!historicalTrades?.monthly_contributions) return [];
-    const confirmed = historicalTrades.monthly_contributions.filter(
+    if (!historicalContributionData?.monthly_contributions) return [];
+    const confirmed = historicalContributionData.monthly_contributions.filter(
       (item) => Number(item.amount) > 0 || Number(item.cumulative_contributions) > 0
     );
     return confirmed.map((item) => ({
@@ -285,7 +310,7 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
       cumulative_contributions: toNumeric(item.cumulative_contributions),
       amount: toNumeric(item.amount),
     }));
-  }, [historicalTrades]);
+  }, [historicalContributionData]);
 
   return (
     <>
@@ -342,18 +367,21 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
         </p>
         {liveStatus ? (
           <div className="detail-grid">
-            <p><strong>{labelByMode(languageMode, "Cash", ZH.cash)}:</strong> {formatMoney(liveSummary?.cash)}</p>
-            <p><strong>{labelByMode(languageMode, "Holdings value", ZH.holdingsValue)}:</strong> {formatMoney(liveSummary?.holdings_value)}</p>
-            <p><strong>{labelByMode(languageMode, "Total equity", ZH.totalEquity)}:</strong> {formatMoney(liveSummary?.total_equity)}</p>
-            <p><strong>{labelByMode(languageMode, "Realized PnL", ZH.realizedPnl)}:</strong> {formatMoney(liveSummary?.realized_pnl)}</p>
-            <p><strong>{labelByMode(languageMode, "Applied contributions", ZH.appliedContributions)}:</strong> {formatMoney(liveSummary?.total_contributions_applied)}</p>
+            <p><strong>{labelByMode(languageMode, "Cash", ZH.cash)}:</strong> {formatMoney(accountSummary?.cash)}</p>
+            <p><strong>{labelByMode(languageMode, "Holdings value", ZH.holdingsValue)}:</strong> {formatMoney(accountSummary?.holdings_value)}</p>
+            <p><strong>{labelByMode(languageMode, "Total equity", ZH.totalEquity)}:</strong> {formatMoney(accountSummary?.total_account_value)}</p>
+            <p><strong>{labelByMode(languageMode, "Realized PnL", ZH.realizedPnl)}:</strong> {formatMoney(accountSummary?.realized_pnl)}</p>
+            <p><strong>{labelByMode(languageMode, "Applied contributions", ZH.appliedContributions)}:</strong> {formatMoney(accountSummary?.net_deposits)}</p>
             <p><strong>{labelByMode(languageMode, "Tickers evaluated", ZH.tickersEvaluated)}:</strong> {liveStatus.tickers_evaluated ?? 0}</p>
             <p><strong>{labelByMode(languageMode, "Tickers failed", ZH.tickersFailed)}:</strong> {liveStatus.tickers_failed ?? 0}</p>
             <p><strong>{labelByMode(languageMode, "Fallback decisions", ZH.fallbackDecisions)}:</strong> {liveStatus.fallback_used_count ?? 0}</p>
             <p><strong>{labelByMode(languageMode, "Generated at", ZH.generatedAt)}:</strong> {liveStatus.generated_at_utc}</p>
-            <p><strong>Last updated:</strong> {liveSummary?.snapshot_timestamp || liveStatus.generated_at_utc}</p>
+            <p><strong>Last updated:</strong> {accountSummary?.last_updated || accountSummary?.as_of || liveStatus.generated_at_utc}</p>
             <p><strong>Latest equity point:</strong> {formatMoney(liveLatestEquityPoint?.total_equity)}</p>
-            <p><strong>Curve timestamp:</strong> {liveSummary?.curve_last_point_timestamp || "-"}</p>
+            <p>
+              <strong>Curve timestamp:</strong>{" "}
+              {accountSummary?.curve_last_point_timestamp || getLabel(languageMode, "curveTimestampUnavailable")}
+            </p>
           </div>
         ) : (
           <p>{labelByMode(languageMode, "No live status yet.", ZH.noLiveStatus)}</p>
@@ -386,41 +414,8 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
         )}
       />
 
-      <section className="panel">
-        <h3>{getLabel(languageMode, "currentHoldings")}</h3>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>{labelByMode(languageMode, "Ticker", ZH.ticker)}</th>
-                <th>{labelByMode(languageMode, "Quantity", ZH.quantity)}</th>
-                <th>{labelByMode(languageMode, "Entry", ZH.entry)}</th>
-                <th>{labelByMode(languageMode, "Current", ZH.current)}</th>
-                <th>{labelByMode(languageMode, "Value", ZH.value)}</th>
-                <th>{labelByMode(languageMode, "Unrealized PnL", ZH.unrealizedPnl)}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(liveStatus?.holdings || []).length ? (
-                (liveStatus?.holdings || []).map((item) => (
-                  <tr key={`${item.ticker}-${item.entry_timestamp || "ledger"}`}>
-                    <td>{item.ticker}</td>
-                    <td>{Number(item.quantity).toFixed(4)}</td>
-                    <td>{formatMoney(item.avg_entry_price)}</td>
-                    <td>{formatMoney(item.current_price)}</td>
-                    <td>{formatMoney(item.market_value)}</td>
-                    <td>{formatMoney(item.unrealized_pnl)}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={6}>{labelByMode(languageMode, "No holdings yet.", ZH.noHoldings)}</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <AccountSummaryCards languageMode={languageMode} summary={accountSummary} />
+      <HoldingsTable languageMode={languageMode} holdings={accountHoldings} />
 
       <MonthlyContributionInput
         userId={profileId}
@@ -437,14 +432,6 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
             `Profile ID\uff1a${profileId} | \u6301\u4e45\u5316\uff1a\u4ee5 Profile \u5132\u5b58\uff0c\u91cd\u65b0\u6574\u7406/\u91cd\u555f\u5f8c\u4ecd\u4fdd\u7559\u3002`
           )}
         </p>
-        <div className="detail-grid">
-          <p><strong>{labelByMode(languageMode, "Cash", ZH.cash)}:</strong> {formatMoney(liveSummary?.cash)}</p>
-          <p><strong>{labelByMode(languageMode, "Holdings value", ZH.holdingsValue)}:</strong> {formatMoney(liveSummary?.holdings_value)}</p>
-          <p><strong>{labelByMode(languageMode, "Total account value", ZH.totalAccountValue)}:</strong> {formatMoney(liveSummary?.total_equity)}</p>
-          <p><strong>{labelByMode(languageMode, "Realized PnL", ZH.realizedPnl)}:</strong> {formatMoney(liveSummary?.realized_pnl)}</p>
-          <p><strong>{labelByMode(languageMode, "Unrealized PnL", ZH.unrealizedPnl)}:</strong> {formatMoney(liveSummary?.unrealized_pnl)}</p>
-          <p><strong>{labelByMode(languageMode, "Net deposits", ZH.netDeposits)}:</strong> {formatMoney(liveSummary?.net_deposits)}</p>
-        </div>
         <div className="settings-form">
           <label>
             {labelByMode(languageMode, "Amount (USD)", ZH.amountUsd)}
@@ -490,63 +477,47 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
         />
       </section>
 
-      <div className="layout-grid">
-        <section className="panel">
-          <h3>{labelByMode(languageMode, "Latest Decisions", ZH.latestDecisions)}</h3>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>{labelByMode(languageMode, "Action", ZH.action)}</th>
-                  <th>{labelByMode(languageMode, "Price", ZH.price)}</th>
-                  <th>{labelByMode(languageMode, "Reason", ZH.reason)}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(liveStatus?.latest_decisions || []).slice(0, 8).map((item) => (
-                  <tr key={`${item.timestamp}-${item.ticker}-${item.action}`}>
+      <RecentTradesTable languageMode={languageMode} trades={recentTrades} />
+
+      <section className="panel">
+        <h3>{labelByMode(languageMode, "Latest Decisions", ZH.latestDecisions)}</h3>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>{labelByMode(languageMode, "Ticker", ZH.ticker)}</th>
+                <th>{labelByMode(languageMode, "Action", ZH.action)}</th>
+                <th>{labelByMode(languageMode, "Price", ZH.price)}</th>
+                <th>{labelByMode(languageMode, "Reason", ZH.reason)}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {liveDecisionLog.length ? (
+                liveDecisionLog.slice(0, 8).map((item) => (
+                  <tr
+                    key={`${item.timestamp}-${item.ticker}-${item.action}`}
+                    className={selectedLiveTrade?.timestamp === item.timestamp ? "selected-row" : ""}
+                    onClick={() => setSelectedLiveTrade(item)}
+                  >
                     <td>{item.timestamp}</td>
+                    <td>{item.ticker}</td>
                     <td>{item.action}</td>
                     <td>{formatMoney(item.price)}</td>
                     <td>{item.reason}</td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section className="panel">
-          <h3>{labelByMode(languageMode, "Recent Trades", ZH.latestTrades)}</h3>
-          <div className="table-wrap">
-            <table>
-              <thead>
+                ))
+              ) : (
                 <tr>
-                  <th>Date</th>
-                  <th>{labelByMode(languageMode, "Action", ZH.action)}</th>
-                  <th>{labelByMode(languageMode, "Price", ZH.price)}</th>
-                  <th>{labelByMode(languageMode, "Reason", ZH.reason)}</th>
+                  <td colSpan={5}>
+                    {getLabel(languageMode, "noRecentTraderDecisions")}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {liveTrades.map((trade) => (
-                  <tr
-                    key={`${trade.timestamp}-${trade.ticker}-${trade.action}`}
-                    className={selectedLiveTrade?.timestamp === trade.timestamp ? "selected-row" : ""}
-                    onClick={() => setSelectedLiveTrade(trade)}
-                  >
-                    <td>{trade.timestamp}</td>
-                    <td>{trade.action}</td>
-                    <td>{formatMoney(trade.price)}</td>
-                    <td>{trade.reason}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </div>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <section className="panel explanation-panel">
         <h3>{labelByMode(languageMode, "Latest Decision Reason", ZH.latestReason)}</h3>
@@ -572,7 +543,7 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
       </section>
 
       <NewsSentimentPanel ticker={selectedTicker} languageMode={languageMode} />
-      <CashLedgerTable languageMode={languageMode} events={ledgerEvents} />
+      <TransactionHistoryTable languageMode={languageMode} events={accountHistory} />
 
       <section className="panel">
         <h3>{labelByMode(languageMode, "Historical Replay Mode", ZH.historicalMode)}</h3>
@@ -585,7 +556,7 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
         </p>
       </section>
 
-      {historicalSummary ? (
+      {historicalContributionData ? (
         <>
           <EquityChart
             ticker={selectedTicker}

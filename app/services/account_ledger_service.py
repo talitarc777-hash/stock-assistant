@@ -270,6 +270,67 @@ class AccountLedgerService:
             rows = conn.execute(sql, tuple(params)).fetchall()
         return [self._row_to_dict(row) for row in rows]
 
+    def list_account_history(
+        self,
+        user_id: str,
+        limit: int = 200,
+        event_types: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return immutable account history rows with running balance context.
+
+        This is the canonical transaction-history view for the web app:
+        - oldest-first ledger replay computes `cash_balance_after`
+        - newest rows are returned first for easier trading-app style display
+        - trade rows expose gross/net cash values without mutating ledger history
+        """
+        normalized_filter = {
+            item.strip().lower()
+            for item in (event_types or [])
+            if str(item).strip()
+        }
+        chronological_events = self.list_events_chronological(user_id=user_id)
+        running_cash = 0.0
+        history_rows: list[dict[str, Any]] = []
+        for event in chronological_events:
+            net_amount = float(event["amount"])
+            running_cash += net_amount
+            quantity = event.get("quantity")
+            price = event.get("price")
+            metadata = dict(event.get("metadata") or {})
+            fee_amount = float(metadata.get("fee_amount") or 0.0)
+            gross_amount = None
+            if quantity is not None and price is not None:
+                gross_amount = float(quantity) * float(price)
+            history_row = {
+                "id": int(event["id"]),
+                "user_id": event["user_id"],
+                "event_type": event["event_type"],
+                "created_at": event["created_at"],
+                "ticker": event.get("ticker"),
+                "quantity": quantity,
+                "price": price,
+                "gross_amount": gross_amount,
+                "fee_amount": fee_amount,
+                "net_amount": net_amount,
+                "cash_change": net_amount,
+                "cash_balance_after": running_cash,
+                "reason": event.get("reason"),
+                "source": event.get("source"),
+                "reference_month": event.get("reference_month"),
+                "metadata": metadata,
+            }
+            if not normalized_filter or history_row["event_type"] in normalized_filter:
+                history_rows.append(history_row)
+
+        newest_first = list(reversed(history_rows))
+        logger.info(
+            "Account history rebuilt user_id=%s events=%d returned=%d",
+            _clean_user_id(user_id),
+            len(history_rows),
+            min(len(newest_first), max(1, int(limit))),
+        )
+        return newest_first[: max(1, int(limit))]
+
     def list_events_chronological(
         self,
         user_id: str,
@@ -571,6 +632,53 @@ class AccountLedgerService:
         holdings = {key: value for key, value in holdings.items() if value.quantity > 0}
         return holdings, realized_total
 
+    def list_current_holdings(
+        self,
+        user_id: str,
+        latest_prices: dict[str, float] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return current open holdings rebuilt from immutable buy/sell events."""
+        summary = self.build_account_summary(user_id=user_id, latest_prices=latest_prices)
+        return summary["holdings"]
+
+    def list_recent_trade_events(
+        self,
+        user_id: str,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """Return recent executed buy/sell trades derived from immutable ledger rows."""
+        history_rows = self.list_account_history(
+            user_id=user_id,
+            limit=max(limit * 3, limit),
+            event_types=["buy_trade", "sell_trade"],
+        )
+        trades: list[dict[str, Any]] = []
+        for row in history_rows:
+            quantity = float(row.get("quantity") or 0.0)
+            price = float(row.get("price") or 0.0)
+            if quantity <= 0 or price <= 0:
+                continue
+            trades.append(
+                {
+                    "id": int(row["id"]),
+                    "user_id": row["user_id"],
+                    "created_at": row["created_at"],
+                    "event_type": row["event_type"],
+                    "ticker": str(row.get("ticker") or "").upper(),
+                    "quantity": quantity,
+                    "price": price,
+                    "gross_amount": float(row.get("gross_amount") or (quantity * price)),
+                    "net_amount": float(row["net_amount"]),
+                    "cash_balance_after": float(row["cash_balance_after"]),
+                    "reason": row.get("reason"),
+                    "source": row.get("source"),
+                    "metadata": dict(row.get("metadata") or {}),
+                }
+            )
+            if len(trades) >= max(1, int(limit)):
+                break
+        return trades
+
     def build_account_summary(
         self,
         user_id: str,
@@ -624,16 +732,34 @@ class AccountLedgerService:
                     "current_price": market_price,
                     "market_value": market_value,
                     "unrealized_pnl": unrealized,
+                    "unrealized_pnl_pct": (
+                        ((market_price - state.avg_entry_price) / state.avg_entry_price) * 100.0
+                        if state.avg_entry_price > 0
+                        else None
+                    ),
+                    "latest_signal": None,
                 }
             )
 
         snapshot_time = _utc_now()
+        logger.info(
+            "Account summary rebuilt user_id=%s cash=%.2f holdings_value=%.2f total_equity=%.2f realized=%.2f unrealized=%.2f holdings=%d",
+            clean_user_id,
+            cash_value,
+            holdings_value,
+            cash_value + holdings_value,
+            realized_pnl,
+            unrealized_total,
+            len(holdings_rows),
+        )
 
         return {
             "user_id": clean_user_id,
             "as_of": snapshot_time,
             "last_updated": snapshot_time,
-            "curve_last_point_timestamp": None,
+            # The live equity curve appends the same snapshot as its latest point,
+            # so this timestamp is the canonical trust signal for summary/chart sync.
+            "curve_last_point_timestamp": snapshot_time,
             "cash": cash_value,
             "holdings_value": holdings_value,
             "total_account_value": cash_value + holdings_value,

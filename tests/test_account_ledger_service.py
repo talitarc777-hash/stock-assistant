@@ -107,6 +107,60 @@ class AccountLedgerServiceTests(unittest.TestCase):
         self.assertTrue(diagnostics["loaded_from_storage"])
         self.assertGreaterEqual(diagnostics["ledger_row_count"], 2)
 
+    def test_account_history_includes_running_cash_balance(self) -> None:
+        self.service.create_monthly_contribution("u1", "2026-04", 1000.0)
+        self.service.create_manual_deposit("u1", 250.0)
+        self.service.create_trade_event(
+            user_id="u1",
+            action="buy",
+            ticker="VOO",
+            quantity=2.0,
+            price=100.0,
+        )
+        history = self.service.list_account_history("u1", limit=10)
+        self.assertEqual(len(history), 3)
+        newest = history[0]
+        oldest = history[-1]
+        self.assertEqual(newest["event_type"], "buy_trade")
+        self.assertAlmostEqual(newest["cash_balance_after"], 1050.0, places=6)
+        self.assertEqual(oldest["event_type"], "monthly_contribution")
+        self.assertAlmostEqual(oldest["cash_balance_after"], 1000.0, places=6)
+
+    def test_recent_trade_events_come_from_immutable_ledger(self) -> None:
+        self.service.create_monthly_contribution("u1", "2026-04", 1000.0)
+        self.service.create_trade_event(
+            user_id="u1",
+            action="buy",
+            ticker="VOO",
+            quantity=1.5,
+            price=100.0,
+        )
+        self.service.create_trade_event(
+            user_id="u1",
+            action="sell",
+            ticker="VOO",
+            quantity=0.5,
+            price=110.0,
+        )
+        trades = self.service.list_recent_trade_events("u1", limit=5)
+        self.assertEqual(len(trades), 2)
+        self.assertEqual(trades[0]["event_type"], "sell_trade")
+        self.assertEqual(trades[1]["event_type"], "buy_trade")
+        self.assertAlmostEqual(trades[0]["cash_balance_after"], 905.0, places=6)
+
+    def test_current_holdings_include_unrealized_percent(self) -> None:
+        self.service.create_monthly_contribution("u1", "2026-04", 1000.0)
+        self.service.create_trade_event(
+            user_id="u1",
+            action="buy",
+            ticker="VOO",
+            quantity=2.0,
+            price=100.0,
+        )
+        holdings = self.service.list_current_holdings("u1", latest_prices={"VOO": 110.0})
+        self.assertEqual(len(holdings), 1)
+        self.assertAlmostEqual(holdings[0]["unrealized_pnl_pct"], 10.0, places=6)
+
 
 if __name__ == "__main__":
     unittest.main()

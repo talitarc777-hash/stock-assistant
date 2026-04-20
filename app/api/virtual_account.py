@@ -11,6 +11,9 @@ from app.models.account_ledger import (
     VirtualAccountEquityCurveResponse,
     VirtualAccountDepositRequest,
     VirtualAccountDiagnosticsResponse,
+    VirtualAccountHistoryResponse,
+    VirtualAccountHoldingsResponse,
+    VirtualAccountRecentTradesResponse,
     VirtualAccountResetRequest,
     VirtualAccountResetResponse,
     VirtualAccountSummaryResponse,
@@ -117,6 +120,53 @@ def virtual_account_ledger(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # pragma: no cover
         logger.exception("Unexpected virtual-account ledger error")
+        raise HTTPException(status_code=500, detail="Unexpected server error.") from exc
+
+
+@router.get("/virtual-account/history", response_model=VirtualAccountHistoryResponse)
+def virtual_account_history(
+    user_id: str = Query(..., min_length=1, max_length=120),
+    limit: int = Query(200, ge=1, le=2000),
+) -> VirtualAccountHistoryResponse:
+    """Return immutable account history with running balance for one profile."""
+    try:
+        events = get_account_ledger_service().list_account_history(user_id=user_id, limit=limit)
+        return VirtualAccountHistoryResponse(user_id=user_id, count=len(events), events=events)
+    except AccountLedgerError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover
+        logger.exception("Unexpected virtual-account history error")
+        raise HTTPException(status_code=500, detail="Unexpected server error.") from exc
+
+
+@router.get("/virtual-account/holdings", response_model=VirtualAccountHoldingsResponse)
+def virtual_account_holdings(
+    user_id: str = Query(..., min_length=1, max_length=120),
+) -> VirtualAccountHoldingsResponse:
+    """Return current open positions derived from immutable trade history."""
+    try:
+        holdings = get_account_ledger_service().list_current_holdings(user_id=user_id)
+        return VirtualAccountHoldingsResponse(user_id=user_id, count=len(holdings), holdings=holdings)
+    except AccountLedgerError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover
+        logger.exception("Unexpected virtual-account holdings error")
+        raise HTTPException(status_code=500, detail="Unexpected server error.") from exc
+
+
+@router.get("/virtual-account/recent-trades", response_model=VirtualAccountRecentTradesResponse)
+def virtual_account_recent_trades(
+    user_id: str = Query(..., min_length=1, max_length=120),
+    limit: int = Query(20, ge=1, le=200),
+) -> VirtualAccountRecentTradesResponse:
+    """Return recent executed buy/sell trades for one profile."""
+    try:
+        trades = get_account_ledger_service().list_recent_trade_events(user_id=user_id, limit=limit)
+        return VirtualAccountRecentTradesResponse(user_id=user_id, count=len(trades), trades=trades)
+    except AccountLedgerError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover
+        logger.exception("Unexpected virtual-account recent trades error")
         raise HTTPException(status_code=500, detail="Unexpected server error.") from exc
 
 

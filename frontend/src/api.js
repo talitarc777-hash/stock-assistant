@@ -179,8 +179,26 @@ export async function fetchVirtualAccountSummary(userId) {
   return fetchJson(`/virtual-account/summary?user_id=${encodeURIComponent(userId)}`);
 }
 
+export async function fetchVirtualAccountEquityCurve(userId, limit = 240) {
+  return fetchJson(
+    `/virtual-account/equity-curve?user_id=${encodeURIComponent(userId)}&limit=${encodeURIComponent(limit)}`
+  );
+}
+
 export async function fetchVirtualAccountLedger(userId, limit = 200) {
   return fetchJson(`/virtual-account/ledger?user_id=${encodeURIComponent(userId)}&limit=${limit}`);
+}
+
+export async function fetchVirtualAccountHistory(userId, limit = 200) {
+  return fetchJson(`/virtual-account/history?user_id=${encodeURIComponent(userId)}&limit=${limit}`);
+}
+
+export async function fetchVirtualAccountHoldings(userId) {
+  return fetchJson(`/virtual-account/holdings?user_id=${encodeURIComponent(userId)}`);
+}
+
+export async function fetchVirtualAccountRecentTrades(userId, limit = 20) {
+  return fetchJson(`/virtual-account/recent-trades?user_id=${encodeURIComponent(userId)}&limit=${limit}`);
 }
 
 export async function postVirtualAccountDeposit(userId, amount, reason = "") {
