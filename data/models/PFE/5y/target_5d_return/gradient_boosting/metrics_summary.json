@@ -1,0 +1,46 @@
+{
+  "generated_at_utc": "2026-04-19T08:34:20.418838+00:00",
+  "ticker": "PFE",
+  "period": "5y",
+  "target_name": "target_5d_return",
+  "task_type": "regression",
+  "model_name": "gradient_boosting",
+  "row_count": 1251,
+  "feature_count": 51,
+  "time_series_splits": 5,
+  "validation_method": "walk_forward_expanding_window",
+  "validation_note": "Random train/test shuffling is avoided because time-series evaluation must preserve time order and keep future data out of the training window.",
+  "fold_sizes": [
+    {
+      "fold": 1,
+      "train_rows": 211,
+      "test_rows": 208
+    },
+    {
+      "fold": 2,
+      "train_rows": 419,
+      "test_rows": 208
+    },
+    {
+      "fold": 3,
+      "train_rows": 627,
+      "test_rows": 208
+    },
+    {
+      "fold": 4,
+      "train_rows": 835,
+      "test_rows": 208
+    },
+    {
+      "fold": 5,
+      "train_rows": 1043,
+      "test_rows": 208
+    }
+  ],
+  "metrics": {
+    "mae": 4.458863789244824,
+    "rmse": 5.7796092310980045,
+    "r2": -1.8217946295730578,
+    "direction_accuracy": 0.4846153846153846
+  }
+}
