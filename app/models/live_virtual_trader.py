@@ -62,11 +62,24 @@ class LiveTraderContributionEventResponse(BaseModel):
 
 
 class LiveTraderAccountResponse(BaseModel):
+    snapshot_timestamp: str | None = None
+    curve_last_point_timestamp: str | None = None
     cash: float
     realized_pnl: float
     total_contributions_applied: float
     holdings_value: float
     total_equity: float
+    unrealized_pnl: float | None = None
+    net_deposits: float | None = None
+
+
+class LiveTraderEquityPointResponse(BaseModel):
+    timestamp: str
+    cash: float
+    holdings_value: float
+    total_equity: float
+    event_type: str | None = None
+    note: str | None = None
 
 
 class LiveTraderStatusResponse(BaseModel):
@@ -81,6 +94,7 @@ class LiveTraderStatusResponse(BaseModel):
     tickers_evaluated: int = 0
     tickers_failed: int = 0
     fallback_used_count: int = 0
+    equity_curve: list[LiveTraderEquityPointResponse] = Field(default_factory=list)
 
 
 class LiveTraderTradesResponse(BaseModel):

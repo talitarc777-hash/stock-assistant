@@ -24,6 +24,7 @@ from app.services.account_ledger_service import (
     AccountLedgerError,
     get_account_ledger_service,
 )
+from app.services.equity_curve_service import build_live_equity_curve
 from app.services.live_market_data_service import get_live_market_snapshot
 from app.services.market_data import get_price_history
 from app.services.model_lifecycle_service import get_model_lifecycle_service
@@ -73,6 +74,7 @@ class LiveStatus:
     tickers_evaluated: int = 0
     tickers_failed: int = 0
     fallback_used_count: int = 0
+    equity_curve: list[dict[str, Any]] | None = None
 
 
 _AUTO_TRAIN_ON_MODEL_MISS = False
@@ -815,20 +817,38 @@ def run_live_virtual_trader_now(
         clean_user_id,
         latest_prices=latest_price_cache,
     )
+    live_curve = build_live_equity_curve(
+        user_id=clean_user_id,
+        latest_prices=latest_price_cache,
+        limit=240,
+    )
     holdings = account["holdings"]
     holdings_value = float(account["holdings_value"])
     total_equity = float(account["total_account_value"])
+    logger.info(
+        "Live trader summary consistency profile_id=%s summary_cash=%.2f summary_holdings=%.2f summary_total=%.2f curve_latest=%.2f curve_ts=%s",
+        clean_user_id,
+        float(account["cash"]),
+        holdings_value,
+        total_equity,
+        float(live_curve["latest_total_equity"]),
+        live_curve["curve_last_point_timestamp"],
+    )
 
     return LiveStatus(
         user_id=clean_user_id,
         model_name=model_name,
         generated_at_utc=_utc_now(),
         account={
+            "snapshot_timestamp": account["as_of"],
+            "curve_last_point_timestamp": live_curve["curve_last_point_timestamp"],
             "cash": float(account["cash"]),
             "realized_pnl": float(account["realized_pnl"]),
             "total_contributions_applied": float(account["net_deposits"]),
             "holdings_value": holdings_value,
             "total_equity": total_equity,
+            "unrealized_pnl": float(account["unrealized_pnl"]),
+            "net_deposits": float(account["net_deposits"]),
         },
         holdings=holdings,
         latest_decisions=decisions,
@@ -837,6 +857,7 @@ def run_live_virtual_trader_now(
         tickers_evaluated=len(decisions),
         tickers_failed=len(failed_symbols),
         fallback_used_count=fallback_used_count,
+        equity_curve=live_curve["points"],
     )
 
 
@@ -860,6 +881,11 @@ def get_live_virtual_trader_status(
     latest_prices = _latest_prices_for_symbols(list(set(symbols)))
     tickers_failed = len([symbol for symbol in symbols if symbol not in latest_prices])
     account = ledger.build_account_summary(clean_user_id, latest_prices=latest_prices)
+    live_curve = build_live_equity_curve(
+        user_id=clean_user_id,
+        latest_prices=latest_prices,
+        limit=240,
+    )
     holdings = account["holdings"]
     holdings_value = float(account["holdings_value"])
     total_equity = float(account["total_account_value"])
@@ -874,17 +900,30 @@ def get_live_virtual_trader_status(
         limit=24,
         event_types=["monthly_contribution", "manual_deposit", "withdrawal"],
     )
+    logger.info(
+        "Live trader status consistency profile_id=%s summary_cash=%.2f summary_holdings=%.2f summary_total=%.2f curve_latest=%.2f curve_ts=%s",
+        clean_user_id,
+        float(account["cash"]),
+        holdings_value,
+        total_equity,
+        float(live_curve["latest_total_equity"]),
+        live_curve["curve_last_point_timestamp"],
+    )
 
     return LiveStatus(
         user_id=clean_user_id,
         model_name=model_name,
         generated_at_utc=_utc_now(),
         account={
+            "snapshot_timestamp": account["as_of"],
+            "curve_last_point_timestamp": live_curve["curve_last_point_timestamp"],
             "cash": float(account["cash"]),
             "realized_pnl": float(account["realized_pnl"]),
             "total_contributions_applied": float(account["net_deposits"]),
             "holdings_value": holdings_value,
             "total_equity": total_equity,
+            "unrealized_pnl": float(account["unrealized_pnl"]),
+            "net_deposits": float(account["net_deposits"]),
         },
         holdings=holdings,
         latest_decisions=latest_decisions,
@@ -897,6 +936,7 @@ def get_live_virtual_trader_status(
             for item in latest_decisions
             if str((item.get("metadata") or {}).get("decision_source", "")) == "fallback_rule"
         ),
+        equity_curve=live_curve["points"],
     )
 
 

@@ -2,19 +2,27 @@ import React from "react";
 
 import Chart from "./Chart";
 
-export default function EquityChart({ ticker, points = [], languageMode = "both" }) {
+export default function EquityChart({
+  ticker,
+  points = [],
+  languageMode = "both",
+  title: titleOverride = null,
+  subtitle: subtitleOverride = null,
+}) {
   const title =
-    languageMode === "zh"
-      ? "虛擬交易資產曲線"
+    titleOverride ||
+    (languageMode === "zh"
+      ? "\u865b\u64ec\u4ea4\u6613\u8cc7\u7522\u66f2\u7dda"
       : languageMode === "en"
         ? "Virtual Trader Equity Curve"
-        : "Virtual Trader Equity Curve / 虛擬交易資產曲線";
+        : "Virtual Trader Equity Curve / \u865b\u64ec\u4ea4\u6613\u8cc7\u7522\u66f2\u7dda");
   const subtitle =
-    languageMode === "zh"
-      ? `股票: ${ticker}`
+    subtitleOverride ||
+    (languageMode === "zh"
+      ? `\u80a1\u7968: ${ticker}`
       : languageMode === "en"
         ? `Ticker: ${ticker}`
-        : `Ticker: ${ticker} / 股票: ${ticker}`;
+        : `Ticker: ${ticker} / \u80a1\u7968: ${ticker}`);
 
   return (
     <Chart

@@ -648,6 +648,13 @@ Live virtual trader endpoints:
 - `POST /virtual-trader/run-now`
 - `GET /virtual-trader/live-trades?user_id=...`
 
+Live account consistency note:
+
+- Total equity is always calculated as `cash + holdings_value`
+- The live equity curve is rebuilt from immutable ledger events, then the latest point is appended from the current account snapshot
+- The latest live equity-curve point should match the latest account summary for the same profile
+- Historical replay charts are shown separately and should not be compared directly with the live account summary
+
 Virtual Trader page workflow (top-to-bottom):
 
 - Live Trader Status
@@ -700,6 +707,7 @@ Monthly contribution behavior:
 Virtual account APIs:
 
 - `GET /virtual-account/summary?user_id=...`
+- `GET /virtual-account/equity-curve?user_id=...`
 - `GET /virtual-account/ledger?user_id=...`
 - `POST /virtual-account/deposit`
 - `POST /virtual-account/withdraw`

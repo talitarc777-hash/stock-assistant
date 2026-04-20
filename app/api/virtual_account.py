@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from app.models.account_ledger import (
     AccountLedgerListResponse,
+    VirtualAccountEquityCurveResponse,
     VirtualAccountDepositRequest,
     VirtualAccountDiagnosticsResponse,
     VirtualAccountResetRequest,
@@ -23,6 +24,7 @@ from app.services.account_ledger_service import (
     AccountLedgerError,
     get_account_ledger_service,
 )
+from app.services.equity_curve_service import build_live_equity_curve
 from app.services.monthly_contribution_service import get_monthly_contribution_store
 
 logger = logging.getLogger(__name__)
@@ -42,6 +44,22 @@ def virtual_account_summary(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # pragma: no cover
         logger.exception("Unexpected virtual-account summary error")
+        raise HTTPException(status_code=500, detail="Unexpected server error.") from exc
+
+
+@router.get("/virtual-account/equity-curve", response_model=VirtualAccountEquityCurveResponse)
+def virtual_account_equity_curve(
+    user_id: str = Query(..., min_length=1, max_length=120),
+    limit: int = Query(200, ge=1, le=2000),
+) -> VirtualAccountEquityCurveResponse:
+    """Return the profile-level live equity curve from the immutable ledger."""
+    try:
+        payload = build_live_equity_curve(user_id=user_id, limit=limit)
+        return VirtualAccountEquityCurveResponse(**payload)
+    except AccountLedgerError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover
+        logger.exception("Unexpected virtual-account equity curve error")
         raise HTTPException(status_code=500, detail="Unexpected server error.") from exc
 
 

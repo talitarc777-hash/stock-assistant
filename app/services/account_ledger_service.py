@@ -270,6 +270,26 @@ class AccountLedgerService:
             rows = conn.execute(sql, tuple(params)).fetchall()
         return [self._row_to_dict(row) for row in rows]
 
+    def list_events_chronological(
+        self,
+        user_id: str,
+        event_types: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return immutable ledger events oldest-first for rebuilding curves/state."""
+        clean_user_id = _clean_user_id(user_id)
+        sql = "SELECT * FROM account_ledger_events WHERE user_id = ?"
+        params: list[Any] = [clean_user_id]
+        if event_types:
+            normalized = [item.strip().lower() for item in event_types if item.strip()]
+            if normalized:
+                placeholders = ",".join("?" for _ in normalized)
+                sql += f" AND event_type IN ({placeholders})"
+                params.extend(normalized)
+        sql += " ORDER BY created_at ASC, id ASC"
+        with self._connect() as conn:
+            rows = conn.execute(sql, tuple(params)).fetchall()
+        return [self._row_to_dict(row) for row in rows]
+
     def create_monthly_contribution(
         self,
         user_id: str,
@@ -607,9 +627,13 @@ class AccountLedgerService:
                 }
             )
 
+        snapshot_time = _utc_now()
+
         return {
             "user_id": clean_user_id,
-            "as_of": _utc_now(),
+            "as_of": snapshot_time,
+            "last_updated": snapshot_time,
+            "curve_last_point_timestamp": None,
             "cash": cash_value,
             "holdings_value": holdings_value,
             "total_account_value": cash_value + holdings_value,

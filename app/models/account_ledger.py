@@ -56,6 +56,8 @@ class VirtualAccountSummaryResponse(BaseModel):
 
     user_id: str
     as_of: str
+    last_updated: str | None = None
+    curve_last_point_timestamp: str | None = None
     cash: float
     holdings_value: float
     total_account_value: float
@@ -64,6 +66,28 @@ class VirtualAccountSummaryResponse(BaseModel):
     net_deposits: float
     holdings: list[VirtualHoldingResponse]
     latest_prices: dict[str, float]
+
+
+class VirtualAccountEquityCurvePointResponse(BaseModel):
+    """One profile-level equity curve point derived from the immutable ledger."""
+
+    timestamp: str
+    cash: float
+    holdings_value: float
+    total_equity: float
+    event_type: str | None = None
+    note: str | None = None
+
+
+class VirtualAccountEquityCurveResponse(BaseModel):
+    """Profile-level equity curve plus latest consistency metadata."""
+
+    user_id: str
+    last_updated: str
+    curve_last_point_timestamp: str | None = None
+    latest_total_equity: float
+    points: list[VirtualAccountEquityCurvePointResponse]
+    consistent_with_latest_snapshot: bool
 
 
 class VirtualAccountDepositRequest(BaseModel):
