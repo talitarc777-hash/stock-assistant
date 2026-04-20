@@ -31,6 +31,9 @@ class MonthlyContributionListResponse(BaseModel):
     user_id: str
     start_month: str
     records: list[MonthlyContributionRecordResponse]
+    deprecated: bool = False
+    warning: str | None = None
+    replacement_endpoint: str | None = None
 
 
 class MonthlyContributionUpdateItem(BaseModel):

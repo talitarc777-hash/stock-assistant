@@ -213,14 +213,6 @@ export async function postVirtualAccountReset(userId, resetMonthlyContributions 
   });
 }
 
-export async function createMonthlyContributions(userId, records) {
-  return postJson("/monthly-contributions/create", {
-    user_id: userId,
-    records,
-    source: "web",
-  });
-}
-
 export async function fetchModelLifecycleStatus(
   ticker = "VOO",
   period = "5y",

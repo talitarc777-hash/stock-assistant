@@ -24,31 +24,6 @@ async function requestJson(path, options = {}) {
   return response.json();
 }
 
-export async function fetchMonthlyContributions(userId) {
-  return requestJson(`/monthly-contributions?user_id=${encodeURIComponent(userId)}`);
-}
-
-export async function initializeMonthlyContributions(userId) {
-  return requestJson("/monthly-contributions/initialize", {
-    method: "POST",
-    body: JSON.stringify({ user_id: userId }),
-  });
-}
-
-export async function updateMonthlyContributions(payload) {
-  return requestJson("/monthly-contributions/update", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
-
-export async function createMonthlyContributions(payload) {
-  return requestJson("/monthly-contributions/create", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
-
 export async function fetchMonthlyContributionInput(userId) {
   return requestJson(
     `/virtual-account/monthly-contribution-input?user_id=${encodeURIComponent(userId)}`

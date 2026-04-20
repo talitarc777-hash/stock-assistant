@@ -465,6 +465,12 @@ class AccountLedgerService:
             current_month,
             carry_amount,
         )
+        logger.info(
+            "monthly_contribution_applied profile_id=%s month=%s amount=%.2f",
+            clean_user_id,
+            current_month,
+            carry_amount,
+        )
         return event
 
     def build_monthly_contribution_view(self, user_id: str) -> list[dict[str, Any]]:

@@ -18,26 +18,60 @@ from app.services.account_ledger_service import (
 )
 from app.services.monthly_contribution_service import (
     START_MONTH,
-    get_monthly_contribution_store,
 )
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["monthly-contributions"])
 
+DEPRECATION_WARNING = (
+    "This endpoint is deprecated. "
+    "Use GET/POST /virtual-account/monthly-contribution-input for the recurring monthly amount."
+)
+DEPRECATION_REPLACEMENT = "/virtual-account/monthly-contribution-input"
+
+
+def _deprecated_response(user_id: str) -> MonthlyContributionListResponse:
+    """Compatibility response for deprecated monthly-record endpoints.
+
+    This intentionally avoids mutating legacy monthly-plan tables so the new
+    recurring monthly input remains the primary source of truth.
+    """
+    rows = get_account_ledger_service().list_monthly_contribution_records(user_id)
+    records = [
+        {
+            "user_id": user_id,
+            "month": row["month"],
+            "amount": float(row["amount"]),
+            "created_at": row.get("created_at") or "",
+            "updated_at": row.get("created_at") or "",
+            "locked": True,
+            "applied_to_cash": True,
+        }
+        for row in rows
+    ]
+    return MonthlyContributionListResponse(
+        user_id=user_id,
+        start_month=START_MONTH,
+        records=records,
+        deprecated=True,
+        warning=DEPRECATION_WARNING,
+        replacement_endpoint=DEPRECATION_REPLACEMENT,
+    )
+
 
 @router.get("/monthly-contributions", response_model=MonthlyContributionListResponse)
 def get_monthly_contributions(
     user_id: str = Query(..., min_length=1, max_length=120),
 ) -> MonthlyContributionListResponse:
-    """Return immutable monthly contribution view from April 2026 onward."""
+    """Deprecated compatibility endpoint for monthly records."""
     try:
-        records = get_account_ledger_service().build_monthly_contribution_view(user_id=user_id)
-        return MonthlyContributionListResponse(
-            user_id=user_id,
-            start_month=START_MONTH,
-            records=records,
+        logger.warning(
+            "Deprecated endpoint called path=/monthly-contributions user_id=%s replacement=%s",
+            user_id,
+            DEPRECATION_REPLACEMENT,
         )
+        return _deprecated_response(user_id=user_id)
     except (ValueError, AccountLedgerError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # pragma: no cover
@@ -49,14 +83,14 @@ def get_monthly_contributions(
 def initialize_monthly_contributions(
     request: MonthlyContributionInitializeRequest,
 ) -> MonthlyContributionListResponse:
-    """Initialize month rows from April 2026 (without creating cash events yet)."""
+    """Deprecated no-op endpoint kept for backward compatibility."""
     try:
-        records = get_account_ledger_service().build_monthly_contribution_view(user_id=request.user_id)
-        return MonthlyContributionListResponse(
-            user_id=request.user_id,
-            start_month=START_MONTH,
-            records=records,
+        logger.warning(
+            "Deprecated endpoint called path=/monthly-contributions/initialize user_id=%s replacement=%s",
+            request.user_id,
+            DEPRECATION_REPLACEMENT,
         )
+        return _deprecated_response(user_id=request.user_id)
     except (ValueError, AccountLedgerError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # pragma: no cover
@@ -68,12 +102,14 @@ def initialize_monthly_contributions(
 def update_monthly_contributions(
     request: MonthlyContributionUpdateRequest,
 ) -> MonthlyContributionListResponse:
-    """Legacy update endpoint kept for compatibility (immutable rows cannot be edited)."""
+    """Deprecated no-op endpoint kept for backward compatibility."""
     try:
-        raise AccountLedgerError(
-            "Monthly contributions are immutable after creation. "
-            "Use /monthly-contributions/create for new months and /virtual-account/deposit for additional cash."
+        logger.warning(
+            "Deprecated endpoint called path=/monthly-contributions/update user_id=%s replacement=%s",
+            request.user_id,
+            DEPRECATION_REPLACEMENT,
         )
+        return _deprecated_response(user_id=request.user_id)
     except (ValueError, AccountLedgerError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # pragma: no cover
@@ -85,21 +121,14 @@ def update_monthly_contributions(
 def create_monthly_contributions(
     request: MonthlyContributionCreateRequest,
 ) -> MonthlyContributionListResponse:
-    """Confirm immutable monthly contribution planning records for specific months."""
+    """Deprecated no-op endpoint kept for backward compatibility."""
     try:
-        store = get_monthly_contribution_store()
-        for record in request.records:
-            store.confirm_amount(
-                user_id=request.user_id,
-                month=record.month,
-                amount=record.amount,
-            )
-        rows = get_account_ledger_service().build_monthly_contribution_view(user_id=request.user_id)
-        return MonthlyContributionListResponse(
-            user_id=request.user_id,
-            start_month=START_MONTH,
-            records=rows,
+        logger.warning(
+            "Deprecated endpoint called path=/monthly-contributions/create user_id=%s replacement=%s",
+            request.user_id,
+            DEPRECATION_REPLACEMENT,
         )
+        return _deprecated_response(user_id=request.user_id)
     except (ValueError, AccountLedgerError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # pragma: no cover
