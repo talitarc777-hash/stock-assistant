@@ -9,6 +9,7 @@ import {
   fetchVirtualAccountHoldings,
   fetchVirtualAccountRecentTrades,
   fetchVirtualAccountSummary,
+  fetchVirtualTraderTrades,
   fetchVirtualTraderSummary,
   postVirtualAccountDeposit,
   postVirtualAccountWithdraw,
