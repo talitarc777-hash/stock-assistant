@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 class TraderSchedulerRunLogResponse(BaseModel):
     """One recent scheduler/manual run record."""
 
+    timestamp: str
     timestamp_utc: str
     source: str
     mode: str
@@ -16,8 +17,11 @@ class TraderSchedulerRunLogResponse(BaseModel):
     tickers_failed: int
     fallback_used: int
     decisions_executed: int
+    status: str = "success"
+    errors: int = 0
     skipped: bool
     message: str
+    note: str | None = None
     error_count: int = 0
     error_messages: list[str] = Field(default_factory=list)
 

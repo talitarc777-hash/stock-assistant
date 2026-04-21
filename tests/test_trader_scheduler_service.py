@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -65,7 +65,7 @@ class TraderSchedulerServiceTests(unittest.TestCase):
         mock_live_run.side_effect = [self._live_status("u1"), self._live_status("u2")]
 
         service.run_cycle(source="test", raise_if_busy=True)
-        status = service.get_status(log_limit=5)
+        status = service.get_status(recent_hours=24)
 
         self.assertEqual(status["total_runs"], 1)
         self.assertEqual(status["last_users_processed"], 2)
@@ -75,6 +75,8 @@ class TraderSchedulerServiceTests(unittest.TestCase):
         self.assertEqual(status["last_decisions_executed"], 2)
         self.assertTrue(status["recent_runs"])
         self.assertEqual(status["recent_runs"][0]["source"], "test")
+        self.assertEqual(status["recent_runs"][0]["status"], "success")
+        self.assertEqual(status["recent_runs"][0]["errors"], 0)
 
     def test_run_user_now_raises_busy_when_locked(self) -> None:
         service = TraderSchedulerService()
@@ -104,6 +106,55 @@ class TraderSchedulerServiceTests(unittest.TestCase):
         health = service.get_health()
         self.assertFalse(health["healthy"])
         self.assertFalse(health["scheduler_started"])
+
+    def test_recent_runs_returns_only_last_24_hours(self) -> None:
+        service = TraderSchedulerService()
+        now = datetime.now(UTC).replace(microsecond=0)
+        service._recent_runs.appendleft(  # pylint: disable=protected-access
+            {
+                "timestamp": now.isoformat(),
+                "timestamp_utc": now.isoformat(),
+                "source": "scheduler",
+                "mode": "market_open",
+                "users_processed": 1,
+                "tickers_processed": 10,
+                "tickers_failed": 0,
+                "fallback_used": 0,
+                "decisions_executed": 2,
+                "status": "success",
+                "errors": 0,
+                "skipped": False,
+                "message": "new-row",
+                "note": "new-row",
+                "error_count": 0,
+                "error_messages": [],
+            }
+        )
+        old_ts = (now - timedelta(hours=25)).isoformat()
+        service._recent_runs.append(  # pylint: disable=protected-access
+            {
+                "timestamp": old_ts,
+                "timestamp_utc": old_ts,
+                "source": "scheduler",
+                "mode": "market_closed",
+                "users_processed": 1,
+                "tickers_processed": 1,
+                "tickers_failed": 0,
+                "fallback_used": 0,
+                "decisions_executed": 1,
+                "status": "success",
+                "errors": 0,
+                "skipped": False,
+                "message": "old-row",
+                "note": "old-row",
+                "error_count": 0,
+                "error_messages": [],
+            }
+        )
+
+        status = service.get_status(recent_hours=24)
+        self.assertEqual(len(status["recent_runs"]), 1)
+        self.assertEqual(status["recent_runs"][0]["message"], "new-row")
 
 
 if __name__ == "__main__":

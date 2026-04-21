@@ -1,11 +1,11 @@
 {
-  "generated_at_utc": "2026-04-19T08:34:57.113994+00:00",
+  "generated_at_utc": "2026-04-21T08:28:19.100973+00:00",
   "ticker": "COST",
   "period": "5y",
   "target_name": "target_5d_updown",
   "task_type": "classification",
   "model_name": "random_forest",
-  "row_count": 1251,
+  "row_count": 1250,
   "feature_count": 51,
   "time_series_splits": 5,
   "validation_method": "walk_forward_expanding_window",
@@ -13,36 +13,36 @@
   "fold_sizes": [
     {
       "fold": 1,
-      "train_rows": 211,
+      "train_rows": 210,
       "test_rows": 208
     },
     {
       "fold": 2,
-      "train_rows": 419,
+      "train_rows": 418,
       "test_rows": 208
     },
     {
       "fold": 3,
-      "train_rows": 627,
+      "train_rows": 626,
       "test_rows": 208
     },
     {
       "fold": 4,
-      "train_rows": 835,
+      "train_rows": 834,
       "test_rows": 208
     },
     {
       "fold": 5,
-      "train_rows": 1043,
+      "train_rows": 1042,
       "test_rows": 208
     }
   ],
   "metrics": {
-    "accuracy": 0.4875,
-    "precision": 0.5643564356435643,
-    "recall": 0.4765886287625418,
-    "f1": 0.5167724388032638,
-    "positive_rate_actual": 0.575,
-    "positive_rate_predicted": 0.4855769230769231
+    "accuracy": 0.475,
+    "precision": 0.5565031982942431,
+    "recall": 0.4357262103505843,
+    "f1": 0.4887640449438202,
+    "positive_rate_actual": 0.5759615384615384,
+    "positive_rate_predicted": 0.45096153846153847
   }
 }

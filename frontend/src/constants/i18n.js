@@ -215,6 +215,106 @@ export const LABELS = {
     en: "Fee",
     zh: "\u8cbb\u7528",
   },
+  recentRunsPanelTitle: {
+    en: "Autonomous Trader Status",
+    zh: "\u81ea\u52d5\u4ea4\u6613\u72c0\u614b",
+  },
+  recentRunsPanelIntro: {
+    en: "Trader scans the market universe automatically. No manual ticker selection is required.",
+    zh: "\u4ea4\u6613\u7cfb\u7d71\u6703\u81ea\u52d5\u6383\u63cf\u5e02\u5834\u6a19\u7684\uff0c\u7121\u9700\u624b\u52d5\u9078\u64c7\u80a1\u7968\u3002",
+  },
+  schedulerModeOpen: {
+    en: "Market Open (5 min cycle)",
+    zh: "\u958b\u5e02\u6642\u6bb5\uff08\u6bcf 5 \u5206\u9418\u9031\u671f\uff09",
+  },
+  schedulerModeClosed: {
+    en: "Market Closed (1 hour cycle)",
+    zh: "\u6536\u5e02\u6642\u6bb5\uff08\u6bcf 1 \u5c0f\u6642\u9031\u671f\uff09",
+  },
+  yesterdayAtTime: {
+    en: "Yesterday {time}",
+    zh: "\u6628\u5929 {time}",
+  },
+  runStatusSuccess: {
+    en: "Success",
+    zh: "\u6210\u529f",
+  },
+  runStatusPartial: {
+    en: "Partial",
+    zh: "\u90e8\u5206\u5b8c\u6210",
+  },
+  runStatusFailed: {
+    en: "Failed",
+    zh: "\u5931\u6557",
+  },
+  schedulerStatus: {
+    en: "Status",
+    zh: "\u72c0\u614b",
+  },
+  schedulerMode: {
+    en: "Mode",
+    zh: "\u6a21\u5f0f",
+  },
+  schedulerLastRun: {
+    en: "Last Run",
+    zh: "\u4e0a\u6b21\u57f7\u884c",
+  },
+  schedulerNextRun: {
+    en: "Next Run",
+    zh: "\u4e0b\u6b21\u57f7\u884c",
+  },
+  schedulerUsersProcessed: {
+    en: "Users Processed",
+    zh: "\u5df2\u8655\u7406\u4f7f\u7528\u8005",
+  },
+  schedulerDecisionsExecuted: {
+    en: "Decisions Executed",
+    zh: "\u5df2\u57f7\u884c\u6c7a\u7b56",
+  },
+  schedulerErrors: {
+    en: "Errors",
+    zh: "\u932f\u8aa4",
+  },
+  schedulerRunning: {
+    en: "Running",
+    zh: "\u57f7\u884c\u4e2d",
+  },
+  schedulerIdle: {
+    en: "Idle",
+    zh: "\u5f85\u6a5f",
+  },
+  refreshStatus: {
+    en: "Refresh Status",
+    zh: "\u91cd\u65b0\u6574\u7406\u72c0\u614b",
+  },
+  recentRuns24hTitle: {
+    en: "Recent Runs (Last 24 Hours)",
+    zh: "\u6700\u8fd1\u57f7\u884c\u7d00\u9304\uff08\u904e\u53bb24\u5c0f\u6642\uff09",
+  },
+  recentRunsTime: {
+    en: "Time",
+    zh: "\u6642\u9593",
+  },
+  recentRunsUsers: {
+    en: "Users",
+    zh: "\u4f7f\u7528\u8005",
+  },
+  recentRunsDecisions: {
+    en: "Decisions",
+    zh: "\u6c7a\u7b56",
+  },
+  recentRunsErrors: {
+    en: "Errors",
+    zh: "\u932f\u8aa4",
+  },
+  recentRunsNote: {
+    en: "Note",
+    zh: "\u5099\u8a3b",
+  },
+  noRunsLast24h: {
+    en: "No runs in the last 24 hours.",
+    zh: "\u904e\u53bb24\u5c0f\u6642\u5167\u6c92\u6709\u57f7\u884c\u7d00\u9304\u3002",
+  },
 };
 
 export function getLabel(mode, key, vars = null) {

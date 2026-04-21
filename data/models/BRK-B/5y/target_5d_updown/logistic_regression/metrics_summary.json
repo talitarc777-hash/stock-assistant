@@ -1,11 +1,11 @@
 {
-  "generated_at_utc": "2026-04-19T08:30:01.888126+00:00",
+  "generated_at_utc": "2026-04-21T08:24:04.835507+00:00",
   "ticker": "BRK-B",
   "period": "5y",
   "target_name": "target_5d_updown",
   "task_type": "classification",
   "model_name": "logistic_regression",
-  "row_count": 1251,
+  "row_count": 1250,
   "feature_count": 51,
   "time_series_splits": 5,
   "validation_method": "walk_forward_expanding_window",
@@ -13,36 +13,36 @@
   "fold_sizes": [
     {
       "fold": 1,
-      "train_rows": 211,
+      "train_rows": 210,
       "test_rows": 208
     },
     {
       "fold": 2,
-      "train_rows": 419,
+      "train_rows": 418,
       "test_rows": 208
     },
     {
       "fold": 3,
-      "train_rows": 627,
+      "train_rows": 626,
       "test_rows": 208
     },
     {
       "fold": 4,
-      "train_rows": 835,
+      "train_rows": 834,
       "test_rows": 208
     },
     {
       "fold": 5,
-      "train_rows": 1043,
+      "train_rows": 1042,
       "test_rows": 208
     }
   ],
   "metrics": {
-    "accuracy": 0.49230769230769234,
-    "precision": 0.5392354124748491,
-    "recall": 0.47266313932980597,
-    "f1": 0.5037593984962406,
+    "accuracy": 0.5019230769230769,
+    "precision": 0.5496957403651116,
+    "recall": 0.47795414462081126,
+    "f1": 0.5113207547169811,
     "positive_rate_actual": 0.5451923076923076,
-    "positive_rate_predicted": 0.4778846153846154
+    "positive_rate_predicted": 0.4740384615384615
   }
 }

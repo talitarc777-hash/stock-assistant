@@ -1,11 +1,11 @@
 {
-  "generated_at_utc": "2026-04-19T08:35:36.278821+00:00",
+  "generated_at_utc": "2026-04-21T08:27:16.301335+00:00",
   "ticker": "WMT",
   "period": "5y",
   "target_name": "target_5d_return",
   "task_type": "regression",
   "model_name": "random_forest",
-  "row_count": 1251,
+  "row_count": 1250,
   "feature_count": 51,
   "time_series_splits": 5,
   "validation_method": "walk_forward_expanding_window",
@@ -13,34 +13,34 @@
   "fold_sizes": [
     {
       "fold": 1,
-      "train_rows": 211,
+      "train_rows": 210,
       "test_rows": 208
     },
     {
       "fold": 2,
-      "train_rows": 419,
+      "train_rows": 418,
       "test_rows": 208
     },
     {
       "fold": 3,
-      "train_rows": 627,
+      "train_rows": 626,
       "test_rows": 208
     },
     {
       "fold": 4,
-      "train_rows": 835,
+      "train_rows": 834,
       "test_rows": 208
     },
     {
       "fold": 5,
-      "train_rows": 1043,
+      "train_rows": 1042,
       "test_rows": 208
     }
   ],
   "metrics": {
-    "mae": 4.32293444369342,
-    "rmse": 6.000388427655506,
-    "r2": -2.7038279765715156,
-    "direction_accuracy": 0.5317307692307692
+    "mae": 4.601692252892263,
+    "rmse": 6.2161237726409295,
+    "r2": -2.973147719261706,
+    "direction_accuracy": 0.5278846153846154
   }
 }

@@ -1,0 +1,46 @@
+{
+  "generated_at_utc": "2026-04-21T08:04:39.705200+00:00",
+  "ticker": "ARKW",
+  "period": "5y",
+  "target_name": "target_5d_return",
+  "task_type": "regression",
+  "model_name": "gradient_boosting",
+  "row_count": 1250,
+  "feature_count": 51,
+  "time_series_splits": 5,
+  "validation_method": "walk_forward_expanding_window",
+  "validation_note": "Random train/test shuffling is avoided because time-series evaluation must preserve time order and keep future data out of the training window.",
+  "fold_sizes": [
+    {
+      "fold": 1,
+      "train_rows": 210,
+      "test_rows": 208
+    },
+    {
+      "fold": 2,
+      "train_rows": 418,
+      "test_rows": 208
+    },
+    {
+      "fold": 3,
+      "train_rows": 626,
+      "test_rows": 208
+    },
+    {
+      "fold": 4,
+      "train_rows": 834,
+      "test_rows": 208
+    },
+    {
+      "fold": 5,
+      "train_rows": 1042,
+      "test_rows": 208
+    }
+  ],
+  "metrics": {
+    "mae": 9.44517000171872,
+    "rmse": 12.285605227258817,
+    "r2": -2.9935054460444044,
+    "direction_accuracy": 0.4576923076923077
+  }
+}

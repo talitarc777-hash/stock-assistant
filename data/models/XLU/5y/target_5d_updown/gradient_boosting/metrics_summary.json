@@ -1,11 +1,11 @@
 {
-  "generated_at_utc": "2026-04-19T08:22:06.088199+00:00",
+  "generated_at_utc": "2026-04-21T08:01:05.498046+00:00",
   "ticker": "XLU",
   "period": "5y",
   "target_name": "target_5d_updown",
   "task_type": "classification",
   "model_name": "gradient_boosting",
-  "row_count": 1251,
+  "row_count": 1250,
   "feature_count": 51,
   "time_series_splits": 5,
   "validation_method": "walk_forward_expanding_window",
@@ -13,36 +13,36 @@
   "fold_sizes": [
     {
       "fold": 1,
-      "train_rows": 211,
+      "train_rows": 210,
       "test_rows": 208
     },
     {
       "fold": 2,
-      "train_rows": 419,
+      "train_rows": 418,
       "test_rows": 208
     },
     {
       "fold": 3,
-      "train_rows": 627,
+      "train_rows": 626,
       "test_rows": 208
     },
     {
       "fold": 4,
-      "train_rows": 835,
+      "train_rows": 834,
       "test_rows": 208
     },
     {
       "fold": 5,
-      "train_rows": 1043,
+      "train_rows": 1042,
       "test_rows": 208
     }
   ],
   "metrics": {
-    "accuracy": 0.4673076923076923,
-    "precision": 0.5418060200668896,
-    "recall": 0.27979274611398963,
-    "f1": 0.3690205011389522,
+    "accuracy": 0.46153846153846156,
+    "precision": 0.5335689045936396,
+    "recall": 0.2607944732297064,
+    "f1": 0.3503480278422274,
     "positive_rate_actual": 0.5567307692307693,
-    "positive_rate_predicted": 0.2875
+    "positive_rate_predicted": 0.2721153846153846
   }
 }

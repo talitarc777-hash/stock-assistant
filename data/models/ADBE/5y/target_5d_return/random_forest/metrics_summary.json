@@ -1,11 +1,11 @@
 {
-  "generated_at_utc": "2026-04-19T08:37:21.822285+00:00",
+  "generated_at_utc": "2026-04-21T08:32:41.408548+00:00",
   "ticker": "ADBE",
   "period": "5y",
   "target_name": "target_5d_return",
   "task_type": "regression",
   "model_name": "random_forest",
-  "row_count": 1251,
+  "row_count": 1250,
   "feature_count": 51,
   "time_series_splits": 5,
   "validation_method": "walk_forward_expanding_window",
@@ -13,34 +13,34 @@
   "fold_sizes": [
     {
       "fold": 1,
-      "train_rows": 211,
+      "train_rows": 210,
       "test_rows": 208
     },
     {
       "fold": 2,
-      "train_rows": 419,
+      "train_rows": 418,
       "test_rows": 208
     },
     {
       "fold": 3,
-      "train_rows": 627,
+      "train_rows": 626,
       "test_rows": 208
     },
     {
       "fold": 4,
-      "train_rows": 835,
+      "train_rows": 834,
       "test_rows": 208
     },
     {
       "fold": 5,
-      "train_rows": 1043,
+      "train_rows": 1042,
       "test_rows": 208
     }
   ],
   "metrics": {
-    "mae": 5.422189692159472,
-    "rmse": 6.971848146647485,
-    "r2": -0.7774923735806827,
-    "direction_accuracy": 0.48653846153846153
+    "mae": 5.427561828504323,
+    "rmse": 7.026342844582797,
+    "r2": -0.8049997616595022,
+    "direction_accuracy": 0.4798076923076923
   }
 }

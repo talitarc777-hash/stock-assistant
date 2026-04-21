@@ -773,6 +773,10 @@ Key endpoints:
 - GET /trader-status (alias)
 - POST /virtual-trader/scheduler-run-now
 
+Recent Runs panel behavior:
+- Recent Runs now shows all scheduler/manual runs from the last 24 hours (time-based), newest first.
+- It is no longer a fixed-count "last N runs" list.
+
 The scheduler and manual run-now share the same lock to prevent overlapping execution.
 
 Scheduler robustness notes:

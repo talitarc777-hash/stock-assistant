@@ -1,11 +1,11 @@
 {
-  "generated_at_utc": "2026-04-19T08:15:14.390345+00:00",
+  "generated_at_utc": "2026-04-21T07:55:57.736533+00:00",
   "ticker": "VTV",
   "period": "5y",
   "target_name": "target_5d_updown",
   "task_type": "classification",
   "model_name": "logistic_regression",
-  "row_count": 1251,
+  "row_count": 1250,
   "feature_count": 51,
   "time_series_splits": 5,
   "validation_method": "walk_forward_expanding_window",
@@ -13,36 +13,36 @@
   "fold_sizes": [
     {
       "fold": 1,
-      "train_rows": 211,
+      "train_rows": 210,
       "test_rows": 208
     },
     {
       "fold": 2,
-      "train_rows": 419,
+      "train_rows": 418,
       "test_rows": 208
     },
     {
       "fold": 3,
-      "train_rows": 627,
+      "train_rows": 626,
       "test_rows": 208
     },
     {
       "fold": 4,
-      "train_rows": 835,
+      "train_rows": 834,
       "test_rows": 208
     },
     {
       "fold": 5,
-      "train_rows": 1043,
+      "train_rows": 1042,
       "test_rows": 208
     }
   ],
   "metrics": {
-    "accuracy": 0.4913461538461538,
-    "precision": 0.5767441860465117,
-    "recall": 0.41680672268907565,
-    "f1": 0.48390243902439023,
-    "positive_rate_actual": 0.5721153846153846,
-    "positive_rate_predicted": 0.41346153846153844
+    "accuracy": 0.5009615384615385,
+    "precision": 0.5869074492099323,
+    "recall": 0.436241610738255,
+    "f1": 0.5004812319538018,
+    "positive_rate_actual": 0.573076923076923,
+    "positive_rate_predicted": 0.42596153846153845
   }
 }

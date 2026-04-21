@@ -595,17 +595,39 @@ def train_baseline_models_for_watchlist(
 ) -> dict[str, list[TrainingRunResult]]:
     """Train baseline models for multiple tickers using one consistent setup."""
     results: dict[str, list[TrainingRunResult]] = {}
+    failures: dict[str, str] = {}
 
     for ticker in tickers:
         ticker_symbol = ticker.strip().upper()
-        results[ticker_symbol] = train_baseline_models_for_ticker(
-            ticker=ticker_symbol,
-            period=period,
-            benchmark=benchmark,
-            include_news_sentiment=include_news_sentiment,
-            sentiment_model=sentiment_model,
-            output_dir=output_dir,
-            include_gradient_boosting=include_gradient_boosting,
+        try:
+            results[ticker_symbol] = train_baseline_models_for_ticker(
+                ticker=ticker_symbol,
+                period=period,
+                benchmark=benchmark,
+                include_news_sentiment=include_news_sentiment,
+                sentiment_model=sentiment_model,
+                output_dir=output_dir,
+                include_gradient_boosting=include_gradient_boosting,
+            )
+        except Exception as exc:  # pragma: no cover - depends on data/provider responses
+            failures[ticker_symbol] = str(exc)
+            logger.warning(
+                "Skipping ticker during watchlist model training ticker=%s reason=%s",
+                ticker_symbol,
+                exc,
+            )
+
+    if not results:
+        detail = "; ".join(f"{ticker}: {reason}" for ticker, reason in failures.items())
+        raise ModelTrainingError(
+            f"Model training failed for all requested tickers. Details: {detail or 'unknown error'}"
+        )
+
+    if failures:
+        logger.warning(
+            "Watchlist model training completed with partial failures succeeded=%s failed=%s",
+            len(results),
+            len(failures),
         )
 
     return results

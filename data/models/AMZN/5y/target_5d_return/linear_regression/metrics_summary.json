@@ -1,11 +1,11 @@
 {
-  "generated_at_utc": "2026-04-19T08:28:22.612369+00:00",
+  "generated_at_utc": "2026-04-21T08:22:06.827847+00:00",
   "ticker": "AMZN",
   "period": "5y",
   "target_name": "target_5d_return",
   "task_type": "regression",
   "model_name": "linear_regression",
-  "row_count": 1251,
+  "row_count": 1250,
   "feature_count": 51,
   "time_series_splits": 5,
   "validation_method": "walk_forward_expanding_window",
@@ -13,34 +13,34 @@
   "fold_sizes": [
     {
       "fold": 1,
-      "train_rows": 211,
+      "train_rows": 210,
       "test_rows": 208
     },
     {
       "fold": 2,
-      "train_rows": 419,
+      "train_rows": 418,
       "test_rows": 208
     },
     {
       "fold": 3,
-      "train_rows": 627,
+      "train_rows": 626,
       "test_rows": 208
     },
     {
       "fold": 4,
-      "train_rows": 835,
+      "train_rows": 834,
       "test_rows": 208
     },
     {
       "fold": 5,
-      "train_rows": 1043,
+      "train_rows": 1042,
       "test_rows": 208
     }
   ],
   "metrics": {
-    "mae": 71.28769470668949,
-    "rmse": 162.47710319671063,
-    "r2": -992.7141474103836,
-    "direction_accuracy": 0.46153846153846156
+    "mae": 85.57385243831142,
+    "rmse": 203.94008983844228,
+    "r2": -1565.2708843972607,
+    "direction_accuracy": 0.4653846153846154
   }
 }

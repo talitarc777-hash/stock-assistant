@@ -22,9 +22,9 @@ import HoldingsTable from "../components/HoldingsTable";
 import LineChart from "../components/LineChart";
 import MonthlyContributionInput from "../components/MonthlyContributionInput";
 import NewsSentimentPanel from "../components/NewsSentimentPanel";
+import RecentRunsPanel from "../components/RecentRunsPanel";
 import RecentTradesTable from "../components/RecentTradesTable";
 import ResetTradingAccountButton from "../components/ResetTradingAccountButton";
-import TraderStatusPanel from "../components/TraderStatusPanel";
 import TransactionHistoryTable from "../components/TransactionHistoryTable";
 import { fetchModelEvaluationSettings } from "../services/modelSettingsApi";
 
@@ -172,7 +172,7 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
         historicalSummaryPayload,
         historicalTradesPayload,
       ] = await Promise.all([
-        fetchTraderSchedulerStatus(8),
+        fetchTraderSchedulerStatus(24),
         fetchLiveVirtualTraderStatus(profileId, null, selectedModelName, false),
         fetchVirtualAccountSummary(profileId),
         fetchVirtualAccountHoldings(profileId),
@@ -214,7 +214,7 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
 
   async function loadSchedulerStatusOnly() {
     try {
-      const payload = await fetchTraderSchedulerStatus(8);
+      const payload = await fetchTraderSchedulerStatus(24);
       setSchedulerStatus(payload);
     } catch {
       setSchedulerStatus(null);
@@ -347,7 +347,7 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
       {error ? <p className="error-box">{error}</p> : null}
       {isLoading ? <p className="panel">{labelByMode(languageMode, "Loading...", ZH.loading)}</p> : null}
 
-      <TraderStatusPanel
+      <RecentRunsPanel
         languageMode={languageMode}
         status={schedulerStatus}
         isLoading={isLoading && !schedulerStatus}

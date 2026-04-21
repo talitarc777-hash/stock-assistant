@@ -1,11 +1,11 @@
 {
-  "generated_at_utc": "2026-04-19T08:11:42.874163+00:00",
+  "generated_at_utc": "2026-04-21T07:49:43.720219+00:00",
   "ticker": "SPY",
   "period": "5y",
   "target_name": "target_5d_return",
   "task_type": "regression",
   "model_name": "linear_regression",
-  "row_count": 1251,
+  "row_count": 1250,
   "feature_count": 51,
   "time_series_splits": 5,
   "validation_method": "walk_forward_expanding_window",
@@ -13,34 +13,34 @@
   "fold_sizes": [
     {
       "fold": 1,
-      "train_rows": 211,
+      "train_rows": 210,
       "test_rows": 208
     },
     {
       "fold": 2,
-      "train_rows": 419,
+      "train_rows": 418,
       "test_rows": 208
     },
     {
       "fold": 3,
-      "train_rows": 627,
+      "train_rows": 626,
       "test_rows": 208
     },
     {
       "fold": 4,
-      "train_rows": 835,
+      "train_rows": 834,
       "test_rows": 208
     },
     {
       "fold": 5,
-      "train_rows": 1043,
+      "train_rows": 1042,
       "test_rows": 208
     }
   ],
   "metrics": {
-    "mae": 13.840974602744703,
-    "rmse": 29.057031089230918,
-    "r2": -154.3165963360041,
-    "direction_accuracy": 0.4528846153846154
+    "mae": 13.835164005714294,
+    "rmse": 28.191772396137438,
+    "r2": -145.45734846949645,
+    "direction_accuracy": 0.4519230769230769
   }
 }

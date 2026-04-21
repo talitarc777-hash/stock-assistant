@@ -1,11 +1,11 @@
 {
-  "generated_at_utc": "2026-04-19T08:43:51.261350+00:00",
+  "generated_at_utc": "2026-04-21T08:41:20.617628+00:00",
   "ticker": "UPS",
   "period": "5y",
   "target_name": "target_5d_return",
   "task_type": "regression",
   "model_name": "linear_regression",
-  "row_count": 1251,
+  "row_count": 1250,
   "feature_count": 51,
   "time_series_splits": 5,
   "validation_method": "walk_forward_expanding_window",
@@ -13,34 +13,34 @@
   "fold_sizes": [
     {
       "fold": 1,
-      "train_rows": 211,
+      "train_rows": 210,
       "test_rows": 208
     },
     {
       "fold": 2,
-      "train_rows": 419,
+      "train_rows": 418,
       "test_rows": 208
     },
     {
       "fold": 3,
-      "train_rows": 627,
+      "train_rows": 626,
       "test_rows": 208
     },
     {
       "fold": 4,
-      "train_rows": 835,
+      "train_rows": 834,
       "test_rows": 208
     },
     {
       "fold": 5,
-      "train_rows": 1043,
+      "train_rows": 1042,
       "test_rows": 208
     }
   ],
   "metrics": {
-    "mae": 10.358931183049531,
-    "rmse": 14.69318579626977,
-    "r2": -12.812546966720662,
-    "direction_accuracy": 0.5278846153846154
+    "mae": 13.876475847282277,
+    "rmse": 20.547540769818617,
+    "r2": -25.987267970252876,
+    "direction_accuracy": 0.5288461538461539
   }
 }

@@ -1,11 +1,11 @@
 {
-  "generated_at_utc": "2026-04-19T08:30:47.756583+00:00",
+  "generated_at_utc": "2026-04-21T08:24:48.833251+00:00",
   "ticker": "JPM",
   "period": "5y",
   "target_name": "target_5d_return",
   "task_type": "regression",
   "model_name": "gradient_boosting",
-  "row_count": 1251,
+  "row_count": 1250,
   "feature_count": 51,
   "time_series_splits": 5,
   "validation_method": "walk_forward_expanding_window",
@@ -13,34 +13,34 @@
   "fold_sizes": [
     {
       "fold": 1,
-      "train_rows": 211,
+      "train_rows": 210,
       "test_rows": 208
     },
     {
       "fold": 2,
-      "train_rows": 419,
+      "train_rows": 418,
       "test_rows": 208
     },
     {
       "fold": 3,
-      "train_rows": 627,
+      "train_rows": 626,
       "test_rows": 208
     },
     {
       "fold": 4,
-      "train_rows": 835,
+      "train_rows": 834,
       "test_rows": 208
     },
     {
       "fold": 5,
-      "train_rows": 1043,
+      "train_rows": 1042,
       "test_rows": 208
     }
   ],
   "metrics": {
-    "mae": 5.393261926612012,
-    "rmse": 6.315599214365229,
-    "r2": -2.208830273156433,
-    "direction_accuracy": 0.4394230769230769
+    "mae": 5.5112030718720035,
+    "rmse": 6.386629950542258,
+    "r2": -2.294344340842952,
+    "direction_accuracy": 0.42596153846153845
   }
 }

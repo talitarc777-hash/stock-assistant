@@ -31,6 +31,36 @@ def _utc_now_iso() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat()
 
 
+def _parse_iso_utc(value: str | None) -> datetime | None:
+    """Parse ISO timestamps safely and normalize to UTC."""
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def _derive_run_status(
+    *,
+    skipped: bool,
+    users_processed: int,
+    tickers_failed: int,
+    error_count: int,
+) -> str:
+    """Return a simple monitoring status for one scheduler row."""
+    if skipped:
+        return "partial"
+    if error_count > 0 and users_processed == 0:
+        return "failed"
+    if error_count > 0 or tickers_failed > 0:
+        return "partial"
+    return "success"
+
+
 class TraderSchedulerService:
     """In-process trader scheduler with market-aware cadence and run locking."""
 
@@ -55,7 +85,11 @@ class TraderSchedulerService:
         self._last_decisions_executed = 0
         self._last_error_count = 0
         self._consecutive_failures = 0
-        self._recent_runs: deque[dict[str, Any]] = deque(maxlen=200)
+        # In-memory rolling buffer for recent scheduler/manual runs only.
+        # This history resets on backend restart because it is not persisted yet.
+        # At 5-minute cadence we expect ~288 rows/day; manual bursts or extreme
+        # high-frequency runs can still truncate part of the 24h window.
+        self._recent_runs: deque[dict[str, Any]] = deque(maxlen=1000)
 
     def start(self) -> None:
         """Start the background scheduler thread once."""
@@ -117,8 +151,10 @@ class TraderSchedulerService:
         error_count: int = 0,
         error_messages: list[str] | None = None,
     ) -> None:
+        run_timestamp = _utc_now_iso()
         row = {
-            "timestamp_utc": _utc_now_iso(),
+            "timestamp": run_timestamp,
+            "timestamp_utc": run_timestamp,
             "source": source,
             "mode": mode,
             "users_processed": int(users_processed),
@@ -128,6 +164,14 @@ class TraderSchedulerService:
             "decisions_executed": int(decisions_executed),
             "skipped": bool(skipped),
             "message": message,
+            "note": message,
+            "status": _derive_run_status(
+                skipped=bool(skipped),
+                users_processed=int(users_processed),
+                tickers_failed=int(tickers_failed),
+                error_count=int(error_count),
+            ),
+            "errors": int(error_count),
             "error_count": int(error_count),
             "error_messages": list(error_messages or []),
         }
@@ -375,7 +419,11 @@ class TraderSchedulerService:
                 self._running = False
             self._run_lock.release()
 
-    def get_status(self, log_limit: int = 8) -> dict[str, Any]:
+    def get_status(
+        self,
+        *,
+        recent_hours: int = 24,
+    ) -> dict[str, Any]:
         """Return scheduler status snapshot for web/Discord surfaces."""
         state = get_market_hours_state()
         with self._state_lock:
@@ -387,7 +435,37 @@ class TraderSchedulerService:
                     datetime.now(UTC) + timedelta(seconds=cadence_seconds)
                 ).replace(microsecond=0).isoformat()
 
-            recent_runs = list(self._recent_runs)[: max(1, int(log_limit))]
+            now_utc = datetime.now(UTC)
+            hours = max(1, int(recent_hours))
+            cutoff_utc = now_utc - timedelta(hours=hours)
+            recent_runs: list[dict[str, Any]] = []
+            for row in list(self._recent_runs):
+                parsed_ts = _parse_iso_utc(row.get("timestamp_utc"))
+                if parsed_ts is None:
+                    continue
+                if parsed_ts >= cutoff_utc:
+                    recent_runs.append(row)
+            # Ensure newest-first regardless of insertion order.
+            recent_runs.sort(
+                key=lambda row: _parse_iso_utc(row.get("timestamp_utc")) or datetime.min.replace(tzinfo=UTC),
+                reverse=True,
+            )
+            normalized_recent_runs: list[dict[str, Any]] = []
+            for row in recent_runs:
+                normalized_recent_runs.append(
+                    {
+                        **row,
+                        "timestamp": row.get("timestamp") or row.get("timestamp_utc") or _utc_now_iso(),
+                        "status": row.get("status") or _derive_run_status(
+                            skipped=bool(row.get("skipped", False)),
+                            users_processed=int(row.get("users_processed", 0)),
+                            tickers_failed=int(row.get("tickers_failed", 0)),
+                            error_count=int(row.get("errors", row.get("error_count", 0))),
+                        ),
+                        "errors": int(row.get("errors", row.get("error_count", 0))),
+                        "note": row.get("note") or row.get("message"),
+                    }
+                )
             return {
                 "running": bool(self._running),
                 "scheduler_started": bool(self._scheduler_started),
@@ -406,12 +484,12 @@ class TraderSchedulerService:
                 "last_fallback_used": int(self._last_fallback_used),
                 "last_decisions_executed": int(self._last_decisions_executed),
                 "last_error_count": int(self._last_error_count),
-                "recent_runs": recent_runs,
+                "recent_runs": normalized_recent_runs,
             }
 
     def get_health(self) -> dict[str, Any]:
         """Return a minimal scheduler health snapshot."""
-        status = self.get_status(log_limit=1)
+        status = self.get_status(recent_hours=24)
         healthy = bool(status["scheduler_started"]) and (
             int(self._consecutive_failures) < 5
         )

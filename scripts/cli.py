@@ -302,6 +302,12 @@ def cmd_train_models(args: argparse.Namespace) -> int:
             include_gradient_boosting=not args.no_gradient_boosting,
         )
 
+    skipped_tickers = [ticker for ticker in tickers if ticker not in training_map]
+    if skipped_tickers:
+        _print_section("SKIPPED TICKERS")
+        for ticker in skipped_tickers:
+            print(f"- {ticker} (training skipped due to data/dependency error; check logs above)")
+
     for ticker, results in training_map.items():
         _print_section(f"TRAINED: {ticker}")
         for result in results:

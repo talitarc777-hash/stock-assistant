@@ -1,11 +1,11 @@
 {
-  "generated_at_utc": "2026-04-19T08:40:46.867457+00:00",
+  "generated_at_utc": "2026-04-21T08:35:29.167649+00:00",
   "ticker": "TMO",
   "period": "5y",
   "target_name": "target_5d_return",
   "task_type": "regression",
   "model_name": "linear_regression",
-  "row_count": 1251,
+  "row_count": 1250,
   "feature_count": 51,
   "time_series_splits": 5,
   "validation_method": "walk_forward_expanding_window",
@@ -13,34 +13,34 @@
   "fold_sizes": [
     {
       "fold": 1,
-      "train_rows": 211,
+      "train_rows": 210,
       "test_rows": 208
     },
     {
       "fold": 2,
-      "train_rows": 419,
+      "train_rows": 418,
       "test_rows": 208
     },
     {
       "fold": 3,
-      "train_rows": 627,
+      "train_rows": 626,
       "test_rows": 208
     },
     {
       "fold": 4,
-      "train_rows": 835,
+      "train_rows": 834,
       "test_rows": 208
     },
     {
       "fold": 5,
-      "train_rows": 1043,
+      "train_rows": 1042,
       "test_rows": 208
     }
   ],
   "metrics": {
-    "mae": 8.211221680065247,
-    "rmse": 12.076850634879223,
-    "r2": -8.995025731652184,
-    "direction_accuracy": 0.5557692307692308
+    "mae": 6.852360543660406,
+    "rmse": 9.255833263183995,
+    "r2": -4.870426064352036,
+    "direction_accuracy": 0.5403846153846154
   }
 }

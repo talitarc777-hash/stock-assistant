@@ -1,11 +1,11 @@
 {
-  "generated_at_utc": "2026-04-19T08:39:07.630738+00:00",
+  "generated_at_utc": "2026-04-21T08:31:26.552656+00:00",
   "ticker": "AMD",
   "period": "5y",
   "target_name": "target_5d_return",
   "task_type": "regression",
   "model_name": "random_forest",
-  "row_count": 1251,
+  "row_count": 1250,
   "feature_count": 51,
   "time_series_splits": 5,
   "validation_method": "walk_forward_expanding_window",
@@ -13,34 +13,34 @@
   "fold_sizes": [
     {
       "fold": 1,
-      "train_rows": 211,
+      "train_rows": 210,
       "test_rows": 208
     },
     {
       "fold": 2,
-      "train_rows": 419,
+      "train_rows": 418,
       "test_rows": 208
     },
     {
       "fold": 3,
-      "train_rows": 627,
+      "train_rows": 626,
       "test_rows": 208
     },
     {
       "fold": 4,
-      "train_rows": 835,
+      "train_rows": 834,
       "test_rows": 208
     },
     {
       "fold": 5,
-      "train_rows": 1043,
+      "train_rows": 1042,
       "test_rows": 208
     }
   ],
   "metrics": {
-    "mae": 6.779354933145481,
-    "rmse": 8.721283983447202,
-    "r2": -0.33640619361804625,
-    "direction_accuracy": 0.49903846153846154
+    "mae": 6.741807276653272,
+    "rmse": 8.69928435968965,
+    "r2": -0.3271612285204326,
+    "direction_accuracy": 0.5221153846153846
   }
 }

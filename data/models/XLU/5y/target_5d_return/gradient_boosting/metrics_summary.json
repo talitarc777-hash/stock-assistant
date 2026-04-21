@@ -1,11 +1,11 @@
 {
-  "generated_at_utc": "2026-04-19T08:22:18.248686+00:00",
+  "generated_at_utc": "2026-04-21T08:01:17.735446+00:00",
   "ticker": "XLU",
   "period": "5y",
   "target_name": "target_5d_return",
   "task_type": "regression",
   "model_name": "gradient_boosting",
-  "row_count": 1251,
+  "row_count": 1250,
   "feature_count": 51,
   "time_series_splits": 5,
   "validation_method": "walk_forward_expanding_window",
@@ -13,34 +13,34 @@
   "fold_sizes": [
     {
       "fold": 1,
-      "train_rows": 211,
+      "train_rows": 210,
       "test_rows": 208
     },
     {
       "fold": 2,
-      "train_rows": 419,
+      "train_rows": 418,
       "test_rows": 208
     },
     {
       "fold": 3,
-      "train_rows": 627,
+      "train_rows": 626,
       "test_rows": 208
     },
     {
       "fold": 4,
-      "train_rows": 835,
+      "train_rows": 834,
       "test_rows": 208
     },
     {
       "fold": 5,
-      "train_rows": 1043,
+      "train_rows": 1042,
       "test_rows": 208
     }
   ],
   "metrics": {
-    "mae": 3.9066930862427496,
-    "rmse": 4.866871184055018,
-    "r2": -2.725573760660608,
-    "direction_accuracy": 0.4740384615384615
+    "mae": 3.8484775687806394,
+    "rmse": 4.777822068796342,
+    "r2": -2.590096297010502,
+    "direction_accuracy": 0.4721153846153846
   }
 }
