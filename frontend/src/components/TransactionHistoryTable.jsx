@@ -103,7 +103,16 @@ export default function TransactionHistoryTable({
           </tbody>
         </table>
       </div>
-      {errorMessage ? <p className="helper-text">{errorMessage}</p> : null}
+      {errorMessage ? (
+        <div className="helper-text">
+          <p>{errorMessage}</p>
+          {onLoadMore ? (
+            <button type="button" onClick={onLoadMore} disabled={isLoading || !hasMore}>
+              {getLabel(languageMode, "loadMoreHistory")}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       {onLoadMore ? (
         <div className="settings-actions">
           <button type="button" onClick={onLoadMore} disabled={isLoading || !hasMore}>

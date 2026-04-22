@@ -413,8 +413,31 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
         </div>
       </header>
 
-      {error ? <p className="error-box">{error}</p> : null}
-      {isLoading ? <p className="panel">{labelByMode(languageMode, "Loading...", ZH.loading)}</p> : null}
+      {error ? (
+        <div className="error-box">
+          <p>{error}</p>
+          <button
+            type="button"
+            onClick={async () => {
+              await loadGlobalViews();
+              await loadTickerSpecificViews(selectedTicker);
+            }}
+          >
+            {labelByMode(languageMode, "Retry overview", "重新整理總覽")}
+          </button>
+        </div>
+      ) : null}
+      {isLoading ? (
+        <section className="panel">
+          <p>
+            {labelByMode(
+              languageMode,
+              "Loading the account summary, holdings, and recent activity. Smaller sections will appear as they finish loading.",
+              "正在載入帳戶摘要、持倉與近期活動，完成的區塊會先顯示。"
+            )}
+          </p>
+        </section>
+      ) : null}
 
       <RecentRunsPanel
         languageMode={languageMode}

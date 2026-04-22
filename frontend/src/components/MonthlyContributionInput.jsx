@@ -13,9 +13,12 @@ export default function MonthlyContributionInput({ userId, languageMode, onUpdat
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [refreshToken, setRefreshToken] = useState(0);
 
   async function loadInput() {
     if (!userId) return;
+    setAmount("");
+    setEffectiveFromMonth("");
     setIsLoading(true);
     setError("");
     try {
@@ -32,7 +35,7 @@ export default function MonthlyContributionInput({ userId, languageMode, onUpdat
   useEffect(() => {
     loadInput();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, [userId, refreshToken]);
 
   async function handleSave() {
     if (!userId) return;
@@ -92,7 +95,14 @@ export default function MonthlyContributionInput({ userId, languageMode, onUpdat
         </p>
       ) : null}
       {message ? <p className="success-box">{message}</p> : null}
-      {error ? <p className="error-box">{error}</p> : null}
+      {error ? (
+        <div className="error-box">
+          <p>{error}</p>
+          <button type="button" onClick={() => setRefreshToken((value) => value + 1)}>
+            {getLabel(languageMode, "refreshStatus")}
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }

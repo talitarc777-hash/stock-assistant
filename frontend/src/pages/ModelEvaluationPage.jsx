@@ -36,6 +36,8 @@ export default function ModelEvaluationPage({ languageMode, currentWatchlist, pr
   const [accuracyData, setAccuracyData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [loadState, setLoadState] = useState("idle");
+  const [refreshToken, setRefreshToken] = useState(0);
 
   useEffect(() => {
     if (!currentWatchlist.length) return;
@@ -69,23 +71,37 @@ export default function ModelEvaluationPage({ languageMode, currentWatchlist, pr
 
     let isActive = true;
     async function loadModelViews() {
+      setLatestData(null);
+      setHistoryData(null);
+      setAccuracyData(null);
+      setLoadState("loading");
       setIsLoading(true);
       setError("");
       try {
-        const [latest, history, accuracy] = await Promise.all([
+        const [latest, history, accuracy] = await Promise.allSettled([
           fetchModelLatest(selectedTicker, DEFAULT_PERIOD, DEFAULT_TARGET, selectedModelName, profileId),
           fetchModelHistory(selectedTicker, DEFAULT_PERIOD, DEFAULT_TARGET, selectedModelName, 180, profileId),
           fetchModelAccuracy(selectedTicker, DEFAULT_PERIOD, DEFAULT_TARGET, selectedModelName, 20, profileId),
         ]);
         if (!isActive) return;
-        setLatestData(latest);
-        setHistoryData(history);
-        setAccuracyData(accuracy);
+        setLatestData(latest.status === "fulfilled" ? latest.value : null);
+        setHistoryData(history.status === "fulfilled" ? history.value : null);
+        setAccuracyData(accuracy.status === "fulfilled" ? accuracy.value : null);
+        const failedCount = [latest, history, accuracy].filter((item) => item.status === "rejected").length;
+        setLoadState(failedCount > 0 ? (failedCount === 3 ? "failed" : "partial") : "ready");
+        if (failedCount > 0) {
+          setError(
+            failedCount === 3
+              ? "We could not load model evaluation right now. Please retry in a moment."
+              : "Some model evaluation sections are still loading or unavailable."
+          );
+        }
       } catch (requestError) {
         if (!isActive) return;
         setLatestData(null);
         setHistoryData(null);
         setAccuracyData(null);
+        setLoadState("failed");
         setError(requestError.message || "Failed to load model evaluation.");
       } finally {
         if (isActive) {
@@ -98,7 +114,7 @@ export default function ModelEvaluationPage({ languageMode, currentWatchlist, pr
     return () => {
       isActive = false;
     };
-  }, [selectedTicker, selectedModelName, profileId]);
+  }, [selectedTicker, selectedModelName, profileId, refreshToken]);
 
   const predictionSeries = useMemo(() => {
     if (!historyData?.history) return [];
@@ -153,11 +169,20 @@ export default function ModelEvaluationPage({ languageMode, currentWatchlist, pr
         </div>
       </header>
 
-      {error ? <p className="error-box">{error}</p> : null}
-      {isLoading ? <p className="panel">{labelByMode(languageMode, L.loading.en, L.loading.zh)}</p> : null}
-      {!isLoading && !latestPrediction && !error ? (
-        <p className="panel">{labelByMode(languageMode, L.noData.en, L.noData.zh)}</p>
+      {error ? (
+        <div className="error-box">
+          <p>{error}</p>
+          <button type="button" onClick={() => setRefreshToken((value) => value + 1)}>
+            {labelByMode(languageMode, "Retry model data", "重新整理模型資料")}
+          </button>
+        </div>
       ) : null}
+      {isLoading ? (
+        <section className="panel">
+          <p>{labelByMode(languageMode, "Loading model evaluation. Individual sections will appear as they finish.", "正在載入模型評估，完成的區塊會先顯示。")}</p>
+        </section>
+      ) : null}
+      {!isLoading && !latestPrediction && !error ? <p className="panel">{labelByMode(languageMode, L.noData.en, L.noData.zh)}</p> : null}
 
       {latestPrediction ? (
         <>
@@ -295,6 +320,16 @@ export default function ModelEvaluationPage({ languageMode, currentWatchlist, pr
             </div>
           </section>
         </>
+      ) : loadState === "partial" ? (
+        <section className="panel">
+          <p>
+            {labelByMode(
+              languageMode,
+              "Partial model data loaded. Retry if you want the missing sections.",
+              "部分模型資料已載入，如需補齊其餘區塊可按重試。"
+            )}
+          </p>
+        </section>
       ) : null}
     </>
   );

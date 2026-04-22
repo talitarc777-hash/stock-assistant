@@ -9,10 +9,10 @@ function sleep(ms) {
 function parseErrorMessage(response, payloadDetail, fallbackMessage) {
   if (payloadDetail) return String(payloadDetail);
   if (response.status === 503 || response.status === 502 || response.status === 504) {
-    return "Server is starting or temporarily busy. Please retry in a moment.";
+    return "The server is starting up or temporarily busy. Please try again in a moment.";
   }
   if (response.status === 429) {
-    return "Server is handling too many requests. Please retry shortly.";
+    return "The server is handling too many requests right now. Please try again shortly.";
   }
   return fallbackMessage;
 }
@@ -71,13 +71,17 @@ export async function requestJson(path, options = {}) {
       shouldRetry = method === "GET" && attempt < retries;
       if (!shouldRetry) {
         if (abortedByTimeout) {
-          throw new Error("Server response timed out. The server may be busy, please retry.");
+          throw new Error(
+            "The request took too long. The server may be busy or waking up, so please try again."
+          );
         }
         if (
           error instanceof TypeError ||
           String(error?.message || "").toLowerCase().includes("failed to fetch")
         ) {
-          throw new Error("Unable to reach backend API. Server may be restarting or unavailable.");
+          throw new Error(
+            "We could not reach the backend. It may be restarting, waking up, or temporarily unavailable."
+          );
         }
         throw error;
       }
@@ -87,6 +91,5 @@ export async function requestJson(path, options = {}) {
     await sleep(retryDelayMs * (attempt + 1));
   }
 
-  throw new Error("Request failed. Please retry.");
+  throw new Error("The request did not complete. Please try again.");
 }
-

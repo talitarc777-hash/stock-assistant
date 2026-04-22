@@ -52,21 +52,34 @@ export default function ModelLifecyclePage({ languageMode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isRunningNow, setIsRunningNow] = useState(false);
   const [error, setError] = useState("");
+  const [loadState, setLoadState] = useState("idle");
+  const [refreshToken, setRefreshToken] = useState(0);
 
   async function loadAll() {
+    setLoadState("loading");
     setIsLoading(true);
     setError("");
     try {
-      const [statusPayload, registryPayload, runsPayload] = await Promise.all([
+      const [statusPayload, registryPayload, runsPayload] = await Promise.allSettled([
         fetchModelLifecycleStatus("VOO", "5y", "target_5d_updown", 8),
         fetchModelLifecycleRegistry(60),
         fetchModelLifecycleRuns(12),
       ]);
-      setStatus(statusPayload);
-      setRegistry(registryPayload || []);
-      setRuns(runsPayload || []);
+      setStatus(statusPayload.status === "fulfilled" ? statusPayload.value : null);
+      setRegistry(registryPayload.status === "fulfilled" ? registryPayload.value || [] : []);
+      setRuns(runsPayload.status === "fulfilled" ? runsPayload.value || [] : []);
+      const failedCount = [statusPayload, registryPayload, runsPayload].filter((item) => item.status === "rejected").length;
+      setLoadState(failedCount > 0 ? (failedCount === 3 ? "failed" : "partial") : "ready");
+      if (failedCount > 0) {
+        setError(
+          failedCount === 3
+            ? "We could not load model lifecycle data right now. Please retry in a moment."
+            : "Some lifecycle sections are still unavailable."
+        );
+      }
     } catch (requestError) {
       setError(requestError.message || "Failed to load model lifecycle status.");
+      setLoadState("failed");
     } finally {
       setIsLoading(false);
     }
@@ -74,7 +87,7 @@ export default function ModelLifecyclePage({ languageMode }) {
 
   useEffect(() => {
     loadAll();
-  }, []);
+  }, [refreshToken]);
 
   async function handleRunNow() {
     setIsRunningNow(true);
@@ -118,9 +131,29 @@ export default function ModelLifecyclePage({ languageMode }) {
         </div>
       </header>
 
-      {error ? <p className="error-box">{error}</p> : null}
+      {error ? (
+        <div className="error-box">
+          <p>{error}</p>
+          <button type="button" onClick={() => setRefreshToken((value) => value + 1)}>
+            {labelByMode(languageMode, "Retry lifecycle data", "重新整理生命週期資料")}
+          </button>
+        </div>
+      ) : null}
       {isLoading && !status ? (
-        <p className="panel">{labelByMode(languageMode, "Loading...", ZH.loading)}</p>
+        <section className="panel">
+          <p>{labelByMode(languageMode, "Loading lifecycle data. Sections will appear as they finish.", "正在載入生命週期資料，完成的區塊會先顯示。")}</p>
+        </section>
+      ) : null}
+      {loadState === "partial" ? (
+        <section className="panel">
+          <p>
+            {labelByMode(
+              languageMode,
+              "Partial lifecycle data loaded. Retry to fetch the remaining sections.",
+              "部分生命週期資料已載入，如要補齊其他區塊可按重試。"
+            )}
+          </p>
+        </section>
       ) : null}
 
       <section className="panel">
@@ -308,4 +341,3 @@ export default function ModelLifecyclePage({ languageMode }) {
     </>
   );
 }
-

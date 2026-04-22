@@ -172,6 +172,7 @@ function DashboardPage({ languageMode, profileId, currentWatchlist, onProfileUpd
   const [analyzeData, setAnalyzeData] = useState(null);
   const [chartData, setChartData] = useState(null);
   const [forecastData, setForecastData] = useState(null);
+  const [detailLoadState, setDetailLoadState] = useState("idle");
   const [alertScan, setAlertScan] = useState(null);
   const [isLoadingWatchlist, setIsLoadingWatchlist] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
@@ -219,6 +220,7 @@ function DashboardPage({ languageMode, profileId, currentWatchlist, onProfileUpd
       setAnalyzeData(null);
       setChartData(null);
       setForecastData(null);
+      setDetailLoadState("idle");
       setIsLoadingDetail(false);
       return;
     }
@@ -226,6 +228,7 @@ function DashboardPage({ languageMode, profileId, currentWatchlist, onProfileUpd
     setAnalyzeData(null);
     setChartData(null);
     setForecastData(null);
+    setDetailLoadState("loading");
     setIsLoadingDetail(true);
     setError("");
     try {
@@ -241,14 +244,20 @@ function DashboardPage({ languageMode, profileId, currentWatchlist, onProfileUpd
         (item) => item.status === "rejected"
       ).length;
       if (failedCount > 0) {
+        setDetailLoadState(failedCount === 3 ? "failed" : "partial");
         setError(
-          `Some ticker details could not be loaded (${failedCount}). You can still use available sections.`
+          failedCount === 3
+            ? "We could not load this ticker right now. Please retry in a moment."
+            : "Some sections are still unavailable, but the rest of the page is ready."
         );
+      } else {
+        setDetailLoadState("ready");
       }
     } catch (requestError) {
       setAnalyzeData(null);
       setChartData(null);
       setForecastData(null);
+      setDetailLoadState("failed");
       setError(requestError.message || "Failed to load ticker detail.");
     } finally {
       setIsLoadingDetail(false);
@@ -342,7 +351,21 @@ function DashboardPage({ languageMode, profileId, currentWatchlist, onProfileUpd
         </div>
       </header>
 
-      {error ? <p className="error-box">{error}</p> : null}
+      {error ? (
+        <div className="error-box">
+          <p>{error}</p>
+          <button
+            type="button"
+            onClick={async () => {
+              await loadWatchlist();
+              await loadAlerts();
+              await loadTickerDetail(selectedTicker);
+            }}
+          >
+            {formatBilingualLabel(languageMode, "Retry page data", "重新整理頁面資料")}
+          </button>
+        </div>
+      ) : null}
 
       <div className="layout-grid">
         <div>
@@ -367,6 +390,33 @@ function DashboardPage({ languageMode, profileId, currentWatchlist, onProfileUpd
 
         <section className="panel">
           <h3>{formatBilingualLabel(languageMode, "Ticker Detail", ZH.tickerDetail)}</h3>
+          {detailLoadState === "partial" ? (
+            <div className="helper-text">
+              <p>
+                {formatBilingualLabel(
+                  languageMode,
+                  "Some detail sections loaded, and some are still unavailable.",
+                  "部分詳細資料已載入，但仍有部分區塊暫時無法顯示。"
+                )}
+              </p>
+              <button type="button" onClick={() => loadTickerDetail(selectedTicker)}>
+                {formatBilingualLabel(languageMode, "Retry details", "重新整理詳細資料")}
+              </button>
+            </div>
+          ) : detailLoadState === "failed" ? (
+            <div className="helper-text">
+              <p>
+                {formatBilingualLabel(
+                  languageMode,
+                  "This section could not load right now. You can retry without leaving the page.",
+                  "這個區塊目前無法載入，你可以直接在這裡重新整理，不用離開頁面。"
+                )}
+              </p>
+              <button type="button" onClick={() => loadTickerDetail(selectedTicker)}>
+                {formatBilingualLabel(languageMode, "Retry details", "重新整理詳細資料")}
+              </button>
+            </div>
+          ) : null}
           {!selectedTicker ? (
             <p>
               {formatBilingualLabel(
@@ -376,7 +426,13 @@ function DashboardPage({ languageMode, profileId, currentWatchlist, onProfileUpd
               )}
             </p>
           ) : isLoadingDetail ? (
-            <p>{formatBilingualLabel(languageMode, "Loading...", ZH.loading)}</p>
+            <p>
+              {formatBilingualLabel(
+                languageMode,
+                "Loading ticker data. We will show each section as it becomes available.",
+                "正在載入股票資料，完成的區塊會先顯示。"
+              )}
+            </p>
           ) : !analyzeData ? (
             <p>{error || "Failed to load ticker detail."}</p>
           ) : (

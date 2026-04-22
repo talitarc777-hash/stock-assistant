@@ -66,11 +66,13 @@ export default function SettingsPage({
   const [availableModels, setAvailableModels] = useState([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [remoteLoadError, setRemoteLoadError] = useState("");
+  const [remoteRefreshToken, setRemoteRefreshToken] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     setLocalProfileId(profileId);
-  }, [profileId]);
+  }, [profileId, remoteRefreshToken]);
 
   useEffect(() => {
     if (!profile) return;
@@ -84,7 +86,8 @@ export default function SettingsPage({
 
   useEffect(() => {
     let isActive = true;
-    async function loadAlertSettings() {
+    async function loadRemoteSettings() {
+      setRemoteLoadError("");
       try {
         const [alertSettings, modelSettings] = await Promise.all([
           fetchUserAlertSettings(profileId),
@@ -97,12 +100,14 @@ export default function SettingsPage({
         setAlertWatchlist(watchlistToText(alertSettings.alert_watchlist || []));
         setSelectedModelName(modelSettings.selected_model_name || "logistic_regression");
         setAvailableModels(modelSettings.available_models || []);
-      } catch {
-        // Keep profile defaults if alert endpoint is unavailable.
+      } catch (requestError) {
+        // Keep the page usable even if the backend is temporarily busy.
+        if (!isActive) return;
+        setRemoteLoadError(requestError.message || "Some settings could not be loaded right now.");
       }
     }
     if (profileId) {
-      loadAlertSettings();
+      loadRemoteSettings();
     }
     return () => {
       isActive = false;
@@ -162,6 +167,17 @@ export default function SettingsPage({
             ZH.sharedProfile
           )}
         </p>
+        {remoteLoadError ? (
+          <div className="helper-text">
+            <p>{remoteLoadError}</p>
+            <button
+              type="button"
+              onClick={() => setRemoteRefreshToken((value) => value + 1)}
+            >
+              {labelByMode(languageMode, "Retry loading settings", "重新載入設定")}
+            </button>
+          </div>
+        ) : null}
         <form className="settings-form" onSubmit={handleSave}>
           <label>
             {labelByMode(languageMode, "Profile ID", ZH.profileId)}
