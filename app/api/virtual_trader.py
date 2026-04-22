@@ -22,6 +22,7 @@ from app.services.trader_scheduler import (
     TraderSchedulerBusyError,
     get_trader_scheduler_service,
 )
+from app.services.virtual_account_cache import clear_user_virtual_account_cache
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,7 @@ def get_virtual_trader_live_status(
                 tickers=tickers,
                 model_name=resolved_model_name,
             )
+            clear_user_virtual_account_cache(user_id)
         else:
             status = get_live_virtual_trader_status(
                 user_id=user_id,
@@ -101,6 +103,7 @@ def run_virtual_trader_now(request: LiveTraderRunRequest) -> LiveTraderStatusRes
             tickers=request.tickers,
             model_name=resolved_model_name,
         )
+        clear_user_virtual_account_cache(request.user_id)
         return LiveTraderStatusResponse(**status.__dict__)
     except TraderSchedulerBusyError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc

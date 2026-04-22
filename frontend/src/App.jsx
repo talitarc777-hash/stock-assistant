@@ -222,6 +222,10 @@ function DashboardPage({ languageMode, profileId, currentWatchlist, onProfileUpd
       setIsLoadingDetail(false);
       return;
     }
+    // Always clear previous ticker detail first so partial failures never show stale mixed state.
+    setAnalyzeData(null);
+    setChartData(null);
+    setForecastData(null);
     setIsLoadingDetail(true);
     setError("");
     try {
@@ -230,17 +234,9 @@ function DashboardPage({ languageMode, profileId, currentWatchlist, onProfileUpd
         fetchChartData(ticker, DEFAULT_PERIOD),
         fetchForecast(ticker, "2y"),
       ]);
-      if (analysisResult.status === "fulfilled") {
-        setAnalyzeData(analysisResult.value);
-      }
-      if (chartResult.status === "fulfilled") {
-        setChartData(chartResult.value);
-      }
-      if (forecastResult.status === "fulfilled") {
-        setForecastData(forecastResult.value);
-      } else {
-        setForecastData(null);
-      }
+      setAnalyzeData(analysisResult.status === "fulfilled" ? analysisResult.value : null);
+      setChartData(chartResult.status === "fulfilled" ? chartResult.value : null);
+      setForecastData(forecastResult.status === "fulfilled" ? forecastResult.value : null);
       const failedCount = [analysisResult, chartResult, forecastResult].filter(
         (item) => item.status === "rejected"
       ).length;

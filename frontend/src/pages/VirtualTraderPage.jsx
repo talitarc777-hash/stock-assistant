@@ -164,13 +164,13 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
     };
   }, [profileId]);
 
-  async function loadAllViews(activeTicker = selectedTicker) {
-    if (!profileId || !activeTicker) return;
+  async function loadGlobalViews() {
+    if (!profileId) return;
     setIsLoading(true);
     setError("");
     try {
       // Keep initial render lightweight for low-resource deployments:
-      // load core cards first, then load heavy sections only on demand.
+      // load core profile-level cards first; ticker-specific replay data is loaded separately.
       const coreResults = await Promise.allSettled([
         fetchTraderSchedulerStatus(24),
         fetchLiveVirtualTraderStatus(profileId, null, selectedModelName, false),
@@ -212,14 +212,16 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
       if (historyEnabled) {
         await loadAccountHistoryPage({ reset: true });
       }
-      if (historicalEnabled) {
-        await loadHistoricalReplayData(activeTicker);
-      }
     } catch (requestError) {
       setError(requestError.message || "Failed to load virtual trader views.");
     } finally {
       setIsLoading(false);
     }
+  }
+
+  async function loadTickerSpecificViews(activeTicker = selectedTicker) {
+    if (!profileId || !activeTicker || !historicalEnabled) return;
+    await loadHistoricalReplayData(activeTicker);
   }
 
   async function loadAccountHistoryPage({ reset = false } = {}) {
@@ -267,9 +269,14 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
   }
 
   useEffect(() => {
-    loadAllViews(selectedTicker);
+    loadGlobalViews();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTicker, selectedModelName, profileId]);
+  }, [profileId, selectedModelName, historyEnabled]);
+
+  useEffect(() => {
+    loadTickerSpecificViews(selectedTicker);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileId, selectedModelName, selectedTicker, historicalEnabled]);
 
   useEffect(() => {
     if (!profileId) return undefined;
@@ -287,7 +294,8 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
     setError("");
     try {
       await runLiveVirtualTraderNow(profileId, null, selectedModelName);
-      await loadAllViews(selectedTicker);
+      await loadGlobalViews();
+      await loadTickerSpecificViews(selectedTicker);
     } catch (requestError) {
       setError(requestError.message || "Failed to run live virtual trader now.");
     } finally {
@@ -302,7 +310,8 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
       await postVirtualAccountDeposit(profileId, Number(cashAmount), cashReason);
       setCashAmount("");
       setCashReason("");
-      await loadAllViews(selectedTicker);
+      await loadGlobalViews();
+      await loadTickerSpecificViews(selectedTicker);
     } catch (requestError) {
       setError(requestError.message || "Failed to deposit cash.");
     }
@@ -315,7 +324,8 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
       await postVirtualAccountWithdraw(profileId, Number(cashAmount), cashReason);
       setCashAmount("");
       setCashReason("");
-      await loadAllViews(selectedTicker);
+      await loadGlobalViews();
+      await loadTickerSpecificViews(selectedTicker);
     } catch (requestError) {
       setError(requestError.message || "Failed to withdraw cash.");
     }
@@ -480,7 +490,10 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
       <MonthlyContributionInput
         userId={profileId}
         languageMode={languageMode}
-        onUpdated={() => loadAllViews(selectedTicker)}
+        onUpdated={async () => {
+          await loadGlobalViews();
+          await loadTickerSpecificViews(selectedTicker);
+        }}
       />
 
       <section className="panel">
@@ -533,7 +546,10 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
         <ResetTradingAccountButton
           userId={profileId}
           languageMode={languageMode}
-          onResetComplete={() => loadAllViews(selectedTicker)}
+          onResetComplete={async () => {
+            await loadGlobalViews();
+            await loadTickerSpecificViews(selectedTicker);
+          }}
         />
       </section>
 

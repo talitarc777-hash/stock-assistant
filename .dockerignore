@@ -1,0 +1,33 @@
+.git
+.gitignore
+.venv
+venv
+ENV
+.vscode
+
+# Local/runtime data that should stay on volume, not in image
+data
+reports
+*.db
+*.sqlite
+*.sqlite3
+
+# Frontend build/dev artifacts
+frontend/node_modules
+frontend/dist
+frontend/.env
+
+# Python cache/test artifacts
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Non-runtime project folders
+tests
+docs
+
+# Local environment
+.env

@@ -550,6 +550,11 @@ News-sentiment note:
 
 These optimizations were added for small instances (for example ~1 vCPU / 0.5 GB RAM):
 
+- Lean container build for Railway image limits:
+  - added `Dockerfile` that copies backend runtime files only (`app/`, `config/`, `scripts/`, `requirements.txt`)
+  - added `.dockerignore` to exclude heavy local folders from image builds (`data/`, `.venv/`, `.git/`, frontend artifacts, caches)
+  - this prevents local model/cache/venv files from inflating the deploy image
+
 - Frontend request resilience:
   - shared fetch client with request timeout
   - retry for transient GET failures (network/502/503/504/429)

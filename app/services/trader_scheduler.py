@@ -19,6 +19,7 @@ from app.services.live_virtual_trader import LiveStatus, run_live_virtual_trader
 from app.services.market_hours_service import get_market_hours_state
 from app.services.model_selection_service import resolve_selected_model_name
 from app.services.user_profile_service import get_user_profile_store
+from app.services.virtual_account_cache import clear_user_virtual_account_cache
 
 logger = logging.getLogger(__name__)
 
@@ -309,16 +310,20 @@ class TraderSchedulerService:
                 if not clean_user_id:
                     continue
                 try:
-                    ledger.apply_recurring_monthly_contribution_if_due(
+                    contribution_event = ledger.apply_recurring_monthly_contribution_if_due(
                         clean_user_id,
                         source="scheduler",
                     )
+                    if contribution_event is not None:
+                        clear_user_virtual_account_cache(clean_user_id)
                     selected_model_name = resolve_selected_model_name(user_id=clean_user_id)
                     status = self._run_live_trader_with_retry(
                         user_id=clean_user_id,
                         model_name=selected_model_name,
                         max_attempts=2,
                     )
+                    # Live runs can mutate positions/cash; always clear read caches.
+                    clear_user_virtual_account_cache(clean_user_id)
                     user_decisions = list(status.latest_decisions)
                     users_processed += 1
                     tickers_processed += int(status.tickers_evaluated)
@@ -382,10 +387,12 @@ class TraderSchedulerService:
             self._cadence_seconds = state.interval_seconds
 
         try:
-            get_account_ledger_service().apply_recurring_monthly_contribution_if_due(
+            contribution_event = get_account_ledger_service().apply_recurring_monthly_contribution_if_due(
                 clean_user_id,
                 source="scheduler",
             )
+            if contribution_event is not None:
+                clear_user_virtual_account_cache(clean_user_id)
             selected_model_name = resolve_selected_model_name(
                 user_id=clean_user_id,
                 requested_model_name=model_name,
@@ -396,6 +403,7 @@ class TraderSchedulerService:
                 tickers=tickers,
                 max_attempts=2,
             )
+            clear_user_virtual_account_cache(clean_user_id)
             tickers_processed = int(status.tickers_evaluated)
             tickers_failed = int(status.tickers_failed)
             fallback_used = int(status.fallback_used_count)
