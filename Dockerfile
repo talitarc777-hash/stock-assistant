@@ -23,6 +23,6 @@ COPY .env.example /app/.env.example
 # Create runtime directories inside container.
 RUN mkdir -p /app/data /app/reports
 
-EXPOSE 8000
+EXPOSE 8080
 
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
