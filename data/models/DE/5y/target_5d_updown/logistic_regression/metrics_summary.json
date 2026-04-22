@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-04-21T08:49:42.817994+00:00",
+  "generated_at_utc": "2026-04-21T09:53:39.271391+00:00",
   "ticker": "DE",
   "period": "5y",
   "target_name": "target_5d_updown",
@@ -38,11 +38,11 @@
     }
   ],
   "metrics": {
-    "accuracy": 0.5028846153846154,
-    "precision": 0.564,
-    "recall": 0.2568306010928962,
-    "f1": 0.35294117647058826,
+    "accuracy": 0.5019230769230769,
+    "precision": 0.5622489959839357,
+    "recall": 0.2550091074681239,
+    "f1": 0.3508771929824561,
     "positive_rate_actual": 0.5278846153846154,
-    "positive_rate_predicted": 0.2403846153846154
+    "positive_rate_predicted": 0.23942307692307693
   }
 }

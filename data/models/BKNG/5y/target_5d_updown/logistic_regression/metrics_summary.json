@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-04-21T08:47:10.042514+00:00",
+  "generated_at_utc": "2026-04-21T09:51:51.928100+00:00",
   "ticker": "BKNG",
   "period": "5y",
   "target_name": "target_5d_updown",
@@ -38,11 +38,11 @@
     }
   ],
   "metrics": {
-    "accuracy": 0.4634615384615385,
-    "precision": 0.5199203187250996,
-    "recall": 0.4515570934256055,
-    "f1": 0.48333333333333334,
+    "accuracy": 0.4625,
+    "precision": 0.5189620758483033,
+    "recall": 0.44982698961937717,
+    "f1": 0.4819277108433735,
     "positive_rate_actual": 0.5557692307692308,
-    "positive_rate_predicted": 0.4826923076923077
+    "positive_rate_predicted": 0.48173076923076924
   }
 }

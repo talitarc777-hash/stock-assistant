@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-04-21T08:02:39.088343+00:00",
+  "generated_at_utc": "2026-04-21T09:20:16.929854+00:00",
   "ticker": "SOXX",
   "period": "5y",
   "target_name": "target_5d_updown",
@@ -38,11 +38,11 @@
     }
   ],
   "metrics": {
-    "accuracy": 0.5173076923076924,
-    "precision": 0.5719557195571956,
+    "accuracy": 0.5163461538461539,
+    "precision": 0.570902394106814,
     "recall": 0.5344827586206896,
-    "f1": 0.5525846702317291,
+    "f1": 0.5520926090828139,
     "positive_rate_actual": 0.5576923076923077,
-    "positive_rate_predicted": 0.5211538461538462
+    "positive_rate_predicted": 0.5221153846153846
   }
 }

@@ -1,0 +1,46 @@
+{
+  "generated_at_utc": "2026-04-21T10:37:32.396963+00:00",
+  "ticker": "SJM",
+  "period": "5y",
+  "target_name": "target_5d_return",
+  "task_type": "regression",
+  "model_name": "linear_regression",
+  "row_count": 1250,
+  "feature_count": 51,
+  "time_series_splits": 5,
+  "validation_method": "walk_forward_expanding_window",
+  "validation_note": "Random train/test shuffling is avoided because time-series evaluation must preserve time order and keep future data out of the training window.",
+  "fold_sizes": [
+    {
+      "fold": 1,
+      "train_rows": 210,
+      "test_rows": 208
+    },
+    {
+      "fold": 2,
+      "train_rows": 418,
+      "test_rows": 208
+    },
+    {
+      "fold": 3,
+      "train_rows": 626,
+      "test_rows": 208
+    },
+    {
+      "fold": 4,
+      "train_rows": 834,
+      "test_rows": 208
+    },
+    {
+      "fold": 5,
+      "train_rows": 1042,
+      "test_rows": 208
+    }
+  ],
+  "metrics": {
+    "mae": 17.403525475256995,
+    "rmse": 35.4104393894375,
+    "r2": -110.08130241146603,
+    "direction_accuracy": 0.5211538461538462
+  }
+}

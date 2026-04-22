@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-04-21T07:55:33.164623+00:00",
+  "generated_at_utc": "2026-04-21T09:15:14.545806+00:00",
   "ticker": "VUG",
   "period": "5y",
   "target_name": "target_5d_updown",
@@ -38,11 +38,11 @@
     }
   ],
   "metrics": {
-    "accuracy": 0.4875,
-    "precision": 0.5553822152886115,
-    "recall": 0.5894039735099338,
-    "f1": 0.5718875502008032,
+    "accuracy": 0.48653846153846153,
+    "precision": 0.5546875,
+    "recall": 0.5877483443708609,
+    "f1": 0.5707395498392283,
     "positive_rate_actual": 0.5807692307692308,
-    "positive_rate_predicted": 0.6163461538461539
+    "positive_rate_predicted": 0.6153846153846154
   }
 }

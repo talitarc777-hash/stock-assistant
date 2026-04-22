@@ -1,0 +1,46 @@
+{
+  "generated_at_utc": "2026-04-21T10:49:50.400918+00:00",
+  "ticker": "RIVN",
+  "period": "5y",
+  "target_name": "target_5d_return",
+  "task_type": "regression",
+  "model_name": "random_forest",
+  "row_count": 1108,
+  "feature_count": 51,
+  "time_series_splits": 5,
+  "validation_method": "walk_forward_expanding_window",
+  "validation_note": "Random train/test shuffling is avoided because time-series evaluation must preserve time order and keep future data out of the training window.",
+  "fold_sizes": [
+    {
+      "fold": 1,
+      "train_rows": 188,
+      "test_rows": 184
+    },
+    {
+      "fold": 2,
+      "train_rows": 372,
+      "test_rows": 184
+    },
+    {
+      "fold": 3,
+      "train_rows": 556,
+      "test_rows": 184
+    },
+    {
+      "fold": 4,
+      "train_rows": 740,
+      "test_rows": 184
+    },
+    {
+      "fold": 5,
+      "train_rows": 924,
+      "test_rows": 184
+    }
+  ],
+  "metrics": {
+    "mae": 11.92207443140399,
+    "rmse": 15.874179292028769,
+    "r2": -1.41280379028465,
+    "direction_accuracy": 0.48478260869565215
+  }
+}

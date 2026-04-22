@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-04-21T07:53:27.663384+00:00",
+  "generated_at_utc": "2026-04-21T09:13:45.565200+00:00",
   "ticker": "IJR",
   "period": "5y",
   "target_name": "target_5d_updown",
@@ -38,11 +38,11 @@
     }
   ],
   "metrics": {
-    "accuracy": 0.5115384615384615,
-    "precision": 0.585635359116022,
-    "recall": 0.19666048237476808,
-    "f1": 0.29444444444444445,
+    "accuracy": 0.5096153846153846,
+    "precision": 0.5810055865921788,
+    "recall": 0.19294990723562153,
+    "f1": 0.28969359331476324,
     "positive_rate_actual": 0.5182692307692308,
-    "positive_rate_predicted": 0.17403846153846153
+    "positive_rate_predicted": 0.17211538461538461
   }
 }

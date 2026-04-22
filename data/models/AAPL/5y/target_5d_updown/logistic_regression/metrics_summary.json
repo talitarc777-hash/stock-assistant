@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-04-21T08:20:43.879941+00:00",
+  "generated_at_utc": "2026-04-21T09:33:02.743788+00:00",
   "ticker": "AAPL",
   "period": "5y",
   "target_name": "target_5d_updown",
@@ -38,11 +38,11 @@
     }
   ],
   "metrics": {
-    "accuracy": 0.5009615384615385,
-    "precision": 0.5952380952380952,
-    "recall": 0.22361359570661896,
-    "f1": 0.3250975292587776,
+    "accuracy": 0.5019230769230769,
+    "precision": 0.5971563981042654,
+    "recall": 0.22540250447227192,
+    "f1": 0.32727272727272727,
     "positive_rate_actual": 0.5375,
-    "positive_rate_predicted": 0.20192307692307693
+    "positive_rate_predicted": 0.20288461538461539
   }
 }

@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-04-21T07:50:56.723263+00:00",
+  "generated_at_utc": "2026-04-21T09:11:58.000880+00:00",
   "ticker": "SPLG",
   "period": "5y",
   "target_name": "target_5d_updown",
@@ -38,11 +38,11 @@
     }
   ],
   "metrics": {
-    "accuracy": 0.48173076923076924,
-    "precision": 0.596401028277635,
-    "recall": 0.3778501628664495,
-    "f1": 0.4626121635094716,
+    "accuracy": 0.4798076923076923,
+    "precision": 0.5943152454780362,
+    "recall": 0.3745928338762215,
+    "f1": 0.4595404595404595,
     "positive_rate_actual": 0.5903846153846154,
-    "positive_rate_predicted": 0.37403846153846154
+    "positive_rate_predicted": 0.3721153846153846
   }
 }

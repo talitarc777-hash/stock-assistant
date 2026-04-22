@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-04-21T08:45:04.961098+00:00",
+  "generated_at_utc": "2026-04-21T09:50:25.112188+00:00",
   "ticker": "GE",
   "period": "5y",
   "target_name": "target_5d_updown",
@@ -38,11 +38,11 @@
     }
   ],
   "metrics": {
-    "accuracy": 0.42788461538461536,
-    "precision": 0.5431034482758621,
-    "recall": 0.3024,
-    "f1": 0.38848920863309355,
+    "accuracy": 0.4269230769230769,
+    "precision": 0.5417867435158501,
+    "recall": 0.3008,
+    "f1": 0.3868312757201646,
     "positive_rate_actual": 0.6009615384615384,
-    "positive_rate_predicted": 0.3346153846153846
+    "positive_rate_predicted": 0.33365384615384613
   }
 }

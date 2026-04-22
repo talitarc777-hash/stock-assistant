@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-04-21T08:30:21.234683+00:00",
+  "generated_at_utc": "2026-04-21T09:39:56.302338+00:00",
   "ticker": "ORCL",
   "period": "5y",
   "target_name": "target_5d_updown",
@@ -38,11 +38,11 @@
     }
   ],
   "metrics": {
-    "accuracy": 0.5269230769230769,
-    "precision": 0.5781990521327014,
+    "accuracy": 0.5259615384615385,
+    "precision": 0.5768321513002365,
     "recall": 0.43727598566308246,
-    "f1": 0.49795918367346936,
+    "f1": 0.49745158002038736,
     "positive_rate_actual": 0.5365384615384615,
-    "positive_rate_predicted": 0.40576923076923077
+    "positive_rate_predicted": 0.40673076923076923
   }
 }

@@ -1,0 +1,46 @@
+{
+  "generated_at_utc": "2026-04-21T11:02:26.219302+00:00",
+  "ticker": "ARM",
+  "period": "5y",
+  "target_name": "target_5d_return",
+  "task_type": "regression",
+  "model_name": "random_forest",
+  "row_count": 646,
+  "feature_count": 51,
+  "time_series_splits": 5,
+  "validation_method": "walk_forward_expanding_window",
+  "validation_note": "Random train/test shuffling is avoided because time-series evaluation must preserve time order and keep future data out of the training window.",
+  "fold_sizes": [
+    {
+      "fold": 1,
+      "train_rows": 111,
+      "test_rows": 107
+    },
+    {
+      "fold": 2,
+      "train_rows": 218,
+      "test_rows": 107
+    },
+    {
+      "fold": 3,
+      "train_rows": 325,
+      "test_rows": 107
+    },
+    {
+      "fold": 4,
+      "train_rows": 432,
+      "test_rows": 107
+    },
+    {
+      "fold": 5,
+      "train_rows": 539,
+      "test_rows": 107
+    }
+  ],
+  "metrics": {
+    "mae": 12.093329092214844,
+    "rmse": 16.17113677608204,
+    "r2": -2.5655384336756297,
+    "direction_accuracy": 0.5757009345794393
+  }
+}
