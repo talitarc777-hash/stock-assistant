@@ -124,3 +124,9 @@ def health_check() -> HealthResponse:
         message=message,
         scheduler_started=bool(scheduler_health.get("scheduler_started", False)),
     )
+
+
+@app.get("/", response_model=HealthResponse, tags=["system"])
+def root_health() -> HealthResponse:
+    """Return a 200 on root path for platforms that probe `/` by default."""
+    return health_check()
