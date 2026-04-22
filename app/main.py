@@ -50,17 +50,43 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     """Start/stop background schedulers with app lifecycle."""
-    synced = get_model_lifecycle_service().sync_registry_from_saved_artifacts(limit=800)
-    logging.getLogger(__name__).info("Model lifecycle startup sync completed discovered=%d", synced)
+    logger = logging.getLogger(__name__)
     trader_scheduler = get_trader_scheduler_service()
     lifecycle_scheduler = get_model_lifecycle_scheduler_service()
-    trader_scheduler.start()
-    lifecycle_scheduler.start()
+    trader_scheduler_started = False
+    lifecycle_scheduler_started = False
+
+    try:
+        synced = get_model_lifecycle_service().sync_registry_from_saved_artifacts(limit=800)
+        logger.info("Model lifecycle startup sync completed discovered=%d", synced)
+    except Exception as exc:  # pragma: no cover - defensive startup hardening
+        logger.exception("Model lifecycle startup sync failed error=%s", exc)
+
+    try:
+        trader_scheduler.start()
+        trader_scheduler_started = True
+    except Exception as exc:  # pragma: no cover - defensive startup hardening
+        logger.exception("Trader scheduler failed to start error=%s", exc)
+
+    try:
+        lifecycle_scheduler.start()
+        lifecycle_scheduler_started = True
+    except Exception as exc:  # pragma: no cover - defensive startup hardening
+        logger.exception("Model lifecycle scheduler failed to start error=%s", exc)
+
     try:
         yield
     finally:
-        lifecycle_scheduler.stop()
-        trader_scheduler.stop()
+        if lifecycle_scheduler_started:
+            try:
+                lifecycle_scheduler.stop()
+            except Exception as exc:  # pragma: no cover - defensive shutdown hardening
+                logger.exception("Model lifecycle scheduler failed to stop error=%s", exc)
+        if trader_scheduler_started:
+            try:
+                trader_scheduler.stop()
+            except Exception as exc:  # pragma: no cover - defensive shutdown hardening
+                logger.exception("Trader scheduler failed to stop error=%s", exc)
 
 
 # Create the API app instance.
