@@ -37,6 +37,9 @@ class AccountLedgerListResponse(BaseModel):
 
     user_id: str
     count: int
+    limit: int | None = None
+    offset: int | None = None
+    has_more: bool | None = None
     events: list[AccountLedgerEventResponse]
 
 
@@ -66,6 +69,9 @@ class VirtualAccountHistoryResponse(BaseModel):
 
     user_id: str
     count: int
+    limit: int | None = None
+    offset: int | None = None
+    has_more: bool | None = None
     events: list[VirtualAccountHistoryEventResponse]
 
 

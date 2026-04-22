@@ -14,6 +14,7 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 from app.core.settings import get_settings
@@ -98,7 +99,31 @@ class AccountLedgerService:
             if db_path is None
             else MonthlyContributionStore(db_path=str(self.db_path))
         )
+        # Tiny in-process price cache to reduce repeated yfinance calls under
+        # constrained hosts (for example Railway free-tier containers).
+        self._latest_price_cache: dict[str, tuple[float, float]] = {}
+        self._latest_price_cache_lock = Lock()
+        self._latest_price_ttl_seconds = 120.0
         self._initialize()
+
+    def _get_latest_price_cached(self, ticker: str) -> float:
+        clean_ticker = str(ticker).strip().upper()
+        now_ts = datetime.now(UTC).timestamp()
+        with self._latest_price_cache_lock:
+            cached = self._latest_price_cache.get(clean_ticker)
+            if cached is not None:
+                value, expires_at = cached
+                if expires_at > now_ts:
+                    return float(value)
+                self._latest_price_cache.pop(clean_ticker, None)
+        df = get_price_history(clean_ticker, period="3mo")
+        latest_close = float(df.sort_values("date").iloc[-1]["close"])
+        with self._latest_price_cache_lock:
+            self._latest_price_cache[clean_ticker] = (
+                latest_close,
+                now_ts + self._latest_price_ttl_seconds,
+            )
+        return latest_close
 
     def _connect(self) -> sqlite3.Connection:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -253,6 +278,7 @@ class AccountLedgerService:
         self,
         user_id: str,
         limit: int = 200,
+        offset: int = 0,
         event_types: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         clean_user_id = _clean_user_id(user_id)
@@ -264,8 +290,9 @@ class AccountLedgerService:
                 placeholders = ",".join("?" for _ in normalized)
                 sql += f" AND event_type IN ({placeholders})"
                 params.extend(normalized)
-        sql += " ORDER BY id DESC LIMIT ?"
+        sql += " ORDER BY id DESC LIMIT ? OFFSET ?"
         params.append(max(1, int(limit)))
+        params.append(max(0, int(offset)))
         with self._connect() as conn:
             rows = conn.execute(sql, tuple(params)).fetchall()
         return [self._row_to_dict(row) for row in rows]
@@ -274,6 +301,7 @@ class AccountLedgerService:
         self,
         user_id: str,
         limit: int = 200,
+        offset: int = 0,
         event_types: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Return immutable account history rows with running balance context.
@@ -329,7 +357,9 @@ class AccountLedgerService:
             len(history_rows),
             min(len(newest_first), max(1, int(limit))),
         )
-        return newest_first[: max(1, int(limit))]
+        safe_offset = max(0, int(offset))
+        safe_limit = max(1, int(limit))
+        return newest_first[safe_offset : safe_offset + safe_limit]
 
     def list_events_chronological(
         self,
@@ -712,8 +742,7 @@ class AccountLedgerService:
         if holdings_map:
             missing = [ticker for ticker in holdings_map if ticker not in price_map]
             for ticker in missing:
-                df = get_price_history(ticker, period="3mo")
-                price_map[ticker] = float(df.sort_values("date").iloc[-1]["close"])
+                price_map[ticker] = self._get_latest_price_cached(ticker)
 
         holdings_rows: list[dict[str, Any]] = []
         holdings_value = 0.0

@@ -40,6 +40,8 @@ class HealthResponse(BaseModel):
     status: str
     app_name: str
     environment: str
+    message: str | None = None
+    scheduler_started: bool | None = None
 
 
 settings = get_settings()
@@ -109,8 +111,16 @@ def health_check() -> HealthResponse:
 
     Useful for smoke checks from local scripts, dashboards, or monitors.
     """
+    scheduler_health = get_trader_scheduler_service().get_health()
+    message = (
+        "Server is ready."
+        if bool(scheduler_health.get("scheduler_started", False))
+        else "Server is starting or temporarily busy. Please retry in a moment."
+    )
     return HealthResponse(
         status="ok",
         app_name=settings.app_name,
         environment=settings.app_env,
+        message=message,
+        scheduler_started=bool(scheduler_health.get("scheduler_started", False)),
     )

@@ -225,19 +225,30 @@ function DashboardPage({ languageMode, profileId, currentWatchlist, onProfileUpd
     setIsLoadingDetail(true);
     setError("");
     try {
-      const [analysis, chart] = await Promise.all([
+      const [analysisResult, chartResult, forecastResult] = await Promise.allSettled([
         fetchAnalyze(ticker, DEFAULT_PERIOD),
         fetchChartData(ticker, DEFAULT_PERIOD),
+        fetchForecast(ticker, "2y"),
       ]);
-      let forecast = null;
-      try {
-        forecast = await fetchForecast(ticker, "2y");
-      } catch {
-        forecast = null;
+      if (analysisResult.status === "fulfilled") {
+        setAnalyzeData(analysisResult.value);
       }
-      setAnalyzeData(analysis);
-      setChartData(chart);
-      setForecastData(forecast);
+      if (chartResult.status === "fulfilled") {
+        setChartData(chartResult.value);
+      }
+      if (forecastResult.status === "fulfilled") {
+        setForecastData(forecastResult.value);
+      } else {
+        setForecastData(null);
+      }
+      const failedCount = [analysisResult, chartResult, forecastResult].filter(
+        (item) => item.status === "rejected"
+      ).length;
+      if (failedCount > 0) {
+        setError(
+          `Some ticker details could not be loaded (${failedCount}). You can still use available sections.`
+        );
+      }
     } catch (requestError) {
       setAnalyzeData(null);
       setChartData(null);

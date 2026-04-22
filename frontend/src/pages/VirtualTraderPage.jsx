@@ -30,6 +30,8 @@ import { fetchModelEvaluationSettings } from "../services/modelSettingsApi";
 
 const DEFAULT_PERIOD = "5y";
 const DEFAULT_MODEL = "logistic_regression";
+const HISTORY_PAGE_SIZE = 120;
+const SCHEDULER_REFRESH_MS = 60000;
 
 const ZH = {
   virtualTrader: "\u865b\u64ec\u4ea4\u6613\u54e1",
@@ -116,6 +118,11 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
   const [accountSummary, setAccountSummary] = useState(null);
   const [accountHoldings, setAccountHoldings] = useState([]);
   const [accountHistory, setAccountHistory] = useState([]);
+  const [historyOffset, setHistoryOffset] = useState(0);
+  const [historyHasMore, setHistoryHasMore] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyEnabled, setHistoryEnabled] = useState(false);
+  const [historyError, setHistoryError] = useState("");
   const [recentTrades, setRecentTrades] = useState([]);
   const [equityCurve, setEquityCurve] = useState([]);
   const [liveDecisionLog, setLiveDecisionLog] = useState([]);
@@ -124,6 +131,8 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
   const [selectedLiveTrade, setSelectedLiveTrade] = useState(null);
   const [historicalSummary, setHistoricalSummary] = useState(null);
   const [historicalContributionData, setHistoricalContributionData] = useState(null);
+  const [historicalLoading, setHistoricalLoading] = useState(false);
+  const [historicalEnabled, setHistoricalEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isRunningNow, setIsRunningNow] = useState(false);
   const [error, setError] = useState("");
@@ -160,55 +169,91 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
     setIsLoading(true);
     setError("");
     try {
-      const [
-        schedulerStatusPayload,
-        statusPayload,
-        accountSummaryPayload,
-        holdingsPayload,
-        historyPayload,
-        recentTradesPayload,
-        equityCurvePayload,
-        decisionsPayload,
-        historicalSummaryPayload,
-        historicalTradesPayload,
-      ] = await Promise.all([
+      // Keep initial render lightweight for low-resource deployments:
+      // load core cards first, then load heavy sections only on demand.
+      const coreResults = await Promise.allSettled([
         fetchTraderSchedulerStatus(24),
         fetchLiveVirtualTraderStatus(profileId, null, selectedModelName, false),
         fetchVirtualAccountSummary(profileId),
         fetchVirtualAccountHoldings(profileId),
-        fetchVirtualAccountHistory(profileId, 250),
         fetchVirtualAccountRecentTrades(profileId, 20),
-        fetchVirtualAccountEquityCurve(profileId, 240),
+        fetchVirtualAccountEquityCurve(profileId, 160),
         fetchLiveVirtualTraderTrades(profileId, null, 20),
-        fetchVirtualTraderSummary(activeTicker, DEFAULT_PERIOD, selectedModelName, 500, profileId),
-        fetchVirtualTraderTrades(activeTicker, DEFAULT_PERIOD, selectedModelName, 200, profileId),
       ]);
-      setSchedulerStatus(schedulerStatusPayload);
-      setLiveStatus(statusPayload);
-      setAccountSummary(accountSummaryPayload);
-      setAccountHoldings(holdingsPayload.holdings || []);
-      setAccountHistory(historyPayload.events || []);
-      setRecentTrades(recentTradesPayload.trades || []);
-      setEquityCurve(equityCurvePayload.points || []);
-      setLiveDecisionLog(decisionsPayload.trades || []);
-      setSelectedLiveTrade((decisionsPayload.trades || [])[0] || null);
-      setHistoricalSummary(historicalSummaryPayload);
-      setHistoricalContributionData(historicalTradesPayload);
+
+      const [
+        schedulerStatusResult,
+        liveStatusResult,
+        accountSummaryResult,
+        holdingsResult,
+        recentTradesResult,
+        equityCurveResult,
+        decisionsResult,
+      ] = coreResults;
+
+      if (schedulerStatusResult.status === "fulfilled") setSchedulerStatus(schedulerStatusResult.value);
+      if (liveStatusResult.status === "fulfilled") setLiveStatus(liveStatusResult.value);
+      if (accountSummaryResult.status === "fulfilled") setAccountSummary(accountSummaryResult.value);
+      if (holdingsResult.status === "fulfilled") setAccountHoldings(holdingsResult.value.holdings || []);
+      if (recentTradesResult.status === "fulfilled") setRecentTrades(recentTradesResult.value.trades || []);
+      if (equityCurveResult.status === "fulfilled") setEquityCurve(equityCurveResult.value.points || []);
+      if (decisionsResult.status === "fulfilled") {
+        setLiveDecisionLog(decisionsResult.value.trades || []);
+        setSelectedLiveTrade((decisionsResult.value.trades || [])[0] || null);
+      }
+
+      const failedCore = coreResults
+        .filter((item) => item.status === "rejected")
+        .map((item) => item.reason?.message || "Unknown error");
+      if (failedCore.length > 0) {
+        setError(`Some sections could not be loaded (${failedCore.length}). You can retry below.`);
+      }
+
+      if (historyEnabled) {
+        await loadAccountHistoryPage({ reset: true });
+      }
+      if (historicalEnabled) {
+        await loadHistoricalReplayData(activeTicker);
+      }
     } catch (requestError) {
-      setLiveStatus(null);
-      setSchedulerStatus(null);
-      setAccountSummary(null);
-      setAccountHoldings([]);
-      setAccountHistory([]);
-      setRecentTrades([]);
-      setEquityCurve([]);
-      setLiveDecisionLog([]);
-      setSelectedLiveTrade(null);
-      setHistoricalSummary(null);
-      setHistoricalContributionData(null);
       setError(requestError.message || "Failed to load virtual trader views.");
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function loadAccountHistoryPage({ reset = false } = {}) {
+    if (!profileId) return;
+    setHistoryLoading(true);
+    setHistoryError("");
+    try {
+      const nextOffset = reset ? 0 : historyOffset;
+      const payload = await fetchVirtualAccountHistory(profileId, HISTORY_PAGE_SIZE, nextOffset);
+      const newEvents = payload?.events || [];
+      setAccountHistory((current) => (reset ? newEvents : [...current, ...newEvents]));
+      setHistoryOffset(nextOffset + newEvents.length);
+      setHistoryHasMore(Boolean(payload?.has_more));
+    } catch (requestError) {
+      setHistoryError(requestError.message || "Failed to load account history.");
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  async function loadHistoricalReplayData(activeTicker = selectedTicker) {
+    if (!profileId || !activeTicker) return;
+    setHistoricalLoading(true);
+    try {
+      const [historicalSummaryPayload, historicalTradesPayload] = await Promise.all([
+        fetchVirtualTraderSummary(activeTicker, DEFAULT_PERIOD, selectedModelName, 300, profileId),
+        fetchVirtualTraderTrades(activeTicker, DEFAULT_PERIOD, selectedModelName, 120, profileId),
+      ]);
+      setHistoricalSummary(historicalSummaryPayload);
+      setHistoricalContributionData(historicalTradesPayload);
+    } catch (requestError) {
+      setError(requestError.message || "Failed to load historical replay section.");
+    } finally {
+      setHistoricalLoading(false);
     }
   }
 
@@ -229,8 +274,10 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
   useEffect(() => {
     if (!profileId) return undefined;
     const timer = window.setInterval(() => {
-      loadSchedulerStatusOnly();
-    }, 30000);
+      if (!document.hidden) {
+        loadSchedulerStatusOnly();
+      }
+    }, SCHEDULER_REFRESH_MS);
     return () => window.clearInterval(timer);
   }, [profileId]);
 
@@ -272,6 +319,18 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
     } catch (requestError) {
       setError(requestError.message || "Failed to withdraw cash.");
     }
+  }
+
+  async function handleEnableHistory() {
+    setHistoryEnabled(true);
+    setHistoryOffset(0);
+    setAccountHistory([]);
+    await loadAccountHistoryPage({ reset: true });
+  }
+
+  async function handleEnableHistoricalReplay() {
+    setHistoricalEnabled(true);
+    await loadHistoricalReplayData(selectedTicker);
   }
 
   const liveEquityPoints = useMemo(() => {
@@ -544,7 +603,32 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
       </section>
 
       <NewsSentimentPanel ticker={selectedTicker} languageMode={languageMode} />
-      <TransactionHistoryTable languageMode={languageMode} events={accountHistory} />
+      {!historyEnabled ? (
+        <section className="panel">
+          <h3>{getLabel(languageMode, "historyTitle")}</h3>
+          <p className="helper-text">
+            {labelByMode(
+              languageMode,
+              "History is loaded on demand to keep this page responsive on low-resource servers.",
+              "為了在低資源伺服器保持頁面流暢，歷史紀錄會按需載入。"
+            )}
+          </p>
+          <div className="settings-actions">
+            <button type="button" onClick={handleEnableHistory} disabled={historyLoading}>
+              {historyLoading ? getLabel(languageMode, "loading") : getLabel(languageMode, "loadAccountHistory")}
+            </button>
+          </div>
+        </section>
+      ) : (
+        <TransactionHistoryTable
+          languageMode={languageMode}
+          events={accountHistory}
+          isLoading={historyLoading}
+          hasMore={historyHasMore}
+          onLoadMore={() => loadAccountHistoryPage({ reset: false })}
+          errorMessage={historyError}
+        />
+      )}
 
       <section className="panel">
         <h3>{labelByMode(languageMode, "Historical Replay Mode", ZH.historicalMode)}</h3>
@@ -557,7 +641,23 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
         </p>
       </section>
 
-      {historicalContributionData ? (
+      {!historicalEnabled ? (
+        <section className="panel">
+          <h3>{labelByMode(languageMode, "Historical Replay Mode", ZH.historicalMode)}</h3>
+          <p className="helper-text">
+            {labelByMode(
+              languageMode,
+              "Historical replay data is optional and loaded on demand to reduce backend load.",
+              "歷史回放資料屬可選內容，會按需載入以減少後端負載。"
+            )}
+          </p>
+          <div className="settings-actions">
+            <button type="button" onClick={handleEnableHistoricalReplay} disabled={historicalLoading}>
+              {historicalLoading ? getLabel(languageMode, "loading") : getLabel(languageMode, "loadHistoricalReplay")}
+            </button>
+          </div>
+        </section>
+      ) : historicalContributionData ? (
         <>
           <EquityChart
             ticker={selectedTicker}
@@ -601,7 +701,11 @@ export default function VirtualTraderPage({ languageMode, currentWatchlist, prof
             height={180}
           />
         </>
-      ) : null}
+      ) : (
+        <section className="panel">
+          <p>{labelByMode(languageMode, "Loading...", ZH.loading)}</p>
+        </section>
+      )}
     </>
   );
 }

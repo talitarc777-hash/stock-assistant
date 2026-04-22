@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import logging
+from time import perf_counter
 
 from fastapi import APIRouter, HTTPException, Query
 
+from app.core.ttl_cache import TTLCache
 from app.models.account_ledger import (
     AccountLedgerListResponse,
     VirtualAccountEquityCurveResponse,
@@ -33,6 +35,38 @@ from app.services.monthly_contribution_service import get_monthly_contribution_s
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["virtual-account"])
+_SUMMARY_CACHE: TTLCache[dict] = TTLCache(max_items=300)
+_HOLDINGS_CACHE: TTLCache[list[dict]] = TTLCache(max_items=300)
+_EQUITY_CURVE_CACHE: TTLCache[dict] = TTLCache(max_items=200)
+
+
+def _summary_key(user_id: str) -> str:
+    return f"summary:{str(user_id).strip()}"
+
+
+def _holdings_key(user_id: str) -> str:
+    return f"holdings:{str(user_id).strip()}"
+
+
+def _equity_curve_key(user_id: str, limit: int) -> str:
+    return f"equity:{str(user_id).strip()}:{int(limit)}"
+
+
+def _clear_user_cache(user_id: str) -> None:
+    clean_user_id = str(user_id).strip()
+    _SUMMARY_CACHE.invalidate(_summary_key(clean_user_id))
+    _HOLDINGS_CACHE.invalidate(_holdings_key(clean_user_id))
+    _EQUITY_CURVE_CACHE.invalidate_prefix(f"equity:{clean_user_id}:")
+
+
+def _get_cached_summary(user_id: str, *, ttl_seconds: float = 8.0) -> dict:
+    key = _summary_key(user_id)
+    cached = _SUMMARY_CACHE.get(key)
+    if cached is not None:
+        return cached
+    payload = get_account_ledger_service().build_account_summary(user_id=user_id)
+    _SUMMARY_CACHE.set(key, payload, ttl_seconds=ttl_seconds)
+    return payload
 
 
 @router.get("/virtual-account/summary", response_model=VirtualAccountSummaryResponse)
@@ -40,8 +74,16 @@ def virtual_account_summary(
     user_id: str = Query(..., min_length=1, max_length=120),
 ) -> VirtualAccountSummaryResponse:
     """Return current account state rebuilt from immutable ledger events."""
+    started = perf_counter()
     try:
-        payload = get_account_ledger_service().build_account_summary(user_id=user_id)
+        payload = _get_cached_summary(user_id)
+        elapsed_ms = (perf_counter() - started) * 1000.0
+        logger.info(
+            "virtual-account summary user_id=%s holdings=%d elapsed_ms=%.1f",
+            user_id,
+            len(payload.get("holdings", [])),
+            elapsed_ms,
+        )
         return VirtualAccountSummaryResponse(**payload)
     except AccountLedgerError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -53,11 +95,23 @@ def virtual_account_summary(
 @router.get("/virtual-account/equity-curve", response_model=VirtualAccountEquityCurveResponse)
 def virtual_account_equity_curve(
     user_id: str = Query(..., min_length=1, max_length=120),
-    limit: int = Query(200, ge=1, le=2000),
+    limit: int = Query(160, ge=1, le=1000),
 ) -> VirtualAccountEquityCurveResponse:
     """Return the profile-level live equity curve from the immutable ledger."""
+    started = perf_counter()
     try:
-        payload = build_live_equity_curve(user_id=user_id, limit=limit)
+        cache_key = _equity_curve_key(user_id, limit)
+        payload = _EQUITY_CURVE_CACHE.get(cache_key)
+        if payload is None:
+            payload = build_live_equity_curve(user_id=user_id, limit=limit)
+            _EQUITY_CURVE_CACHE.set(cache_key, payload, ttl_seconds=10.0)
+        elapsed_ms = (perf_counter() - started) * 1000.0
+        logger.info(
+            "virtual-account equity-curve user_id=%s points=%d elapsed_ms=%.1f",
+            user_id,
+            len(payload.get("points", [])),
+            elapsed_ms,
+        )
         return VirtualAccountEquityCurveResponse(**payload)
     except AccountLedgerError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -92,10 +146,12 @@ def virtual_account_monthly_contribution_input_update(
 ) -> MonthlyContributionInputResponse:
     """Save recurring monthly contribution amount used for first-day auto-cash."""
     try:
-        return get_monthly_contribution_store().set_active_input(
+        payload = get_monthly_contribution_store().set_active_input(
             user_id=request.user_id,
             amount=request.amount,
         )
+        _clear_user_cache(request.user_id)
+        return payload
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # pragma: no cover
@@ -106,14 +162,37 @@ def virtual_account_monthly_contribution_input_update(
 @router.get("/virtual-account/ledger", response_model=AccountLedgerListResponse)
 def virtual_account_ledger(
     user_id: str = Query(..., min_length=1, max_length=120),
-    limit: int = Query(200, ge=1, le=2000),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0, le=100000),
 ) -> AccountLedgerListResponse:
     """List immutable ledger events for one user."""
+    started = perf_counter()
     try:
-        events = get_account_ledger_service().list_events(user_id=user_id, limit=limit)
+        safe_limit = max(1, int(limit))
+        safe_offset = max(0, int(offset))
+        rows = get_account_ledger_service().list_events(
+            user_id=user_id,
+            limit=safe_limit + 1,
+            offset=safe_offset,
+        )
+        has_more = len(rows) > safe_limit
+        events = rows[:safe_limit]
+        elapsed_ms = (perf_counter() - started) * 1000.0
+        logger.info(
+            "virtual-account ledger user_id=%s offset=%d limit=%d rows=%d has_more=%s elapsed_ms=%.1f",
+            user_id,
+            safe_offset,
+            safe_limit,
+            len(events),
+            has_more,
+            elapsed_ms,
+        )
         return AccountLedgerListResponse(
             user_id=user_id,
             count=len(events),
+            limit=safe_limit,
+            offset=safe_offset,
+            has_more=has_more,
             events=events,
         )
     except AccountLedgerError as exc:
@@ -126,12 +205,41 @@ def virtual_account_ledger(
 @router.get("/virtual-account/history", response_model=VirtualAccountHistoryResponse)
 def virtual_account_history(
     user_id: str = Query(..., min_length=1, max_length=120),
-    limit: int = Query(200, ge=1, le=2000),
+    limit: int = Query(120, ge=1, le=500),
+    offset: int = Query(0, ge=0, le=100000),
 ) -> VirtualAccountHistoryResponse:
     """Return immutable account history with running balance for one profile."""
+    # Pagination is important on small instances; full history rebuild can be expensive
+    # for long-lived profiles, so we default to lighter pages.
+    started = perf_counter()
     try:
-        events = get_account_ledger_service().list_account_history(user_id=user_id, limit=limit)
-        return VirtualAccountHistoryResponse(user_id=user_id, count=len(events), events=events)
+        safe_limit = max(1, int(limit))
+        safe_offset = max(0, int(offset))
+        rows = get_account_ledger_service().list_account_history(
+            user_id=user_id,
+            limit=safe_limit + 1,
+            offset=safe_offset,
+        )
+        has_more = len(rows) > safe_limit
+        events = rows[:safe_limit]
+        elapsed_ms = (perf_counter() - started) * 1000.0
+        logger.info(
+            "virtual-account history user_id=%s offset=%d limit=%d rows=%d has_more=%s elapsed_ms=%.1f",
+            user_id,
+            safe_offset,
+            safe_limit,
+            len(events),
+            has_more,
+            elapsed_ms,
+        )
+        return VirtualAccountHistoryResponse(
+            user_id=user_id,
+            count=len(events),
+            limit=safe_limit,
+            offset=safe_offset,
+            has_more=has_more,
+            events=events,
+        )
     except AccountLedgerError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # pragma: no cover
@@ -144,8 +252,21 @@ def virtual_account_holdings(
     user_id: str = Query(..., min_length=1, max_length=120),
 ) -> VirtualAccountHoldingsResponse:
     """Return current open positions derived from immutable trade history."""
+    started = perf_counter()
     try:
-        holdings = get_account_ledger_service().list_current_holdings(user_id=user_id)
+        key = _holdings_key(user_id)
+        holdings = _HOLDINGS_CACHE.get(key)
+        if holdings is None:
+            summary = _get_cached_summary(user_id)
+            holdings = summary.get("holdings", [])
+            _HOLDINGS_CACHE.set(key, holdings, ttl_seconds=8.0)
+        elapsed_ms = (perf_counter() - started) * 1000.0
+        logger.info(
+            "virtual-account holdings user_id=%s rows=%d elapsed_ms=%.1f",
+            user_id,
+            len(holdings),
+            elapsed_ms,
+        )
         return VirtualAccountHoldingsResponse(user_id=user_id, count=len(holdings), holdings=holdings)
     except AccountLedgerError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -160,8 +281,17 @@ def virtual_account_recent_trades(
     limit: int = Query(20, ge=1, le=200),
 ) -> VirtualAccountRecentTradesResponse:
     """Return recent executed buy/sell trades for one profile."""
+    started = perf_counter()
     try:
         trades = get_account_ledger_service().list_recent_trade_events(user_id=user_id, limit=limit)
+        elapsed_ms = (perf_counter() - started) * 1000.0
+        logger.info(
+            "virtual-account recent-trades user_id=%s limit=%d rows=%d elapsed_ms=%.1f",
+            user_id,
+            int(limit),
+            len(trades),
+            elapsed_ms,
+        )
         return VirtualAccountRecentTradesResponse(user_id=user_id, count=len(trades), trades=trades)
     except AccountLedgerError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -181,6 +311,7 @@ def virtual_account_deposit(request: VirtualAccountDepositRequest) -> VirtualAcc
             source=request.source,
             reason=request.reason,
         )
+        _clear_user_cache(request.user_id)
         return VirtualAccountSummaryResponse(**ledger.build_account_summary(request.user_id))
     except AccountLedgerError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -200,6 +331,7 @@ def virtual_account_withdraw(request: VirtualAccountWithdrawalRequest) -> Virtua
             source=request.source,
             reason=request.reason,
         )
+        _clear_user_cache(request.user_id)
         return VirtualAccountSummaryResponse(**ledger.build_account_summary(request.user_id))
     except AccountLedgerError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -236,6 +368,7 @@ def virtual_account_reset(request: VirtualAccountResetRequest) -> VirtualAccount
             user_id=request.user_id,
             reset_monthly_contributions=bool(request.reset_monthly_contributions),
         )
+        _clear_user_cache(request.user_id)
         return VirtualAccountResetResponse(**payload)
     except AccountLedgerError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

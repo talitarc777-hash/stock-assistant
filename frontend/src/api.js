@@ -1,58 +1,39 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+import { requestJson } from "./services/httpClient";
 
-async function fetchJson(path) {
-  const response = await fetch(`${API_BASE_URL}${path}`);
-  if (!response.ok) {
-    const fallbackMessage = `Request failed with status ${response.status}`;
-    let detail = fallbackMessage;
-    try {
-      const payload = await response.json();
-      detail = payload?.detail || fallbackMessage;
-    } catch {
-      detail = fallbackMessage;
-    }
-    throw new Error(detail);
-  }
-  return response.json();
+async function fetchJson(path, options = {}) {
+  return requestJson(path, {
+    method: "GET",
+    ...options,
+  });
 }
 
-async function postJson(path, body) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+async function postJson(path, body, options = {}) {
+  return requestJson(path, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body || {}),
+    body: body || {},
+    retries: 0,
+    ...options,
   });
-  if (!response.ok) {
-    const fallbackMessage = `Request failed with status ${response.status}`;
-    let detail = fallbackMessage;
-    try {
-      const payload = await response.json();
-      detail = payload?.detail || fallbackMessage;
-    } catch {
-      detail = fallbackMessage;
-    }
-    throw new Error(detail);
-  }
-  return response.json();
 }
 
 export async function fetchWatchlistAnalyze(tickers, period = "5y") {
   const joined = encodeURIComponent(tickers.join(","));
-  return fetchJson(`/watchlist-analyze?tickers=${joined}&period=${period}`);
+  return fetchJson(`/watchlist-analyze?tickers=${joined}&period=${period}`, { timeoutMs: 15000, retries: 1 });
 }
 
 export async function fetchAnalyze(ticker, period = "5y") {
-  return fetchJson(`/analyze?ticker=${encodeURIComponent(ticker)}&period=${period}`);
+  return fetchJson(`/analyze?ticker=${encodeURIComponent(ticker)}&period=${period}`, { timeoutMs: 14000 });
 }
 
 export async function fetchChartData(ticker, period = "5y") {
-  return fetchJson(`/chart-data?ticker=${encodeURIComponent(ticker)}&period=${period}`);
+  return fetchJson(`/chart-data?ticker=${encodeURIComponent(ticker)}&period=${period}`, {
+    timeoutMs: 18000,
+    retries: 1,
+  });
 }
 
 export async function fetchForecast(ticker, period = "2y") {
-  return fetchJson(`/forecast?ticker=${encodeURIComponent(ticker)}&period=${period}`);
+  return fetchJson(`/forecast?ticker=${encodeURIComponent(ticker)}&period=${period}`, { timeoutMs: 14000 });
 }
 
 export async function fetchModelLatest(
@@ -106,7 +87,7 @@ export async function fetchVirtualTraderSummary(
   ticker,
   period = "5y",
   modelName = "logistic_regression",
-  equityLimit = 500,
+  equityLimit = 300,
   userId = null
 ) {
   const userQuery = userId ? `&user_id=${encodeURIComponent(userId)}` : "";
@@ -121,7 +102,7 @@ export async function fetchVirtualTraderTrades(
   ticker,
   period = "5y",
   modelName = "logistic_regression",
-  limit = 200,
+  limit = 120,
   userId = null
 ) {
   const userQuery = userId ? `&user_id=${encodeURIComponent(userId)}` : "";
@@ -141,7 +122,8 @@ export async function fetchLiveVirtualTraderStatus(
   const tickerQuery = ticker ? `&ticker=${encodeURIComponent(ticker)}` : "";
   const modelQuery = modelName ? `&model_name=${encodeURIComponent(modelName)}` : "";
   return fetchJson(
-    `/virtual-trader/live-status?user_id=${encodeURIComponent(userId)}${tickerQuery}${modelQuery}&auto_run=${autoRun ? "true" : "false"}`
+    `/virtual-trader/live-status?user_id=${encodeURIComponent(userId)}${tickerQuery}${modelQuery}&auto_run=${autoRun ? "true" : "false"}`,
+    { timeoutMs: 15000, retries: 1 }
   );
 }
 
@@ -156,13 +138,15 @@ export async function runLiveVirtualTraderNow(userId, tickers = null, modelName 
 export async function fetchLiveVirtualTraderTrades(userId, ticker = null, limit = 50) {
   const tickerQuery = ticker ? `&ticker=${encodeURIComponent(ticker)}` : "";
   return fetchJson(
-    `/virtual-trader/live-trades?user_id=${encodeURIComponent(userId)}${tickerQuery}&limit=${limit}`
+    `/virtual-trader/live-trades?user_id=${encodeURIComponent(userId)}${tickerQuery}&limit=${limit}`,
+    { timeoutMs: 15000, retries: 1 }
   );
 }
 
 export async function fetchTraderSchedulerStatus(recentHours = 24) {
   return fetchJson(
-    `/virtual-trader/scheduler-status?recent_hours=${encodeURIComponent(recentHours)}`
+    `/virtual-trader/scheduler-status?recent_hours=${encodeURIComponent(recentHours)}`,
+    { timeoutMs: 10000, retries: 1 }
   );
 }
 
@@ -178,29 +162,45 @@ export async function fetchNewsSentimentDebug(ticker, date = null, period = "6mo
 }
 
 export async function fetchVirtualAccountSummary(userId) {
-  return fetchJson(`/virtual-account/summary?user_id=${encodeURIComponent(userId)}`);
+  return fetchJson(`/virtual-account/summary?user_id=${encodeURIComponent(userId)}`, {
+    timeoutMs: 12000,
+    retries: 1,
+  });
 }
 
-export async function fetchVirtualAccountEquityCurve(userId, limit = 240) {
+export async function fetchVirtualAccountEquityCurve(userId, limit = 160) {
   return fetchJson(
-    `/virtual-account/equity-curve?user_id=${encodeURIComponent(userId)}&limit=${encodeURIComponent(limit)}`
+    `/virtual-account/equity-curve?user_id=${encodeURIComponent(userId)}&limit=${encodeURIComponent(limit)}`,
+    { timeoutMs: 15000, retries: 1 }
   );
 }
 
-export async function fetchVirtualAccountLedger(userId, limit = 200) {
-  return fetchJson(`/virtual-account/ledger?user_id=${encodeURIComponent(userId)}&limit=${limit}`);
+export async function fetchVirtualAccountLedger(userId, limit = 100, offset = 0) {
+  return fetchJson(
+    `/virtual-account/ledger?user_id=${encodeURIComponent(userId)}&limit=${limit}&offset=${offset}`,
+    { timeoutMs: 14000, retries: 1 }
+  );
 }
 
-export async function fetchVirtualAccountHistory(userId, limit = 200) {
-  return fetchJson(`/virtual-account/history?user_id=${encodeURIComponent(userId)}&limit=${limit}`);
+export async function fetchVirtualAccountHistory(userId, limit = 120, offset = 0) {
+  return fetchJson(
+    `/virtual-account/history?user_id=${encodeURIComponent(userId)}&limit=${limit}&offset=${offset}`,
+    { timeoutMs: 14000, retries: 1 }
+  );
 }
 
 export async function fetchVirtualAccountHoldings(userId) {
-  return fetchJson(`/virtual-account/holdings?user_id=${encodeURIComponent(userId)}`);
+  return fetchJson(`/virtual-account/holdings?user_id=${encodeURIComponent(userId)}`, {
+    timeoutMs: 12000,
+    retries: 1,
+  });
 }
 
 export async function fetchVirtualAccountRecentTrades(userId, limit = 20) {
-  return fetchJson(`/virtual-account/recent-trades?user_id=${encodeURIComponent(userId)}&limit=${limit}`);
+  return fetchJson(`/virtual-account/recent-trades?user_id=${encodeURIComponent(userId)}&limit=${limit}`, {
+    timeoutMs: 12000,
+    retries: 1,
+  });
 }
 
 export async function postVirtualAccountDeposit(userId, amount, reason = "") {

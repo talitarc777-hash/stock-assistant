@@ -21,7 +21,14 @@ function formatEventType(eventType, languageMode) {
   return getLabel(languageMode, labelKey);
 }
 
-export default function TransactionHistoryTable({ languageMode, events = [] }) {
+export default function TransactionHistoryTable({
+  languageMode,
+  events = [],
+  isLoading = false,
+  hasMore = false,
+  onLoadMore = null,
+  errorMessage = "",
+}) {
   const [filter, setFilter] = useState("all");
 
   const filteredEvents = useMemo(() => {
@@ -96,6 +103,18 @@ export default function TransactionHistoryTable({ languageMode, events = [] }) {
           </tbody>
         </table>
       </div>
+      {errorMessage ? <p className="helper-text">{errorMessage}</p> : null}
+      {onLoadMore ? (
+        <div className="settings-actions">
+          <button type="button" onClick={onLoadMore} disabled={isLoading || !hasMore}>
+            {isLoading
+              ? getLabel(languageMode, "loading")
+              : hasMore
+                ? getLabel(languageMode, "loadMoreHistory")
+                : getLabel(languageMode, "noMoreHistory")}
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -546,6 +546,37 @@ News-sentiment note:
 - Running scripts from VS Code tasks:
   ensure `.venv312` exists and dependencies are installed in that environment.
 
+## Low-Resource Deployment (Railway-Friendly)
+
+These optimizations were added for small instances (for example ~1 vCPU / 0.5 GB RAM):
+
+- Frontend request resilience:
+  - shared fetch client with request timeout
+  - retry for transient GET failures (network/502/503/504/429)
+  - friendlier error messages such as:
+    - `Server is starting or temporarily busy. Please retry in a moment.`
+    - `Unable to reach backend API. Server may be restarting or unavailable.`
+- Virtual Trader page load strategy:
+  - loads core summary panels first
+  - defers heavy sections (account history and historical replay) to on-demand buttons
+  - does not collapse the whole page when one panel fails
+- Reduced request pressure:
+  - scheduler status polling slowed to 60 seconds and skips refresh when tab is hidden
+  - lower default chart/history limits on heavy endpoints
+- Backend payload controls:
+  - `GET /virtual-account/history` supports `limit` + `offset`
+  - `GET /virtual-account/ledger` supports `limit` + `offset`
+  - responses include `has_more` for incremental loading
+- Lightweight caching:
+  - short TTL in-process cache for summary/holdings/equity-curve reads
+  - short TTL latest-price cache inside account summary rebuild path
+- Endpoint timing logs:
+  - key virtual-account and trader-status endpoints now log elapsed milliseconds and row counts
+
+Notes:
+- Scheduler recent-runs storage remains in-memory (rolling buffer), so it resets on backend restart.
+- For best stability on tiny hosts, keep watchlist size moderate and avoid loading large historical sections unless needed.
+
 
 ## Chart Guide (Dashboard)
 

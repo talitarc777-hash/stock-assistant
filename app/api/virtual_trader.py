@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from time import perf_counter
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -35,6 +36,7 @@ def get_virtual_trader_live_status(
     auto_run: bool = Query(False),
 ) -> LiveTraderStatusResponse:
     """Return current live virtual trader status, with optional immediate run."""
+    started = perf_counter()
     try:
         resolved_model_name = resolve_selected_model_name(user_id=user_id, requested_model_name=model_name)
         tickers = [ticker.strip().upper()] if ticker else None
@@ -51,6 +53,15 @@ def get_virtual_trader_live_status(
                 model_name=resolved_model_name,
                 auto_run=False,
             )
+        elapsed_ms = (perf_counter() - started) * 1000.0
+        logger.info(
+            "virtual-trader live-status user_id=%s auto_run=%s tickers_evaluated=%d failed=%d elapsed_ms=%.1f",
+            user_id,
+            bool(auto_run),
+            int(status.tickers_evaluated),
+            int(status.tickers_failed),
+            elapsed_ms,
+        )
         return LiveTraderStatusResponse(**status.__dict__)
     except TraderSchedulerBusyError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -107,6 +118,7 @@ def get_virtual_trader_live_trades(
     limit: int = Query(50, ge=1, le=500),
 ) -> LiveTraderTradesResponse:
     """Return recent live simulated trade/decision records."""
+    started = perf_counter()
     try:
         payload = list_live_virtual_trader_trades(
             user_id=user_id,
@@ -114,6 +126,14 @@ def get_virtual_trader_live_trades(
             ticker=ticker.strip().upper() if ticker else None,
         )
         payload["count"] = len(payload.get("trades", []))
+        elapsed_ms = (perf_counter() - started) * 1000.0
+        logger.info(
+            "virtual-trader live-trades user_id=%s limit=%d count=%d elapsed_ms=%.1f",
+            user_id,
+            int(limit),
+            int(payload["count"]),
+            elapsed_ms,
+        )
         return LiveTraderTradesResponse(**payload)
     except LiveVirtualTraderError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

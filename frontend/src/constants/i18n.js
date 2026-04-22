@@ -315,6 +315,22 @@ export const LABELS = {
     en: "No runs in the last 24 hours.",
     zh: "\u904e\u53bb24\u5c0f\u6642\u5167\u6c92\u6709\u57f7\u884c\u7d00\u9304\u3002",
   },
+  loadMoreHistory: {
+    en: "Load More History",
+    zh: "\u8f09\u5165\u66f4\u591a\u6b77\u53f2\u8a18\u9304",
+  },
+  noMoreHistory: {
+    en: "No More History",
+    zh: "\u5df2\u7121\u66f4\u591a\u6b77\u53f2\u8a18\u9304",
+  },
+  loadAccountHistory: {
+    en: "Load Account History",
+    zh: "\u8f09\u5165\u5e33\u6236\u6b77\u53f2",
+  },
+  loadHistoricalReplay: {
+    en: "Load Historical Replay Data",
+    zh: "\u8f09\u5165\u6b77\u53f2\u56de\u653e\u8cc7\u6599",
+  },
 };
 
 export function getLabel(mode, key, vars = null) {
