@@ -1,4 +1,22 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+function normalizeApiBaseUrl(value) {
+  const fallback = "http://127.0.0.1:8000";
+  const raw = (value || "").trim();
+  if (!raw) return fallback;
+
+  const withoutTrailingSlash = raw.replace(/\/+$/, "");
+  if (withoutTrailingSlash.startsWith("http://") || withoutTrailingSlash.startsWith("https://")) {
+    return withoutTrailingSlash;
+  }
+
+  // Vercel env vars are sometimes set as "my-app.up.railway.app" without a scheme.
+  // Browsers treat that as a relative path and requests end up hitting Vercel (404).
+  if (withoutTrailingSlash.startsWith("localhost") || withoutTrailingSlash.startsWith("127.0.0.1")) {
+    return `http://${withoutTrailingSlash}`;
+  }
+  return `https://${withoutTrailingSlash}`;
+}
+
+const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL);
 
 const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
 
@@ -7,6 +25,9 @@ function sleep(ms) {
 }
 
 function parseErrorMessage(response, payloadDetail, fallbackMessage) {
+  if (response.status === 404) {
+    return "Backend endpoint not found (404). Check VITE_API_BASE_URL points to the backend root (no trailing /api) and that the backend is deployed.";
+  }
   if (payloadDetail) return String(payloadDetail);
   if (response.status === 503 || response.status === 502 || response.status === 504) {
     return "The server is starting up or temporarily busy. Please try again in a moment.";
@@ -22,9 +43,10 @@ export async function requestJson(path, options = {}) {
     method = "GET",
     body,
     headers = {},
-    timeoutMs = 12000,
-    retries = method === "GET" ? 1 : 0,
-    retryDelayMs = 350,
+    // Railway free tier can cold-start; give GETs a bit more room before surfacing "can't reach backend".
+    timeoutMs = 25000,
+    retries = method === "GET" ? 2 : 0,
+    retryDelayMs = 650,
     signal: externalSignal = null,
   } = options;
   const url = `${API_BASE_URL}${path}`;

@@ -18,7 +18,8 @@ async function postJson(path, body, options = {}) {
 
 export async function fetchWatchlistAnalyze(tickers, period = "5y") {
   const joined = encodeURIComponent(tickers.join(","));
-  return fetchJson(`/watchlist-analyze?tickers=${joined}&period=${period}`, { timeoutMs: 15000, retries: 1 });
+  // Batch analysis can be slow on cold-start (multiple tickers + indicator computation).
+  return fetchJson(`/watchlist-analyze?tickers=${joined}&period=${period}`, { timeoutMs: 45000, retries: 2 });
 }
 
 export async function fetchAnalyze(ticker, period = "5y") {
