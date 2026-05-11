@@ -1,0 +1,46 @@
+{
+  "generated_at_utc": "2026-04-24T20:38:27.170505+00:00",
+  "ticker": "IVV",
+  "period": "2y",
+  "target_name": "target_5d_return",
+  "task_type": "regression",
+  "model_name": "linear_regression",
+  "row_count": 496,
+  "feature_count": 51,
+  "time_series_splits": 5,
+  "validation_method": "walk_forward_expanding_window",
+  "validation_note": "Random train/test shuffling is avoided because time-series evaluation must preserve time order and keep future data out of the training window.",
+  "fold_sizes": [
+    {
+      "fold": 1,
+      "train_rows": 86,
+      "test_rows": 82
+    },
+    {
+      "fold": 2,
+      "train_rows": 168,
+      "test_rows": 82
+    },
+    {
+      "fold": 3,
+      "train_rows": 250,
+      "test_rows": 82
+    },
+    {
+      "fold": 4,
+      "train_rows": 332,
+      "test_rows": 82
+    },
+    {
+      "fold": 5,
+      "train_rows": 414,
+      "test_rows": 82
+    }
+  ],
+  "metrics": {
+    "mae": 8.270294276621936,
+    "rmse": 9.708724790359058,
+    "r2": -18.962073418461486,
+    "direction_accuracy": 0.48292682926829267
+  }
+}

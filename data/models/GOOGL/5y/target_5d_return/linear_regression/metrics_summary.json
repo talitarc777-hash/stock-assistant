@@ -1,11 +1,11 @@
 {
-  "generated_at_utc": "2026-04-21T09:34:18.398970+00:00",
+  "generated_at_utc": "2026-04-24T21:12:38.609770+00:00",
   "ticker": "GOOGL",
   "period": "5y",
   "target_name": "target_5d_return",
   "task_type": "regression",
   "model_name": "linear_regression",
-  "row_count": 1250,
+  "row_count": 1251,
   "feature_count": 51,
   "time_series_splits": 5,
   "validation_method": "walk_forward_expanding_window",
@@ -13,34 +13,34 @@
   "fold_sizes": [
     {
       "fold": 1,
-      "train_rows": 210,
+      "train_rows": 211,
       "test_rows": 208
     },
     {
       "fold": 2,
-      "train_rows": 418,
+      "train_rows": 419,
       "test_rows": 208
     },
     {
       "fold": 3,
-      "train_rows": 626,
+      "train_rows": 627,
       "test_rows": 208
     },
     {
       "fold": 4,
-      "train_rows": 834,
+      "train_rows": 835,
       "test_rows": 208
     },
     {
       "fold": 5,
-      "train_rows": 1042,
+      "train_rows": 1043,
       "test_rows": 208
     }
   ],
   "metrics": {
-    "mae": 66.39002518112518,
-    "rmse": 266.2983174217291,
-    "r2": -3638.687582171849,
-    "direction_accuracy": 0.4673076923076923
+    "mae": 222.76907274366854,
+    "rmse": 986.6560348087439,
+    "r2": -50064.267508833604,
+    "direction_accuracy": 0.4653846153846154
   }
 }

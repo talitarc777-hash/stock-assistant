@@ -1,11 +1,11 @@
 {
-  "generated_at_utc": "2026-04-21T07:52:55.833524+00:00",
+  "generated_at_utc": "2026-04-24T21:12:00.606461+00:00",
   "ticker": "IWM",
   "period": "5y",
   "target_name": "target_5d_return",
   "task_type": "regression",
   "model_name": "gradient_boosting",
-  "row_count": 1250,
+  "row_count": 1251,
   "feature_count": 51,
   "time_series_splits": 5,
   "validation_method": "walk_forward_expanding_window",
@@ -13,34 +13,34 @@
   "fold_sizes": [
     {
       "fold": 1,
-      "train_rows": 210,
+      "train_rows": 211,
       "test_rows": 208
     },
     {
       "fold": 2,
-      "train_rows": 418,
+      "train_rows": 419,
       "test_rows": 208
     },
     {
       "fold": 3,
-      "train_rows": 626,
+      "train_rows": 627,
       "test_rows": 208
     },
     {
       "fold": 4,
-      "train_rows": 834,
+      "train_rows": 835,
       "test_rows": 208
     },
     {
       "fold": 5,
-      "train_rows": 1042,
+      "train_rows": 1043,
       "test_rows": 208
     }
   ],
   "metrics": {
-    "mae": 3.246182378774975,
-    "rmse": 4.003201895311131,
-    "r2": -0.6696127711863717,
-    "direction_accuracy": 0.4855769230769231
+    "mae": 3.2281265292236476,
+    "rmse": 3.975497624263045,
+    "r2": -0.6504281451136311,
+    "direction_accuracy": 0.4778846153846154
   }
 }

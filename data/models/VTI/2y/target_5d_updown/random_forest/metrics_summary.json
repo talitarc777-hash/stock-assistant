@@ -1,0 +1,48 @@
+{
+  "generated_at_utc": "2026-04-24T20:38:19.215962+00:00",
+  "ticker": "VTI",
+  "period": "2y",
+  "target_name": "target_5d_updown",
+  "task_type": "classification",
+  "model_name": "random_forest",
+  "row_count": 496,
+  "feature_count": 51,
+  "time_series_splits": 5,
+  "validation_method": "walk_forward_expanding_window",
+  "validation_note": "Random train/test shuffling is avoided because time-series evaluation must preserve time order and keep future data out of the training window.",
+  "fold_sizes": [
+    {
+      "fold": 1,
+      "train_rows": 86,
+      "test_rows": 82
+    },
+    {
+      "fold": 2,
+      "train_rows": 168,
+      "test_rows": 82
+    },
+    {
+      "fold": 3,
+      "train_rows": 250,
+      "test_rows": 82
+    },
+    {
+      "fold": 4,
+      "train_rows": 332,
+      "test_rows": 82
+    },
+    {
+      "fold": 5,
+      "train_rows": 414,
+      "test_rows": 82
+    }
+  ],
+  "metrics": {
+    "accuracy": 0.48048780487804876,
+    "precision": 0.5774647887323944,
+    "recall": 0.5,
+    "f1": 0.5359477124183006,
+    "positive_rate_actual": 0.6,
+    "positive_rate_predicted": 0.5195121951219512
+  }
+}

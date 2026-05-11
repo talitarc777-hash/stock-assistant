@@ -1,0 +1,48 @@
+{
+  "generated_at_utc": "2026-04-24T20:37:17.274032+00:00",
+  "ticker": "IWM",
+  "period": "2y",
+  "target_name": "target_5d_updown",
+  "task_type": "classification",
+  "model_name": "random_forest",
+  "row_count": 496,
+  "feature_count": 51,
+  "time_series_splits": 5,
+  "validation_method": "walk_forward_expanding_window",
+  "validation_note": "Random train/test shuffling is avoided because time-series evaluation must preserve time order and keep future data out of the training window.",
+  "fold_sizes": [
+    {
+      "fold": 1,
+      "train_rows": 86,
+      "test_rows": 82
+    },
+    {
+      "fold": 2,
+      "train_rows": 168,
+      "test_rows": 82
+    },
+    {
+      "fold": 3,
+      "train_rows": 250,
+      "test_rows": 82
+    },
+    {
+      "fold": 4,
+      "train_rows": 332,
+      "test_rows": 82
+    },
+    {
+      "fold": 5,
+      "train_rows": 414,
+      "test_rows": 82
+    }
+  ],
+  "metrics": {
+    "accuracy": 0.5097560975609756,
+    "precision": 0.5748502994011976,
+    "recall": 0.4247787610619469,
+    "f1": 0.48854961832061067,
+    "positive_rate_actual": 0.551219512195122,
+    "positive_rate_predicted": 0.4073170731707317
+  }
+}

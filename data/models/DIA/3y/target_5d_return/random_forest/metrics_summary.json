@@ -1,0 +1,46 @@
+{
+  "generated_at_utc": "2026-05-07T08:11:09.927812+00:00",
+  "ticker": "DIA",
+  "period": "3y",
+  "target_name": "target_5d_return",
+  "task_type": "regression",
+  "model_name": "random_forest",
+  "row_count": 747,
+  "feature_count": 51,
+  "time_series_splits": 5,
+  "validation_method": "walk_forward_expanding_window",
+  "validation_note": "Random train/test shuffling is avoided because time-series evaluation must preserve time order and keep future data out of the training window.",
+  "fold_sizes": [
+    {
+      "fold": 1,
+      "train_rows": 127,
+      "test_rows": 124
+    },
+    {
+      "fold": 2,
+      "train_rows": 251,
+      "test_rows": 124
+    },
+    {
+      "fold": 3,
+      "train_rows": 375,
+      "test_rows": 124
+    },
+    {
+      "fold": 4,
+      "train_rows": 499,
+      "test_rows": 124
+    },
+    {
+      "fold": 5,
+      "train_rows": 623,
+      "test_rows": 124
+    }
+  ],
+  "metrics": {
+    "mae": 1.7299447102711918,
+    "rmse": 2.25768860561155,
+    "r2": -0.43960187376732907,
+    "direction_accuracy": 0.482258064516129
+  }
+}

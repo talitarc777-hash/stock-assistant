@@ -1,11 +1,11 @@
 {
-  "generated_at_utc": "2026-04-21T09:15:08.183596+00:00",
+  "generated_at_utc": "2026-04-24T21:19:07.983412+00:00",
   "ticker": "SCHV",
   "period": "5y",
   "target_name": "target_5d_return",
   "task_type": "regression",
   "model_name": "random_forest",
-  "row_count": 1250,
+  "row_count": 1251,
   "feature_count": 51,
   "time_series_splits": 5,
   "validation_method": "walk_forward_expanding_window",
@@ -13,34 +13,34 @@
   "fold_sizes": [
     {
       "fold": 1,
-      "train_rows": 210,
+      "train_rows": 211,
       "test_rows": 208
     },
     {
       "fold": 2,
-      "train_rows": 418,
+      "train_rows": 419,
       "test_rows": 208
     },
     {
       "fold": 3,
-      "train_rows": 626,
+      "train_rows": 627,
       "test_rows": 208
     },
     {
       "fold": 4,
-      "train_rows": 834,
+      "train_rows": 835,
       "test_rows": 208
     },
     {
       "fold": 5,
-      "train_rows": 1042,
+      "train_rows": 1043,
       "test_rows": 208
     }
   ],
   "metrics": {
-    "mae": 2.2900342428668163,
-    "rmse": 2.8165303688405774,
-    "r2": -0.8497852751589936,
-    "direction_accuracy": 0.4625
+    "mae": 2.1940006843594557,
+    "rmse": 2.742629273703615,
+    "r2": -0.756373840877663,
+    "direction_accuracy": 0.4721153846153846
   }
 }

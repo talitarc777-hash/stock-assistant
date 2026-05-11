@@ -1,11 +1,11 @@
 {
-  "generated_at_utc": "2026-04-21T09:14:06.094919+00:00",
+  "generated_at_utc": "2026-04-24T21:17:37.010574+00:00",
   "ticker": "SCHB",
   "period": "5y",
   "target_name": "target_5d_updown",
   "task_type": "classification",
   "model_name": "random_forest",
-  "row_count": 1250,
+  "row_count": 1251,
   "feature_count": 51,
   "time_series_splits": 5,
   "validation_method": "walk_forward_expanding_window",
@@ -13,36 +13,36 @@
   "fold_sizes": [
     {
       "fold": 1,
-      "train_rows": 210,
+      "train_rows": 211,
       "test_rows": 208
     },
     {
       "fold": 2,
-      "train_rows": 418,
+      "train_rows": 419,
       "test_rows": 208
     },
     {
       "fold": 3,
-      "train_rows": 626,
+      "train_rows": 627,
       "test_rows": 208
     },
     {
       "fold": 4,
-      "train_rows": 834,
+      "train_rows": 835,
       "test_rows": 208
     },
     {
       "fold": 5,
-      "train_rows": 1042,
+      "train_rows": 1043,
       "test_rows": 208
     }
   ],
   "metrics": {
-    "accuracy": 0.4480769230769231,
-    "precision": 0.5714285714285714,
-    "recall": 0.21122112211221122,
-    "f1": 0.30843373493975906,
+    "accuracy": 0.41634615384615387,
+    "precision": 0.49828178694158076,
+    "recall": 0.23927392739273928,
+    "f1": 0.3232998885172798,
     "positive_rate_actual": 0.5826923076923077,
-    "positive_rate_predicted": 0.2153846153846154
+    "positive_rate_predicted": 0.2798076923076923
   }
 }
